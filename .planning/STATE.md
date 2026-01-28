@@ -14,16 +14,19 @@ See: .planning/PROJECT.md
 
 ## Progress
 
-| Phase | Name | Status | Plans |
-|-------|------|--------|-------|
-| 1 | Foundation | Pending | 0/0 |
-| 2 | Audio Pipeline | Pending | 0/0 |
-| 3 | Transcription | Pending | 0/0 |
-| 4 | LLM Integration | Pending | 0/0 |
-| 5 | Overlay UI | Pending | 0/0 |
-| 6 | Prompts & Settings | Pending | 0/0 |
+| Phase | Name | Track | Status | Plans |
+|-------|------|-------|--------|-------|
+| 1 | Foundation | — | ○ Pending | 0/0 |
+| 2 | Audio Pipeline | A | ○ Pending | 0/0 |
+| 3 | Transcription | A | ○ Pending | 0/0 |
+| 4 | LLM Integration | A | ○ Pending | 0/0 |
+| 5 | Overlay UI | B | ○ Pending | 0/0 |
+| 6 | Prompts & Settings | C | ○ Pending | 0/0 |
+| 7 | Integration | — | ○ Pending | 0/0 |
 
-**Overall:** 0/6 phases complete
+**Overall:** 0/7 phases complete
+
+**Parallel execution:** After Phase 1, Tracks A/B/C can run in separate terminals
 
 ```
 [                    ] 0%
@@ -42,7 +45,7 @@ See: .planning/PROJECT.md
 |--------|-------|
 | Plans completed | 0 |
 | Requirements delivered | 0/44 |
-| Phases completed | 0/6 |
+| Phases completed | 0/7 |
 
 ## Accumulated Context
 
@@ -50,8 +53,11 @@ See: .planning/PROJECT.md
 
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| 6-phase structure | Matches technical dependencies: Foundation -> Audio -> STT -> LLM -> UI -> Settings | 2026-01-28 |
-| Sequential phases 1-4 | Tight coupling: audio required for STT, STT required for LLM context | 2026-01-28 |
+| 7-phase structure with parallel tracks | Phase 1 first, then Tracks A/B/C in parallel, Phase 7 integrates | 2026-01-28 |
+| Track A (2→3→4) sequential | Tight coupling: audio required for STT, STT required for LLM context | 2026-01-28 |
+| Track B (Phase 5) parallel | Overlay UI uses mock data, doesn't need real pipeline | 2026-01-28 |
+| Track C (Phase 6) parallel | Settings/Popup independent of overlay and pipeline | 2026-01-28 |
+| Phase 7 Integration | Wire tracks together, resolve conflicts, E2E testing | 2026-01-28 |
 
 ### Technical Notes
 
@@ -78,7 +84,12 @@ None at this time.
 ### Next Actions
 
 1. Run `/gsd:plan-phase 1` to create implementation plan for Foundation phase
-2. Phase 2 (Audio Pipeline) flagged for deeper research before planning
+2. After Phase 1 completes, open 3 terminals for parallel execution:
+   - Terminal 1 (Track A): `/gsd:plan-phase 2` → 3 → 4
+   - Terminal 2 (Track B): `/gsd:plan-phase 5`
+   - Terminal 3 (Track C): `/gsd:plan-phase 6`
+3. After all tracks complete: `/gsd:plan-phase 7` for integration
+4. Phase 2 (Audio Pipeline) flagged for deeper research before planning
 
 ---
 

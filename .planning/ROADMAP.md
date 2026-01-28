@@ -1,22 +1,45 @@
 # Roadmap: AI Interview Assistant
 
 **Created:** 2026-01-28
-**Phases:** 6
+**Phases:** 7 (3 parallel tracks + integration)
 **Requirements:** 44 mapped
 **Depth:** Comprehensive
+**Execution:** Parallel tracks supported
 
 ## Overview
 
-This roadmap delivers a Chrome MV3 extension providing real-time transcription and dual parallel LLM responses during technical interviews. Phases follow strict sequential ordering due to tight technical coupling: Foundation establishes the extension shell, Audio Pipeline captures and processes tab audio, STT Integration converts speech to text, LLM Integration delivers the core value (fast hint + full answer), Overlay UI presents everything to the user, and Prompts & Settings enables customization.
+This roadmap delivers a Chrome MV3 extension providing real-time transcription and dual parallel LLM responses during technical interviews.
 
-| Phase | Name | Goal | Requirements |
-|-------|------|------|--------------|
-| 1 | Foundation | Extension loads and components communicate | INF-01, INF-02, INF-03, INF-04 |
-| 2 | Audio Pipeline | Tab and microphone audio captured as PCM chunks | AUD-01, AUD-02, AUD-03, AUD-04, AUD-05 |
-| 3 | Transcription | Live speech-to-text with speaker labels | STT-01, STT-02, STT-03, STT-04, STT-05, STT-06 |
-| 4 | LLM Integration | Hotkey triggers dual parallel AI responses | LLM-01, LLM-02, LLM-03, LLM-04, LLM-05, LLM-06, KEY-01, KEY-02, KEY-03, KEY-04, KEY-05 |
-| 5 | Overlay UI | Floating interface displays transcript and responses | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07, UI-08 |
-| 6 | Prompts & Settings | User configures API keys, models, and prompt templates | PRM-01, PRM-02, PRM-03, PRM-04, PRM-05, SET-01, SET-02, SET-03, SET-04, SET-05 |
+**Execution model:** Phase 1 runs first (foundation). Then 3 parallel tracks can run simultaneously in separate terminals. Phase 7 integrates everything.
+
+```
+Phase 1 (Foundation) ─── SEQUENTIAL, FIRST
+         │
+         ├──→ Track A: Phase 2→3→4 (Audio→STT→LLM)  ← Terminal 1
+         ├──→ Track B: Phase 5 (Overlay UI)          ← Terminal 2
+         └──→ Track C: Phase 6 (Settings/Prompts)    ← Terminal 3
+                        │
+                        ↓
+              Phase 7 (Integration) ─── SEQUENTIAL, LAST
+```
+
+**Folder ownership (prevents git conflicts):**
+| Track | Folders |
+|-------|---------|
+| A (Pipeline) | `src/background/`, `src/offscreen/`, `src/services/`, `src/adapters/` |
+| B (Overlay) | `src/overlay/`, `src/content/` |
+| C (Settings) | `src/popup/`, `src/store/` |
+| Shared | `src/types/`, `src/utils/` (coordinate changes) |
+
+| Phase | Track | Name | Goal | Requirements |
+|-------|-------|------|------|--------------|
+| 1 | — | Foundation | Extension loads and components communicate | INF-01, INF-02, INF-03, INF-04 |
+| 2 | A | Audio Pipeline | Tab and microphone audio captured as PCM chunks | AUD-01, AUD-02, AUD-03, AUD-04, AUD-05 |
+| 3 | A | Transcription | Live speech-to-text with speaker labels | STT-01, STT-02, STT-03, STT-04, STT-05, STT-06 |
+| 4 | A | LLM Integration | Hotkey triggers dual parallel AI responses | LLM-01, LLM-02, LLM-03, LLM-04, LLM-05, LLM-06, KEY-01, KEY-02, KEY-03, KEY-04, KEY-05 |
+| 5 | B | Overlay UI | Floating interface with mock data | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07, UI-08 |
+| 6 | C | Prompts & Settings | User configures API keys, models, and prompt templates | PRM-01, PRM-02, PRM-03, PRM-04, PRM-05, SET-01, SET-02, SET-03, SET-04, SET-05 |
+| 7 | — | Integration | Wire all tracks together, resolve conflicts, E2E test | — |
 
 ---
 
@@ -124,9 +147,9 @@ This roadmap delivers a Chrome MV3 extension providing real-time transcription a
 
 ---
 
-### Phase 5: Overlay UI
+### Phase 5: Overlay UI (Track B — can run parallel)
 
-**Goal:** User sees professional floating overlay with transcript and dual response panels that can be positioned and resized.
+**Goal:** User sees professional floating overlay with transcript and dual response panels that can be positioned and resized. Uses mock data during development.
 
 **Requirements:**
 - UI-01: Floating overlay injected via Shadow DOM
@@ -145,13 +168,18 @@ This roadmap delivers a Chrome MV3 extension providing real-time transcription a
 4. Overlay has transparent blurred background that shows page beneath
 5. User can minimize overlay to small bar and expand it back
 
-**Dependencies:** Phase 4 (content to display in overlay)
+**Dependencies:** Phase 1 only (content script injection)
+
+**Parallel execution notes:**
+- Build with mock transcript data and mock LLM responses
+- Define clear interfaces for real data (hooked up in Phase 7)
+- Folder ownership: `src/overlay/`, `src/content/`
 
 **Research flag:** Standard patterns, Shadow DOM CSS isolation
 
 ---
 
-### Phase 6: Prompts & Settings
+### Phase 6: Prompts & Settings (Track C — can run parallel)
 
 **Goal:** User configures API keys, selects models, and switches between prompt templates for different interview types.
 
@@ -174,22 +202,63 @@ This roadmap delivers a Chrome MV3 extension providing real-time transcription a
 4. User can create and save custom prompt templates
 5. All settings persist across browser sessions
 
-**Dependencies:** Phase 5 (UI foundation for settings panel)
+**Dependencies:** Phase 1 only (popup, chrome.storage)
+
+**Parallel execution notes:**
+- Popup settings panel is independent of overlay
+- Define Zustand store interfaces for settings (consumed by pipeline in Phase 7)
+- Folder ownership: `src/popup/`, `src/store/`
 
 **Research flag:** Standard patterns, chrome.storage API straightforward
 
 ---
 
+### Phase 7: Integration
+
+**Goal:** Wire all parallel tracks together, resolve any conflicts, and verify end-to-end functionality.
+
+**Requirements:**
+- No new requirements — this phase connects existing implementations
+
+**What gets integrated:**
+1. **Pipeline → Overlay:** Real transcript data replaces mock data in UI
+2. **Pipeline → Settings:** LLM service reads API keys and model selection from store
+3. **Overlay → Settings:** Blur level and hotkey bindings applied to overlay
+4. **Hotkeys → Pipeline → Overlay:** Full flow from capture to response display
+
+**Success Criteria:**
+1. Start recording → see real transcript in overlay (not mock)
+2. Hold hotkey → release → see real LLM responses streaming
+3. Change API keys in settings → pipeline uses new keys
+4. Change blur level → overlay updates immediately
+5. Full end-to-end flow works on Google Meet
+
+**Dependencies:** Phases 4, 5, 6 all complete
+
+**Tasks:**
+1. Resolve any git conflicts from parallel development
+2. Connect Zustand store subscriptions across components
+3. Replace mock data providers with real data sources
+4. Integration testing on Google Meet
+5. Fix any interface mismatches between tracks
+
+**Research flag:** None — integration work
+
+---
+
 ## Progress
 
-| Phase | Status | Plans |
-|-------|--------|-------|
-| 1 - Foundation | Pending | 0/0 |
-| 2 - Audio Pipeline | Pending | 0/0 |
-| 3 - Transcription | Pending | 0/0 |
-| 4 - LLM Integration | Pending | 0/0 |
-| 5 - Overlay UI | Pending | 0/0 |
-| 6 - Prompts & Settings | Pending | 0/0 |
+| Phase | Track | Status | Plans |
+|-------|-------|--------|-------|
+| 1 - Foundation | — | ○ Pending | 0/0 |
+| 2 - Audio Pipeline | A | ○ Pending | 0/0 |
+| 3 - Transcription | A | ○ Pending | 0/0 |
+| 4 - LLM Integration | A | ○ Pending | 0/0 |
+| 5 - Overlay UI | B | ○ Pending | 0/0 |
+| 6 - Prompts & Settings | C | ○ Pending | 0/0 |
+| 7 - Integration | — | ○ Pending | 0/0 |
+
+**Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
 
 ---
 
@@ -197,20 +266,47 @@ This roadmap delivers a Chrome MV3 extension providing real-time transcription a
 
 All 44 v1 requirements mapped to exactly one phase:
 
-| Category | Count | Phase |
-|----------|-------|-------|
-| Infrastructure (INF) | 4 | Phase 1 |
-| Audio Capture (AUD) | 5 | Phase 2 |
-| Transcription (STT) | 6 | Phase 3 |
-| LLM Integration (LLM) | 6 | Phase 4 |
-| Hotkey System (KEY) | 5 | Phase 4 |
-| Overlay UI (UI) | 8 | Phase 5 |
-| Prompt System (PRM) | 5 | Phase 6 |
-| Settings (SET) | 5 | Phase 6 |
+| Category | Count | Phase | Track |
+|----------|-------|-------|-------|
+| Infrastructure (INF) | 4 | Phase 1 | — |
+| Audio Capture (AUD) | 5 | Phase 2 | A |
+| Transcription (STT) | 6 | Phase 3 | A |
+| LLM Integration (LLM) | 6 | Phase 4 | A |
+| Hotkey System (KEY) | 5 | Phase 4 | A |
+| Overlay UI (UI) | 8 | Phase 5 | B |
+| Prompt System (PRM) | 5 | Phase 6 | C |
+| Settings (SET) | 5 | Phase 6 | C |
 
 **Total:** 44/44 requirements mapped
+
+**Phase 7 (Integration):** No new requirements — connects implementations from Tracks A/B/C
+
+---
+
+## Parallel Execution Guide
+
+**Step 1:** Complete Phase 1 (Foundation) — all tracks need this
+
+**Step 2:** Open 3 terminals and run in parallel:
+```
+Terminal 1: /gsd:plan-phase 2  →  /gsd:plan-phase 3  →  /gsd:plan-phase 4
+Terminal 2: /gsd:plan-phase 5
+Terminal 3: /gsd:plan-phase 6
+```
+
+**Step 3:** Before starting each phase, pull latest:
+```bash
+git pull --rebase
+```
+
+**Step 4:** After all 3 tracks complete, run:
+```
+/gsd:plan-phase 7
+```
+
+**Conflict prevention:** Each track owns specific folders. Avoid editing `src/types/` or `src/utils/` without coordination.
 
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-28*
+*Last updated: 2026-01-28 — restructured for parallel execution*
