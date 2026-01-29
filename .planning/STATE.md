@@ -1,8 +1,8 @@
 # Project State
 
 **Last Updated:** 2026-01-29
-**Current Phase:** 2 (in progress)
-**Current Plan:** Phase 2, Plan 1 complete (1/4 plans)
+**Current Phase:** Multi-track execution
+**Current Plan:** Track A (2/1), Track B (5/1), Track C (6/1 complete)
 
 ## Project Reference
 
@@ -10,7 +10,7 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** Track A - Audio Pipeline development
+**Current focus:** Parallel track development - Tracks A/B/C running concurrently
 
 ## Progress
 
@@ -20,30 +20,31 @@ See: .planning/PROJECT.md
 | 2 | Audio Pipeline | A | In Progress | 1/4 |
 | 3 | Transcription | A | Pending | 0/0 |
 | 4 | LLM Integration | A | Pending | 0/0 |
-| 5 | Overlay UI | B | Pending | 0/0 |
-| 6 | Prompts & Settings | C | Pending | 0/0 |
+| 5 | Overlay UI | B | In Progress | 1/? |
+| 6 | Prompts & Settings | C | In Progress | 1/? |
 | 7 | Integration | -- | Pending | 0/0 |
 
 **Overall:** 1/7 phases complete
 
-**Parallel execution:** Phase 1 complete - Tracks A/B/C can now run in separate terminals
+**Parallel execution:** Tracks A/B/C running in parallel
 
 ```
-[█████               ] 25%
+[██████              ] 30%
 ```
 
 ## Current Position
 
-- **Phase:** 2 - Audio Pipeline (In Progress)
-- **Plan:** 1/4 complete
-- **Status:** Plan 02-01 complete, ready for Plan 02-02
+- **Phase:** Multi-track execution
+- **Track A:** Phase 2, Plan 1 complete (Audio Pipeline)
+- **Track B:** Phase 5, Plan 1 in progress (Overlay UI)
+- **Track C:** Phase 6, Plan 1 complete (Prompts & Settings)
 - **Blocker:** None
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 5 |
+| Plans completed | 7 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
 | Phases completed | 1/7 |
 
@@ -67,6 +68,9 @@ See: .planning/PROJECT.md
 | AudioChunkMessage union type | TAB_AUDIO_CHUNK and MIC_AUDIO_CHUNK share chunk/timestamp structure | 2026-01-29 |
 | PCM processor buffer size 1600 | 100ms at 16kHz sample rate for consistent chunk timing | 2026-01-29 |
 | Vanilla JS for AudioWorklet | Worklet runs in separate thread without module resolution | 2026-01-29 |
+| zustand@4 for webext-zustand | webext-zustand@0.2.0 peer dependency requires zustand@^4 | 2026-01-29 |
+| webext-zustand type declarations | Package exports don't resolve TS types, manual .d.ts required | 2026-01-29 |
+| crypto.randomUUID() for IDs | No uuid dependency needed, built-in browser API | 2026-01-29 |
 
 ### Technical Notes
 
@@ -82,6 +86,8 @@ See: .planning/PROJECT.md
 - createShadowRootUi with cssInjectionMode: 'ui' handles Shadow DOM CSS injection
 - AudioWorklet processors must be vanilla JS in public/ folder
 - Transferable ArrayBuffer for zero-copy audio chunk messages
+- Zustand store uses chromeStorage adapter for chrome.storage.local persistence
+- storeReadyPromise from wrapStore enables cross-context state sync
 
 ### Open Questions
 
@@ -108,13 +114,14 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 02-01-PLAN.md (Audio foundation)
-- **Outcome:** Audio message types and PCM processor created
+- **Activity:** Completed 06-01-PLAN.md (Zustand Store Foundation)
+- **Outcome:** Store with persistence, settings/templates slices, cross-context sync
 
 ### Next Actions
 
-1. Continue Track A with Phase 2 Plan 02 (Tab Audio Capture)
-2. Tracks B/C can run in separate terminals
+1. Track A: Continue Phase 2 Plan 02 (Tab Audio Capture)
+2. Track B: Continue Phase 5 Plan 02 (Overlay components)
+3. Track C: Continue Phase 6 Plan 02 (Settings UI)
 
 ---
 
