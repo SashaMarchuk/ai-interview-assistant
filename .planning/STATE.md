@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (2/3 complete), Track B (5/3 complete), Track C (6/3 complete)
+**Current Plan:** Track A (2/4 complete), Track B (5/4 COMPLETE), Track C (6/3 complete)
 
 ## Project Reference
 
@@ -20,23 +20,23 @@ See: .planning/PROJECT.md
 | 2 | Audio Pipeline | A | COMPLETE | 4/4 |
 | 3 | Transcription | A | Pending | 0/0 |
 | 4 | LLM Integration | A | Pending | 0/0 |
-| 5 | Overlay UI | B | In Progress | 3/? |
+| 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | In Progress | 3/? |
 | 7 | Integration | -- | Pending | 0/0 |
 
-**Overall:** 2/7 phases complete
+**Overall:** 3/7 phases complete
 
 **Parallel execution:** Tracks A/B/C running in parallel
 
 ```
-[████████            ] 40%
+[██████████          ] 50%
 ```
 
 ## Current Position
 
 - **Phase:** Multi-track execution
 - **Track A:** Phase 2 COMPLETE, ready for Phase 3 (Transcription)
-- **Track B:** Phase 5, Plan 3 complete (Content Panels)
+- **Track B:** Phase 5 COMPLETE - all overlay components integrated
 - **Track C:** Phase 6, Plan 3 complete (Template Manager UI)
 - **Blocker:** None
 
@@ -44,9 +44,9 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 14 |
+| Plans completed | 15 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
-| Phases completed | 2/7 |
+| Phases completed | 3/7 |
 
 ## Accumulated Context
 
@@ -83,6 +83,9 @@ See: .planning/PROJECT.md
 | Vertical stacked template layout | Popup 384px too narrow for side-by-side list/editor | 2026-01-29 |
 | Tab audio passthrough via connect(destination) | Ensures interviewer remains audible during tab capture | 2026-01-29 |
 | Switch statement for message handlers | TypeScript discriminated union narrowing works better with switch than if-chain | 2026-01-29 |
+| Transparent glassmorphism overlay | bg-black/10 with backdrop-blur-md shows page content through overlay | 2026-01-29 |
+| Small draggable AI button for minimized | 56x44 draggable button maintains position consistency | 2026-01-29 |
+| Window resize listener for overlay | Repositions overlay within viewport on window resize | 2026-01-29 |
 
 ### Technical Notes
 
@@ -112,6 +115,9 @@ See: .planning/PROJECT.md
 - Interim transcript results shown at 60% opacity with "..." indicator
 - Template type badge colors: system-design=purple, coding=green, behavioral=orange, custom=gray
 - useDebouncedCallback pattern for form fields with delayed store updates
+- Overlay barrel export at src/overlay/index.ts for clean imports
+- Minimized overlay button is draggable Rnd component, not fixed position
+- Window resize event triggers boundary repositioning for overlay
 
 ### Open Questions
 
@@ -138,14 +144,14 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 02-04-PLAN.md (Popup Start/Stop UI)
-- **Outcome:** Phase 2 Audio Pipeline COMPLETE - all success criteria verified
+- **Activity:** Completed 05-04-PLAN.md (Overlay Integration)
+- **Outcome:** Phase 5 Overlay UI COMPLETE - glassmorphism styling, draggable minimize button, window resize handling
 
 ### Next Actions
 
 1. Track A: Begin Phase 3 (Transcription) - plans need creation
-2. Track B: Continue Phase 5 (Overlay components)
-3. Track C: Phase 6 Template Manager complete - check for remaining plans
+2. Track B: Phase 5 COMPLETE - no further action needed
+3. Track C: Check for remaining Phase 6 plans
 
 ---
 
