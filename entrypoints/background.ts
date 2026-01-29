@@ -191,6 +191,44 @@ async function handleMessage(
       console.log('PONG received in background - unexpected');
       return { received: true };
 
+    // Transcription lifecycle messages - to be implemented in Phase 3
+    case 'START_TRANSCRIPTION':
+      // TODO: Forward to offscreen document to initiate WebSocket connections
+      console.log('START_TRANSCRIPTION received - not yet implemented');
+      return { received: true };
+
+    case 'STOP_TRANSCRIPTION':
+      // TODO: Forward to offscreen document to close WebSocket connections
+      console.log('STOP_TRANSCRIPTION received - not yet implemented');
+      return { received: true };
+
+    case 'TRANSCRIPTION_STARTED':
+      console.log('Transcription started notification received');
+      return { received: true };
+
+    case 'TRANSCRIPTION_STOPPED':
+      console.log('Transcription stopped notification received');
+      return { received: true };
+
+    case 'TRANSCRIPTION_ERROR':
+      console.error('Transcription error:', message.source, message.error, 'canRetry:', message.canRetry);
+      return { received: true };
+
+    case 'TRANSCRIPT_PARTIAL':
+      console.log('Partial transcript:', message.source, message.text);
+      // TODO: Forward to content script for UI update
+      return { received: true };
+
+    case 'TRANSCRIPT_FINAL':
+      console.log('Final transcript:', message.source, message.speaker, message.text);
+      // TODO: Forward to content script for UI update
+      return { received: true };
+
+    case 'TRANSCRIPT_UPDATE':
+      console.log('Transcript update:', message.entries.length, 'entries');
+      // TODO: Forward to content script for UI update
+      return { received: true };
+
     default: {
       // Exhaustive check - TypeScript will error if we miss a case
       const _exhaustiveCheck: never = message;

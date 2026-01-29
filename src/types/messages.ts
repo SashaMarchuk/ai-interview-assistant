@@ -1,3 +1,5 @@
+import type { TranscriptEntry } from './transcript';
+
 // Message types as discriminated union
 export type MessageType =
   | 'PING'
@@ -17,7 +19,17 @@ export type MessageType =
   // Microphone capture lifecycle
   | 'START_MIC_CAPTURE'
   | 'STOP_MIC_CAPTURE'
-  | 'MIC_AUDIO_CHUNK';
+  | 'MIC_AUDIO_CHUNK'
+  // Transcription lifecycle
+  | 'START_TRANSCRIPTION'
+  | 'STOP_TRANSCRIPTION'
+  | 'TRANSCRIPTION_STARTED'
+  | 'TRANSCRIPTION_STOPPED'
+  | 'TRANSCRIPTION_ERROR'
+  // Transcript updates
+  | 'TRANSCRIPT_PARTIAL'
+  | 'TRANSCRIPT_FINAL'
+  | 'TRANSCRIPT_UPDATE';
 
 // Base message interface
 interface BaseMessage {
@@ -104,6 +116,53 @@ export interface StopMicCaptureMessage extends BaseMessage {
   type: 'STOP_MIC_CAPTURE';
 }
 
+// Transcription lifecycle message interfaces
+export interface StartTranscriptionMessage extends BaseMessage {
+  type: 'START_TRANSCRIPTION';
+  apiKey: string;
+}
+
+export interface StopTranscriptionMessage extends BaseMessage {
+  type: 'STOP_TRANSCRIPTION';
+}
+
+export interface TranscriptionStartedMessage extends BaseMessage {
+  type: 'TRANSCRIPTION_STARTED';
+}
+
+export interface TranscriptionStoppedMessage extends BaseMessage {
+  type: 'TRANSCRIPTION_STOPPED';
+}
+
+export interface TranscriptionErrorMessage extends BaseMessage {
+  type: 'TRANSCRIPTION_ERROR';
+  source: 'tab' | 'mic';
+  error: string;
+  canRetry: boolean;
+}
+
+// Transcript update message interfaces
+export interface TranscriptPartialMessage extends BaseMessage {
+  type: 'TRANSCRIPT_PARTIAL';
+  source: 'tab' | 'mic';
+  text: string;
+  timestamp: number;
+}
+
+export interface TranscriptFinalMessage extends BaseMessage {
+  type: 'TRANSCRIPT_FINAL';
+  source: 'tab' | 'mic';
+  text: string;
+  timestamp: number;
+  id: string;
+  speaker: string;
+}
+
+export interface TranscriptUpdateMessage extends BaseMessage {
+  type: 'TRANSCRIPT_UPDATE';
+  entries: TranscriptEntry[];
+}
+
 // Union type for all messages
 export type ExtensionMessage =
   | PingMessage
@@ -121,7 +180,15 @@ export type ExtensionMessage =
   | TabAudioChunkMessage
   | MicAudioChunkMessage
   | StartMicCaptureMessage
-  | StopMicCaptureMessage;
+  | StopMicCaptureMessage
+  | StartTranscriptionMessage
+  | StopTranscriptionMessage
+  | TranscriptionStartedMessage
+  | TranscriptionStoppedMessage
+  | TranscriptionErrorMessage
+  | TranscriptPartialMessage
+  | TranscriptFinalMessage
+  | TranscriptUpdateMessage;
 
 // Type guard for message checking
 export function isMessage<T extends ExtensionMessage>(
