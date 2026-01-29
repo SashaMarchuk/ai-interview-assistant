@@ -36,7 +36,7 @@ See: .planning/PROJECT.md
 
 - **Phase:** Multi-track execution
 - **Track A:** Phase 2, Plan 3 complete (Microphone Capture)
-- **Track B:** Phase 5, Plan 2 complete (Overlay Components)
+- **Track B:** Phase 5, Plan 3 complete (Content Panels)
 - **Track C:** Phase 6, Plan 1 complete (Prompts & Settings)
 - **Blocker:** None
 
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 10 |
+| Plans completed | 11 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
 | Phases completed | 1/7 |
 
@@ -76,6 +76,9 @@ See: .planning/PROJECT.md
 | use-chrome-storage for overlay position | React hooks for chrome.storage.local persistence | 2026-01-29 |
 | react-rnd for drag/resize | Single library combining react-draggable and react-resizable | 2026-01-29 |
 | Tailwind v4 @theme inline for Shadow DOM | @property declarations don't work in Shadow DOM, need explicit px values | 2026-01-29 |
+| Speaker colors: You=blue, Interviewer=purple | Color coding for quick speaker identification in transcript | 2026-01-29 |
+| Fast hint green, full answer purple | Visual distinction between quick guidance and detailed response | 2026-01-29 |
+| Status indicator with pulse animation | Visual feedback for pending/streaming states | 2026-01-29 |
 
 ### Technical Notes
 
@@ -100,6 +103,9 @@ See: .planning/PROJECT.md
 - Overlay uses controlled react-rnd pattern with position/size from hook
 - dragHandleClassName links OverlayHeader to Rnd drag behavior
 - isLoaded guard prevents flash of default position on initial render
+- TranscriptPanel uses useAutoScroll hook with entries.length as dependency
+- Left border accent (border-l-2) pattern for visual section distinction
+- Interim transcript results shown at 60% opacity with "..." indicator
 
 ### Open Questions
 
