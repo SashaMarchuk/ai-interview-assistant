@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { Overlay } from '../src/overlay';
 import { storeReadyPromise, useStore } from '../src/store';
 import { useCaptureMode, type CaptureState } from '../src/hooks';
@@ -232,13 +232,15 @@ function CaptureProvider({
     getFullTranscript: gft,
   });
 
-  // Dispatch custom event for components outside React tree to consume
-  // (e.g., for debugging or non-React visual indicators)
-  window.dispatchEvent(
-    new CustomEvent<CaptureStateEventDetail>('capture-state-update', {
-      detail: { state: captureState },
-    })
-  );
+  // Dispatch custom event when capture state changes
+  // This allows the Overlay to update its CaptureIndicator
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent<CaptureStateEventDetail>('capture-state-update', {
+        detail: { state: captureState },
+      })
+    );
+  }, [captureState.isHolding, captureState.mode]);
 
   return <CaptureContext.Provider value={captureState}>{children}</CaptureContext.Provider>;
 }
