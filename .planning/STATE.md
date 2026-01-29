@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (2/1), Track B (5/1), Track C (6/1 complete)
+**Current Plan:** Track A (2/1), Track B (5/1 complete), Track C (6/1 complete)
 
 ## Project Reference
 
@@ -36,7 +36,7 @@ See: .planning/PROJECT.md
 
 - **Phase:** Multi-track execution
 - **Track A:** Phase 2, Plan 1 complete (Audio Pipeline)
-- **Track B:** Phase 5, Plan 1 in progress (Overlay UI)
+- **Track B:** Phase 5, Plan 1 complete (Overlay UI Foundation)
 - **Track C:** Phase 6, Plan 1 complete (Prompts & Settings)
 - **Blocker:** None
 
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 7 |
+| Plans completed | 8 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
 | Phases completed | 1/7 |
 
@@ -71,6 +71,9 @@ See: .planning/PROJECT.md
 | zustand@4 for webext-zustand | webext-zustand@0.2.0 peer dependency requires zustand@^4 | 2026-01-29 |
 | webext-zustand type declarations | Package exports don't resolve TS types, manual .d.ts required | 2026-01-29 |
 | crypto.randomUUID() for IDs | No uuid dependency needed, built-in browser API | 2026-01-29 |
+| use-chrome-storage for overlay position | React hooks for chrome.storage.local persistence | 2026-01-29 |
+| react-rnd for drag/resize | Single library combining react-draggable and react-resizable | 2026-01-29 |
+| Tailwind v4 @theme inline for Shadow DOM | @property declarations don't work in Shadow DOM, need explicit px values | 2026-01-29 |
 
 ### Technical Notes
 
@@ -88,6 +91,8 @@ See: .planning/PROJECT.md
 - Transferable ArrayBuffer for zero-copy audio chunk messages
 - Zustand store uses chromeStorage adapter for chrome.storage.local persistence
 - storeReadyPromise from wrapStore enables cross-context state sync
+- useOverlayPosition hook handles -1 sentinel for default bottom-right positioning
+- @theme inline provides px-based spacing, :host provides CSS variable fallbacks
 
 ### Open Questions
 
@@ -114,8 +119,8 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 06-01-PLAN.md (Zustand Store Foundation)
-- **Outcome:** Store with persistence, settings/templates slices, cross-context sync
+- **Activity:** Completed 05-01-PLAN.md (Overlay UI Foundation)
+- **Outcome:** Types, hooks, and Shadow DOM CSS for overlay UI
 
 ### Next Actions
 
