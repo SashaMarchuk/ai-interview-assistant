@@ -4,22 +4,61 @@ import { useOverlayPosition } from './hooks/useOverlayPosition';
 import { OverlayHeader } from './OverlayHeader';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ResponsePanel } from './ResponsePanel';
+import { CaptureIndicator } from './CaptureIndicator';
 import { useStore } from '../store';
-import {
-  type TranscriptEntry,
-  type LLMResponse,
-  MOCK_RESPONSE,
-} from '../types/transcript';
-import type { TranscriptUpdateEventDetail } from '../../entrypoints/content';
+import type { TranscriptEntry, LLMResponse } from '../types/transcript';
+import type { CaptureState } from '../hooks';
+import type {
+  TranscriptUpdateEventDetail,
+  CaptureStateEventDetail,
+  LLMResponseEventDetail,
+} from '../../entrypoints/content';
 
 interface OverlayProps {
-  // Response prop for Phase 7 LLM integration
+  // Optional response prop for testing (real state comes via events)
   response?: LLMResponse | null;
 }
 
 // Minimized button dimensions
 const MIN_BTN_WIDTH = 56;
 const MIN_BTN_HEIGHT = 44;
+
+/**
+ * Status indicator component for footer
+ */
+function StatusIndicator({ status }: { status: LLMResponse['status'] | null }) {
+  if (status === 'streaming') {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400"></span>
+        </span>
+        Streaming...
+      </span>
+    );
+  }
+
+  if (status === 'pending') {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
+        </span>
+        Processing...
+      </span>
+    );
+  }
+
+  // Default: Ready (complete, error, or no response)
+  return (
+    <span className="flex items-center gap-1">
+      <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+      Ready
+    </span>
+  );
+}
 
 /**
  * Main overlay container with drag and resize functionality.
@@ -47,8 +86,11 @@ export function Overlay({ response }: OverlayProps) {
   // Real transcript state - populated by transcript-update events
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
 
-  // Mock response for Phase 5/6 - will be replaced in Phase 7
-  const [mockResponse] = useState<LLMResponse | null>(MOCK_RESPONSE);
+  // Real LLM response state - populated by llm-response-update events
+  const [llmResponse, setLLMResponse] = useState<LLMResponse | null>(null);
+
+  // Capture state for visual indicator
+  const [captureState, setCaptureState] = useState<CaptureState | null>(null);
 
   // Listen for transcript updates from content script
   useEffect(() => {
@@ -63,7 +105,34 @@ export function Overlay({ response }: OverlayProps) {
     };
   }, []);
 
-  const displayResponse = response ?? mockResponse;
+  // Listen for LLM response updates from content script
+  useEffect(() => {
+    function handleLLMResponseUpdate(event: Event) {
+      const customEvent = event as CustomEvent<LLMResponseEventDetail>;
+      setLLMResponse(customEvent.detail.response);
+    }
+
+    window.addEventListener('llm-response-update', handleLLMResponseUpdate);
+    return () => {
+      window.removeEventListener('llm-response-update', handleLLMResponseUpdate);
+    };
+  }, []);
+
+  // Listen for capture state updates (for visual indicator)
+  useEffect(() => {
+    function handleCaptureStateUpdate(event: Event) {
+      const customEvent = event as CustomEvent<CaptureStateEventDetail>;
+      setCaptureState(customEvent.detail.state);
+    }
+
+    window.addEventListener('capture-state-update', handleCaptureStateUpdate);
+    return () => {
+      window.removeEventListener('capture-state-update', handleCaptureStateUpdate);
+    };
+  }, []);
+
+  // Use prop if provided (for testing), otherwise use event-driven state
+  const displayResponse = response ?? llmResponse;
 
   // Don't render until initial position loaded from storage
   // This prevents flash of default position
@@ -131,9 +200,12 @@ export function Overlay({ response }: OverlayProps) {
       }}
     >
       <div
-        className="overlay-container h-full flex flex-col bg-black/10 rounded-lg shadow-2xl border border-white/20 overflow-hidden"
+        className="overlay-container relative h-full flex flex-col bg-black/10 rounded-lg shadow-2xl border border-white/20 overflow-hidden"
         style={{ backdropFilter: `blur(${blurLevel}px)` }}
       >
+        {/* Capture indicator at top (absolute positioned) */}
+        <CaptureIndicator captureState={captureState} />
+
         <OverlayHeader onMinimize={() => setMinimized(true)} />
 
         {/* Content area with panels */}
@@ -145,10 +217,7 @@ export function Overlay({ response }: OverlayProps) {
         {/* Footer with status indicator */}
         <div className="px-3 py-1.5 border-t border-white/10 flex items-center justify-between text-xs text-white/60">
           <span>AI Interview Assistant</span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-            Ready
-          </span>
+          <StatusIndicator status={displayResponse?.status ?? null} />
         </div>
       </div>
     </Rnd>
