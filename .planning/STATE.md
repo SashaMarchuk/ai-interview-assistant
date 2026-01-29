@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (2/3 complete), Track B (5/2 complete), Track C (6/1 complete)
+**Current Plan:** Track A (2/3 complete), Track B (5/3 complete), Track C (6/1 complete)
 
 ## Project Reference
 
@@ -20,7 +20,7 @@ See: .planning/PROJECT.md
 | 2 | Audio Pipeline | A | In Progress | 2/4 |
 | 3 | Transcription | A | Pending | 0/0 |
 | 4 | LLM Integration | A | Pending | 0/0 |
-| 5 | Overlay UI | B | In Progress | 2/? |
+| 5 | Overlay UI | B | In Progress | 3/? |
 | 6 | Prompts & Settings | C | In Progress | 1/? |
 | 7 | Integration | -- | Pending | 0/0 |
 
