@@ -17,7 +17,7 @@ See: .planning/PROJECT.md
 | Phase | Name | Track | Status | Plans |
 |-------|------|-------|--------|-------|
 | 1 | Foundation | -- | COMPLETE | 4/4 |
-| 2 | Audio Pipeline | A | In Progress | 2/4 |
+| 2 | Audio Pipeline | A | In Progress | 3/4 |
 | 3 | Transcription | A | Pending | 0/0 |
 | 4 | LLM Integration | A | Pending | 0/0 |
 | 5 | Overlay UI | B | In Progress | 3/? |
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 12 |
+| Plans completed | 13 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
 | Phases completed | 1/7 |
 
@@ -81,6 +81,8 @@ See: .planning/PROJECT.md
 | Status indicator with pulse animation | Visual feedback for pending/streaming states | 2026-01-29 |
 | 500ms debounce on template textareas | Prevents excessive chrome.storage writes while typing | 2026-01-29 |
 | Vertical stacked template layout | Popup 384px too narrow for side-by-side list/editor | 2026-01-29 |
+| Tab audio passthrough via connect(destination) | Ensures interviewer remains audible during tab capture | 2026-01-29 |
+| Switch statement for message handlers | TypeScript discriminated union narrowing works better with switch than if-chain | 2026-01-29 |
 
 ### Technical Notes
 
@@ -136,8 +138,8 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 06-03-PLAN.md (Template Manager UI)
-- **Outcome:** Template list/editor UI integrated into popup Templates tab
+- **Activity:** Completed 02-02-PLAN.md (Tab Audio Capture)
+- **Outcome:** Tab audio capture with chromeMediaSource constraint, audio passthrough via connect(destination)
 
 ### Next Actions
 
