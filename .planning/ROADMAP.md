@@ -287,7 +287,7 @@ Plans:
 | 3 - Transcription | A | ○ Pending | 0/0 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
-| 6 - Prompts & Settings | C | ○ Planned | 0/4 |
+| 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
 | 7 - Integration | — | ○ Pending | 0/0 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
