@@ -40,3 +40,6 @@ project_spec.md
 
 # Chrome extension unpacked (if you generate keys)
 *.pem
+.output/
+.wxt/
+node_modules/
