@@ -17,6 +17,11 @@ export default defineConfig({
         "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' wss://api.elevenlabs.io https://openrouter.ai",
     },
     minimum_chrome_version: '116',
-    // Icons will be added in Task 3
+    icons: {
+      16: 'icon/icon-16.png',
+      32: 'icon/icon-32.png',
+      48: 'icon/icon-48.png',
+      128: 'icon/icon-128.png',
+    },
   },
 });
