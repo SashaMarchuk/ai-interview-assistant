@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (2/1), Track B (5/1 complete), Track C (6/1 complete)
+**Current Plan:** Track A (2/3 complete), Track B (5/2 complete), Track C (6/1 complete)
 
 ## Project Reference
 
@@ -17,10 +17,10 @@ See: .planning/PROJECT.md
 | Phase | Name | Track | Status | Plans |
 |-------|------|-------|--------|-------|
 | 1 | Foundation | -- | COMPLETE | 4/4 |
-| 2 | Audio Pipeline | A | In Progress | 1/4 |
+| 2 | Audio Pipeline | A | In Progress | 2/4 |
 | 3 | Transcription | A | Pending | 0/0 |
 | 4 | LLM Integration | A | Pending | 0/0 |
-| 5 | Overlay UI | B | In Progress | 1/? |
+| 5 | Overlay UI | B | In Progress | 2/? |
 | 6 | Prompts & Settings | C | In Progress | 1/? |
 | 7 | Integration | -- | Pending | 0/0 |
 
@@ -35,8 +35,8 @@ See: .planning/PROJECT.md
 ## Current Position
 
 - **Phase:** Multi-track execution
-- **Track A:** Phase 2, Plan 1 complete (Audio Pipeline)
-- **Track B:** Phase 5, Plan 1 complete (Overlay UI Foundation)
+- **Track A:** Phase 2, Plan 3 complete (Microphone Capture)
+- **Track B:** Phase 5, Plan 2 complete (Overlay Components)
 - **Track C:** Phase 6, Plan 1 complete (Prompts & Settings)
 - **Blocker:** None
 
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 8 |
+| Plans completed | 10 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
 | Phases completed | 1/7 |
 
@@ -65,7 +65,9 @@ See: .planning/PROJECT.md
 | Type cast for Chrome 116+ APIs | @types/chrome incomplete for OFFSCREEN_DOCUMENT context type | 2026-01-29 |
 | Shadow DOM via createShadowRootUi | CSS isolation from Google Meet page styles | 2026-01-29 |
 | URL pattern for active meetings | Only inject on xxx-xxxx-xxx pattern, not landing/lobby pages | 2026-01-29 |
-| AudioChunkMessage union type | TAB_AUDIO_CHUNK and MIC_AUDIO_CHUNK share chunk/timestamp structure | 2026-01-29 |
+| Split AudioChunkMessage types | TypeScript narrowing failed with union, split into TabAudioChunkMessage and MicAudioChunkMessage | 2026-01-29 |
+| Mic not connected to destination | Prevent audio feedback by not routing mic to speakers | 2026-01-29 |
+| Separate AudioContext per capture | Mic and tab use independent AudioContexts at 16kHz | 2026-01-29 |
 | PCM processor buffer size 1600 | 100ms at 16kHz sample rate for consistent chunk timing | 2026-01-29 |
 | Vanilla JS for AudioWorklet | Worklet runs in separate thread without module resolution | 2026-01-29 |
 | zustand@4 for webext-zustand | webext-zustand@0.2.0 peer dependency requires zustand@^4 | 2026-01-29 |
@@ -93,6 +95,11 @@ See: .planning/PROJECT.md
 - storeReadyPromise from wrapStore enables cross-context state sync
 - useOverlayPosition hook handles -1 sentinel for default bottom-right positioning
 - @theme inline provides px-based spacing, :host provides CSS variable fallbacks
+- Mic capture uses getUserMedia with echoCancellation and noiseSuppression enabled
+- Same pcm-processor.js reused for both tab and mic capture
+- Overlay uses controlled react-rnd pattern with position/size from hook
+- dragHandleClassName links OverlayHeader to Rnd drag behavior
+- isLoaded guard prevents flash of default position on initial render
 
 ### Open Questions
 
@@ -119,14 +126,14 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 05-01-PLAN.md (Overlay UI Foundation)
-- **Outcome:** Types, hooks, and Shadow DOM CSS for overlay UI
+- **Activity:** Completed 02-03-PLAN.md (Microphone Capture)
+- **Outcome:** Microphone capture with PCM conversion via AudioWorklet, MIC_AUDIO_CHUNK messages
 
 ### Next Actions
 
-1. Track A: Continue Phase 2 Plan 02 (Tab Audio Capture)
-2. Track B: Continue Phase 5 Plan 02 (Overlay components)
-3. Track C: Continue Phase 6 Plan 02 (Settings UI)
+1. Track A: Continue Phase 2 Plan 04 (Audio Control & Integration)
+2. Track B: Continue Phase 5 (Overlay components)
+3. Track C: Continue Phase 6 (Settings UI)
 
 ---
 
