@@ -196,10 +196,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Install deps, create types, hooks, Tailwind Shadow DOM fixes
-- [ ] 05-02-PLAN.md — Overlay container with react-rnd drag/resize
-- [ ] 05-03-PLAN.md — TranscriptPanel and ResponsePanel components
-- [ ] 05-04-PLAN.md — Integration with mock data and visual verification
+- [x] 05-01-PLAN.md — Install deps, create types, hooks, Tailwind Shadow DOM fixes
+- [x] 05-02-PLAN.md — Overlay container with react-rnd drag/resize
+- [x] 05-03-PLAN.md — TranscriptPanel and ResponsePanel components
+- [x] 05-04-PLAN.md — Integration with mock data and visual verification
 
 ---
 
@@ -286,7 +286,7 @@ Plans:
 | 2 - Audio Pipeline | A | ✓ Complete | 4/4 |
 | 3 - Transcription | A | ○ Pending | 0/0 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
-| 5 - Overlay UI | B | ○ Planned | 0/4 |
+| 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ○ Planned | 0/4 |
 | 7 - Integration | — | ○ Pending | 0/0 |
 
@@ -341,4 +341,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 2 complete*
+*Last updated: 2026-01-29 — Phase 5 complete (Track B)*

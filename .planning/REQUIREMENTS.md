@@ -43,14 +43,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Overlay UI
 
-- [ ] **UI-01**: Floating overlay injected via Shadow DOM
-- [ ] **UI-02**: Overlay draggable to any screen position
-- [ ] **UI-03**: Overlay resizable with size persisted between sessions
-- [ ] **UI-04**: Transparent background with blur effect
-- [ ] **UI-05**: Minimize/expand toggle to collapse overlay
-- [ ] **UI-06**: Live transcript panel with speaker labels
-- [ ] **UI-07**: Dual response panel (fast hint + full answer)
-- [ ] **UI-08**: Auto-scroll follows new transcript text
+- [x] **UI-01**: Floating overlay injected via Shadow DOM
+- [x] **UI-02**: Overlay draggable to any screen position
+- [x] **UI-03**: Overlay resizable with size persisted between sessions
+- [x] **UI-04**: Transparent background with blur effect
+- [x] **UI-05**: Minimize/expand toggle to collapse overlay
+- [x] **UI-06**: Live transcript panel with speaker labels
+- [x] **UI-07**: Dual response panel (fast hint + full answer)
+- [x] **UI-08**: Auto-scroll follows new transcript text
 
 ### Prompt System
 
@@ -140,14 +140,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | KEY-03 | Phase 4 | Pending |
 | KEY-04 | Phase 4 | Pending |
 | KEY-05 | Phase 4 | Pending |
-| UI-01 | Phase 5 | Pending |
-| UI-02 | Phase 5 | Pending |
-| UI-03 | Phase 5 | Pending |
-| UI-04 | Phase 5 | Pending |
-| UI-05 | Phase 5 | Pending |
-| UI-06 | Phase 5 | Pending |
-| UI-07 | Phase 5 | Pending |
-| UI-08 | Phase 5 | Pending |
+| UI-01 | Phase 5 | Complete |
+| UI-02 | Phase 5 | Complete |
+| UI-03 | Phase 5 | Complete |
+| UI-04 | Phase 5 | Complete |
+| UI-05 | Phase 5 | Complete |
+| UI-06 | Phase 5 | Complete |
+| UI-07 | Phase 5 | Complete |
+| UI-08 | Phase 5 | Complete |
 | PRM-01 | Phase 6 | Pending |
 | PRM-02 | Phase 6 | Pending |
 | PRM-03 | Phase 6 | Pending |
@@ -166,4 +166,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 2 complete (AUD-01 through AUD-05)*
+*Last updated: 2026-01-29 — Phase 5 complete (UI-01 through UI-08)*
