@@ -1,7 +1,11 @@
 import { defineConfig } from 'wxt';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  vite: () => ({
+    plugins: [tailwindcss() as any],
+  }),
   manifest: {
     name: 'AI Interview Assistant',
     version: '0.1.0',
