@@ -66,6 +66,14 @@ Phase 1 (Foundation) ─── SEQUENTIAL, FIRST
 
 **Research flag:** Standard patterns, no deep research needed
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Initialize WXT project with React, TypeScript, Tailwind
+- [ ] 01-02-PLAN.md — Implement Service Worker, Popup with message passing
+- [ ] 01-03-PLAN.md — Implement Offscreen Document and Content Script overlay
+- [ ] 01-04-PLAN.md — Verify extension loads and all components communicate
+
 ---
 
 ### Phase 2: Audio Pipeline
@@ -250,7 +258,7 @@ Phase 1 (Foundation) ─── SEQUENTIAL, FIRST
 
 | Phase | Track | Status | Plans |
 |-------|-------|--------|-------|
-| 1 - Foundation | — | ○ Pending | 0/0 |
+| 1 - Foundation | — | ○ Pending | 0/4 |
 | 2 - Audio Pipeline | A | ○ Pending | 0/0 |
 | 3 - Transcription | A | ○ Pending | 0/0 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
