@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
+import { useStore } from '../../src/store';
 import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
 import ModelSettings from '../../src/components/settings/ModelSettings';
 import HotkeySettings from '../../src/components/settings/HotkeySettings';
@@ -22,6 +23,13 @@ function App() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [captureStatus, setCaptureStatus] = useState<string>('Idle');
   const [captureError, setCaptureError] = useState<string | null>(null);
+
+  // Transcription state
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<string>('');
+
+  // Get API keys from store
+  const apiKeys = useStore((state) => state.apiKeys);
 
   /**
    * Start both tab and microphone capture
@@ -71,6 +79,11 @@ function App() {
     setCaptureStatus('Stopping...');
 
     try {
+      // Stop transcription first if running
+      if (isTranscribing) {
+        await handleStopTranscription();
+      }
+
       // Stop tab capture
       await chrome.runtime.sendMessage({
         type: 'STOP_CAPTURE',
@@ -91,6 +104,58 @@ function App() {
       console.error('Stop capture error:', errorMessage);
       setCaptureStatus('Error');
       setCaptureError(errorMessage);
+    }
+  }
+
+  /**
+   * Start transcription with ElevenLabs
+   */
+  async function handleStartTranscription() {
+    // Check if API key is set
+    if (!apiKeys.elevenLabs) {
+      setTranscriptionStatus('Set ElevenLabs API key in Settings tab');
+      return;
+    }
+
+    setTranscriptionStatus('Starting...');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'START_TRANSCRIPTION',
+        apiKey: apiKeys.elevenLabs,
+      } as ExtensionMessage);
+
+      if (!response?.success) {
+        throw new Error(response?.error || 'Failed to start transcription');
+      }
+
+      setIsTranscribing(true);
+      setTranscriptionStatus('Transcribing...');
+      console.log('Transcription started');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Transcription error:', errorMessage);
+      setTranscriptionStatus('Failed: ' + errorMessage);
+      setIsTranscribing(false);
+    }
+  }
+
+  /**
+   * Stop transcription
+   */
+  async function handleStopTranscription() {
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'STOP_TRANSCRIPTION',
+      } as ExtensionMessage);
+
+      setIsTranscribing(false);
+      setTranscriptionStatus('Stopped');
+      console.log('Transcription stopped');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Stop transcription error:', errorMessage);
+      setTranscriptionStatus('Error: ' + errorMessage);
     }
   }
 
@@ -198,6 +263,48 @@ function App() {
               <p className="mt-3 text-xs text-gray-500">
                 Starts tab audio and microphone capture. Check the Service Worker console for audio chunk logs.
               </p>
+            </section>
+
+            {/* Transcription Section */}
+            <section className="border border-gray-200 rounded-lg p-4">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Transcription</h2>
+
+              {/* Transcription Button */}
+              <button
+                onClick={isTranscribing ? handleStopTranscription : handleStartTranscription}
+                disabled={!isCapturing}
+                className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  !isCapturing
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : isTranscribing
+                    ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
+                    : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
+                }`}
+              >
+                {isTranscribing ? 'Stop Transcription' : 'Start Transcription'}
+              </button>
+
+              {/* Status/Error Display */}
+              {transcriptionStatus && (
+                <p
+                  className={`mt-2 text-xs ${
+                    transcriptionStatus.startsWith('Failed') || transcriptionStatus.startsWith('Error')
+                      ? 'text-red-600'
+                      : transcriptionStatus === 'Set ElevenLabs API key in Settings tab'
+                      ? 'text-yellow-600'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  {transcriptionStatus}
+                </p>
+              )}
+
+              {/* Requirement Warning */}
+              {!isCapturing && (
+                <p className="mt-2 text-xs text-yellow-600">
+                  Start audio capture first
+                </p>
+              )}
             </section>
 
             {/* Quick Info */}
