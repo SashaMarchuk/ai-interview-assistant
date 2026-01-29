@@ -12,6 +12,7 @@ const STORAGE_KEY = 'ai-interview-overlay-state';
  * - Local state provides flicker-free drag/resize (immediate feedback)
  * - Storage sync happens asynchronously (doesn't block UI)
  * - isLoaded prevents flash of default position on initial load
+ * - Minimized button has separate position from overlay (won't block Meet UI)
  */
 export function useOverlayPosition() {
   const [state, setState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
@@ -22,7 +23,8 @@ export function useOverlayPosition() {
   useEffect(() => {
     chrome.storage.local.get(STORAGE_KEY, (result) => {
       if (result[STORAGE_KEY]) {
-        setState(result[STORAGE_KEY]);
+        // Merge with defaults to handle new fields added to schema
+        setState({ ...DEFAULT_OVERLAY_STATE, ...result[STORAGE_KEY] });
       }
       setIsLoaded(true);
       isInitialLoad.current = false;
@@ -52,14 +54,19 @@ export function useOverlayPosition() {
 
   /**
    * Get position for minimized button.
-   * Always bottom-right corner, independent of overlay position.
+   * Defaults to top-right corner (won't block Meet navigation at bottom).
+   * Can be dragged to any position by user.
    */
   const getMinimizedPosition = useCallback(() => {
-    return {
-      x: window.innerWidth - 160, // 140px button + 20px margin
-      y: window.innerHeight - 56, // 36px button + 20px margin
-    };
-  }, []);
+    if (state.minBtnX === -1 || state.minBtnY === -1) {
+      // Default: top-right corner, below any browser UI
+      return {
+        x: window.innerWidth - 60, // 40px button + 20px margin
+        y: 80, // Below Meet top bar
+      };
+    }
+    return { x: state.minBtnX, y: state.minBtnY };
+  }, [state.minBtnX, state.minBtnY]);
 
   const setPosition = useCallback((pos: { x: number; y: number }) => {
     setState((prev) => ({ ...prev, x: pos.x, y: pos.y }));
@@ -73,6 +80,10 @@ export function useOverlayPosition() {
     setState((prev) => ({ ...prev, isMinimized }));
   }, []);
 
+  const setMinimizedPosition = useCallback((pos: { x: number; y: number }) => {
+    setState((prev) => ({ ...prev, minBtnX: pos.x, minBtnY: pos.y }));
+  }, []);
+
   return {
     position: getPosition(),
     minimizedPosition: getMinimizedPosition(),
@@ -82,6 +93,7 @@ export function useOverlayPosition() {
     setPosition,
     setSize,
     setMinimized,
+    setMinimizedPosition,
     rawState: state,
     setRawState: setState,
   };

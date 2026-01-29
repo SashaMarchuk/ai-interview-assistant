@@ -35,6 +35,7 @@ export function Overlay({ transcript, response }: OverlayProps) {
     setPosition,
     setSize,
     setMinimized,
+    setMinimizedPosition,
   } = useOverlayPosition();
 
   // Use mock data if no real data provided (Phase 5 development mode)
@@ -50,27 +51,26 @@ export function Overlay({ transcript, response }: OverlayProps) {
     return null;
   }
 
-  // Minimized state: render small fixed button at bottom-right
-  // Not draggable - always stays at bottom-right corner
+  // Minimized state: small draggable "AI" button
+  // Positioned top-right by default (doesn't block Meet navigation)
   if (isMinimized) {
     return (
-      <div
-        style={{
-          position: 'fixed',
-          right: 20,
-          bottom: 20,
-          zIndex: 999999,
-        }}
+      <Rnd
+        position={minimizedPosition}
+        size={{ width: 40, height: 40 }}
+        enableResizing={false}
+        bounds="window"
+        onDragStop={(e, d) => setMinimizedPosition({ x: d.x, y: d.y })}
+        className="z-[999999]"
       >
         <button
           onClick={() => setMinimized(false)}
-          className="w-[140px] h-9 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 text-sm font-medium px-3 flex items-center justify-center gap-2 transition-colors"
-          title="Expand AI Assistant"
+          className="w-10 h-10 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 text-xs font-bold flex items-center justify-center transition-colors cursor-move"
+          title="Expand AI Assistant (drag to move)"
         >
-          <span>AI Assistant</span>
-          <span className="text-blue-200">+</span>
+          AI
         </button>
-      </div>
+      </Rnd>
     );
   }
 

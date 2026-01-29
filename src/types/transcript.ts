@@ -55,11 +55,16 @@ export interface OverlayState {
   height: number;
   /** Whether the overlay is minimized */
   isMinimized: boolean;
+  /** Minimized button X position (-1 for default top-right) */
+  minBtnX: number;
+  /** Minimized button Y position (-1 for default top-right) */
+  minBtnY: number;
 }
 
 /**
  * Default overlay state for first-time users.
- * x/y of -1 signals the hook should calculate bottom-right position.
+ * x/y of -1 signals the hook should calculate default positions.
+ * Overlay defaults to bottom-right, minimized button to top-right.
  */
 export const DEFAULT_OVERLAY_STATE: OverlayState = {
   x: -1,
@@ -67,6 +72,8 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   width: 340,
   height: 400,
   isMinimized: false,
+  minBtnX: -1,
+  minBtnY: -1,
 };
 
 /**
