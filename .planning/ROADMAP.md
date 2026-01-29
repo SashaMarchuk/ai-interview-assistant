@@ -98,6 +98,14 @@ Plans:
 
 **Research flag:** HIGH PRIORITY - Complex Chrome APIs, AudioWorklet specifics, Offscreen Document lifecycle
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Message types and PCM AudioWorklet processor
+- [ ] 02-02-PLAN.md — Tab audio capture with passthrough in Offscreen Document
+- [ ] 02-03-PLAN.md — Microphone capture as separate stream
+- [ ] 02-04-PLAN.md — Popup Start/Stop UI and end-to-end verification
+
 ---
 
 ### Phase 3: Transcription
@@ -259,7 +267,7 @@ Plans:
 | Phase | Track | Status | Plans |
 |-------|-------|--------|-------|
 | 1 - Foundation | — | ✓ Complete | 4/4 |
-| 2 - Audio Pipeline | A | ○ Pending | 0/0 |
+| 2 - Audio Pipeline | A | ○ Pending | 0/4 |
 | 3 - Transcription | A | ○ Pending | 0/0 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
 | 5 - Overlay UI | B | ○ Pending | 0/0 |
