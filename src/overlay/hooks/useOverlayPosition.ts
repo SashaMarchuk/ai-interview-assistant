@@ -3,6 +3,10 @@ import { DEFAULT_OVERLAY_STATE, type OverlayState } from '../../types/transcript
 
 const STORAGE_KEY = 'ai-interview-overlay-state';
 
+// Button dimensions for bounds calculation
+const MIN_BTN_SIZE = 40;
+const MARGIN = 20;
+
 /**
  * Hook for managing overlay position, size, and minimize state.
  * Uses local React state for immediate UI feedback, syncs to chrome.storage.local
@@ -12,7 +16,7 @@ const STORAGE_KEY = 'ai-interview-overlay-state';
  * - Local state provides flicker-free drag/resize (immediate feedback)
  * - Storage sync happens asynchronously (doesn't block UI)
  * - isLoaded prevents flash of default position on initial load
- * - Minimized button has separate position from overlay (won't block Meet UI)
+ * - Minimized button repositions on window resize to stay in bounds
  */
 export function useOverlayPosition() {
   const [state, setState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
@@ -39,14 +43,92 @@ export function useOverlayPosition() {
   }, [state, isLoaded]);
 
   /**
+   * Calculate default position for minimized button.
+   * Top-right corner, below Meet's top bar.
+   */
+  const getDefaultMinimizedPosition = useCallback(() => {
+    return {
+      x: window.innerWidth - MIN_BTN_SIZE - MARGIN,
+      y: 80, // Below Meet top bar
+    };
+  }, []);
+
+  /**
+   * Ensure position is within viewport bounds.
+   */
+  const clampToViewport = useCallback((x: number, y: number, width: number, height: number) => {
+    return {
+      x: Math.max(MARGIN, Math.min(x, window.innerWidth - width - MARGIN)),
+      y: Math.max(MARGIN, Math.min(y, window.innerHeight - height - MARGIN)),
+    };
+  }, []);
+
+  /**
+   * Handle window resize - keep elements in bounds.
+   * If using default position, recalculate. Otherwise, clamp to viewport.
+   */
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const handleResize = () => {
+      setState((prev) => {
+        const updates: Partial<OverlayState> = {};
+
+        // Handle minimized button position
+        if (prev.minBtnX === -1 || prev.minBtnY === -1) {
+          // Using defaults - recalculate
+          const defaultPos = getDefaultMinimizedPosition();
+          updates.minBtnX = defaultPos.x;
+          updates.minBtnY = defaultPos.y;
+        } else {
+          // Manual position - clamp to viewport
+          const clamped = clampToViewport(prev.minBtnX, prev.minBtnY, MIN_BTN_SIZE, MIN_BTN_SIZE);
+          if (clamped.x !== prev.minBtnX || clamped.y !== prev.minBtnY) {
+            updates.minBtnX = clamped.x;
+            updates.minBtnY = clamped.y;
+          }
+        }
+
+        // Handle overlay position
+        if (prev.x !== -1 && prev.y !== -1) {
+          const clamped = clampToViewport(prev.x, prev.y, prev.width, prev.height);
+          if (clamped.x !== prev.x || clamped.y !== prev.y) {
+            updates.x = clamped.x;
+            updates.y = clamped.y;
+          }
+        }
+
+        // Only update if something changed
+        if (Object.keys(updates).length > 0) {
+          return { ...prev, ...updates };
+        }
+        return prev;
+      });
+    };
+
+    // Debounce resize handler
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const debouncedResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleResize, 100);
+    };
+
+    window.addEventListener('resize', debouncedResize);
+    return () => {
+      window.removeEventListener('resize', debouncedResize);
+      clearTimeout(timeoutId);
+    };
+  }, [isLoaded, getDefaultMinimizedPosition, clampToViewport]);
+
+  /**
    * Calculate actual position for the expanded overlay.
    * Handles -1 sentinel value for first-time users (bottom-right default).
    */
   const getPosition = useCallback(() => {
     if (state.x === -1 || state.y === -1) {
       return {
-        x: window.innerWidth - state.width - 20,
-        y: window.innerHeight - state.height - 20,
+        x: window.innerWidth - state.width - MARGIN,
+        y: window.innerHeight - state.height - MARGIN,
       };
     }
     return { x: state.x, y: state.y };
@@ -55,18 +137,13 @@ export function useOverlayPosition() {
   /**
    * Get position for minimized button.
    * Defaults to top-right corner (won't block Meet navigation at bottom).
-   * Can be dragged to any position by user.
    */
   const getMinimizedPosition = useCallback(() => {
     if (state.minBtnX === -1 || state.minBtnY === -1) {
-      // Default: top-right corner, below any browser UI
-      return {
-        x: window.innerWidth - 60, // 40px button + 20px margin
-        y: 80, // Below Meet top bar
-      };
+      return getDefaultMinimizedPosition();
     }
     return { x: state.minBtnX, y: state.minBtnY };
-  }, [state.minBtnX, state.minBtnY]);
+  }, [state.minBtnX, state.minBtnY, getDefaultMinimizedPosition]);
 
   const setPosition = useCallback((pos: { x: number; y: number }) => {
     setState((prev) => ({ ...prev, x: pos.x, y: pos.y }));
