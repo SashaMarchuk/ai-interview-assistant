@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (3/4 in progress - 03-02 complete), Track B (5/4 COMPLETE), Track C (6/4 COMPLETE)
+**Current Plan:** Track A (4/1 - 04-01 complete), Track B (5/4 COMPLETE), Track C (6/4 COMPLETE)
 
 ## Project Reference
 
@@ -18,24 +18,24 @@ See: .planning/PROJECT.md
 |-------|------|-------|--------|-------|
 | 1 | Foundation | -- | COMPLETE | 4/4 |
 | 2 | Audio Pipeline | A | COMPLETE | 4/4 |
-| 3 | Transcription | A | In Progress | 2/? |
-| 4 | LLM Integration | A | Pending | 0/0 |
+| 3 | Transcription | A | COMPLETE | 3/3 |
+| 4 | LLM Integration | A | In Progress | 1/? |
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
 | 7 | Integration | -- | Pending | 0/0 |
 
-**Overall:** 4/7 phases complete
+**Overall:** 5/7 phases complete (Phase 3 complete, Phase 4 started)
 
 **Parallel execution:** Tracks A/B/C running in parallel
 
 ```
-[████████████░       ] 65%
+[██████████████░     ] 70%
 ```
 
 ## Current Position
 
 - **Phase:** Multi-track execution
-- **Track A:** Phase 3 (Transcription) in progress - 03-02 complete
+- **Track A:** Phase 4 (LLM Integration) in progress - 04-01 complete
 - **Track B:** Phase 5 COMPLETE - all overlay components integrated
 - **Track C:** Phase 6 COMPLETE - settings and templates fully functional
 - **Blocker:** None
@@ -44,9 +44,9 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 18 |
+| Plans completed | 19 |
 | Requirements delivered | 15/44 |
-| Phases completed | 4/7 |
+| Phases completed | 5/7 |
 
 ## Accumulated Context
 
@@ -93,6 +93,7 @@ See: .planning/PROJECT.md
 | Forward audio in worklet handlers | Immediate forwarding when transcription active, no separate step | 2026-01-29 |
 | Chronological insertion with splice | Maintain sorted order by timestamp in mergedTranscript | 2026-01-29 |
 | Broadcast on each final entry | Immediate UI updates via TRANSCRIPT_UPDATE message | 2026-01-29 |
+| eventsource-parser v3 API | EventSourceMessage type instead of ParsedEvent | 2026-01-29 |
 
 ### Technical Notes
 
@@ -131,6 +132,9 @@ See: .planning/PROJECT.md
 - Offscreen manages dual ElevenLabsConnection instances (tabTranscription, micTranscription)
 - Service Worker maintains mergedTranscript[] and interimEntries Map for state
 - Transcription lifecycle: START_TRANSCRIPTION -> TRANSCRIPTION_STARTED -> TRANSCRIPT_* -> STOP_TRANSCRIPTION
+- LLM service at src/services/llm/ with barrel export for clean imports
+- OpenRouter streaming uses eventsource-parser for SSE parsing
+- buildPrompt() differentiates fast hint vs full answer via instruction appendage
 
 ### Open Questions
 
@@ -185,12 +189,12 @@ Requirements UI-01 through UI-08 complete.
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Executed Phase 3 Plan 02 - Transcription integration
-- **Outcome:** 03-02 COMPLETE - Dual WebSocket connections in offscreen, transcript merging in Service Worker
+- **Activity:** Executed Phase 4 Plan 01 - LLM Service Foundation
+- **Outcome:** 04-01 COMPLETE - OpenRouter streaming client and prompt builder
 
 ### Next Actions
 
-1. Track A: Continue Phase 3 (Transcription) - execute 03-03 (content script integration)
+1. Track A: Continue Phase 4 (LLM Integration) - execute 04-02 (streaming handler integration)
 2. Track B: Phase 5 COMPLETE - no further action needed
 3. Track C: Phase 6 COMPLETE - no further action needed
 
