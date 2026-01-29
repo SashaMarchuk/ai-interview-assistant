@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import OverlayPlaceholder from '../src/components/OverlayPlaceholder';
+import { Overlay } from '../src/overlay';
 import '../src/assets/app.css';
 
 // Only inject on active Google Meet meeting pages (not landing/join pages)
@@ -28,7 +28,9 @@ export default defineContentScript({
       onMount: (container) => {
         // Create React root inside shadow DOM
         const root = createRoot(container);
-        root.render(<OverlayPlaceholder />);
+        // Render the full overlay with mock data (Phase 5)
+        // In Phase 7, real data will be passed via message handlers
+        root.render(<Overlay />);
         return root;
       },
       onRemove: (root) => {
@@ -37,7 +39,7 @@ export default defineContentScript({
     });
 
     ui.mount();
-    console.log('AI Interview Assistant: Overlay injected into Shadow DOM');
+    console.log('AI Interview Assistant: Overlay injected with drag/resize support');
 
     // Notify background that UI is ready
     try {
