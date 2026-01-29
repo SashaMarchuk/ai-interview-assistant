@@ -9,7 +9,11 @@ import type {
   StopTranscriptionMessage,
   TranscriptUpdateMessage,
   GetCaptureStateMessage,
+  LLMStreamMessage,
+  LLMStatusMessage,
 } from '../src/types/messages';
+import { streamLLMResponse, buildPrompt } from '../src/services/llm';
+import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
 
 // Module state for transcript management
@@ -20,6 +24,26 @@ let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp
 // Module state for capture tracking
 let isTabCaptureActive = false;
 let isTranscriptionActive = false;
+
+// Track active LLM requests for cancellation
+const activeAbortControllers: Map<string, AbortController> = new Map();
+
+// Keep service worker alive during streaming
+let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
+
+function startKeepAlive(): void {
+  if (keepAliveInterval) return;
+  keepAliveInterval = setInterval(() => {
+    chrome.runtime.getPlatformInfo(() => {});
+  }, 20000);
+}
+
+function stopKeepAlive(): void {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
+}
 
 /**
  * Broadcast transcript to all Google Meet content scripts.
@@ -101,6 +125,187 @@ import { storeReadyPromise } from '../src/store';
 storeReadyPromise.then(() => {
   console.log('Store ready in service worker');
 });
+
+/**
+ * Send LLM message to all Google Meet content scripts
+ */
+async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  for (const tab of tabs) {
+    if (tab.id) {
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {
+        // Ignore - content script might not be loaded on this tab
+      });
+    }
+  }
+}
+
+/**
+ * Handle LLM_REQUEST by firing dual parallel streaming requests
+ * Fast model provides quick hints, full model provides comprehensive answers
+ */
+async function handleLLMRequest(
+  responseId: string,
+  question: string,
+  recentContext: string,
+  fullTranscript: string,
+  templateId: string
+): Promise<void> {
+  // Get store state for settings and templates
+  const state = useStore.getState();
+  const { apiKeys, models, templates } = state;
+
+  // Validate API key
+  if (!apiKeys.openRouter) {
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId,
+      model: 'both',
+      status: 'error',
+      error: 'OpenRouter API key not configured',
+    });
+    return;
+  }
+
+  // Find template
+  const template = templates.find((t) => t.id === templateId);
+  if (!template) {
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId,
+      model: 'both',
+      status: 'error',
+      error: `Template not found: ${templateId}`,
+    });
+    return;
+  }
+
+  // Build prompts using the template
+  const prompts = buildPrompt(
+    { question, recentContext, fullTranscript, templateId },
+    template
+  );
+
+  // Create abort controller for cancellation
+  const abortController = new AbortController();
+  activeAbortControllers.set(responseId, abortController);
+
+  // Start keep-alive to prevent service worker termination
+  startKeepAlive();
+
+  // Track completion state
+  let fastComplete = false;
+  let fullComplete = false;
+
+  const checkAllComplete = () => {
+    if (fastComplete && fullComplete) {
+      activeAbortControllers.delete(responseId);
+      // Stop keep-alive only if no other active requests
+      if (activeAbortControllers.size === 0) {
+        stopKeepAlive();
+      }
+    }
+  };
+
+  // Send initial pending status
+  await sendLLMMessageToMeet({
+    type: 'LLM_STATUS',
+    responseId,
+    model: 'both',
+    status: 'pending',
+  });
+
+  // Fire fast model request (non-blocking)
+  const fastPromise = streamLLMResponse({
+    model: models.fastModel,
+    systemPrompt: prompts.system,
+    userPrompt: prompts.user,
+    maxTokens: 300, // Short response for fast hint
+    apiKey: apiKeys.openRouter,
+    onToken: (token) => {
+      sendLLMMessageToMeet({
+        type: 'LLM_STREAM',
+        responseId,
+        model: 'fast',
+        token,
+      });
+    },
+    onComplete: () => {
+      fastComplete = true;
+      sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'fast',
+        status: 'complete',
+      });
+      checkAllComplete();
+    },
+    onError: (error) => {
+      fastComplete = true;
+      sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'fast',
+        status: 'error',
+        error: error.message,
+      });
+      checkAllComplete();
+    },
+    abortSignal: abortController.signal,
+  });
+
+  // Fire full model request (non-blocking)
+  const fullPromise = streamLLMResponse({
+    model: models.fullModel,
+    systemPrompt: prompts.system,
+    userPrompt: prompts.userFull,
+    maxTokens: 2000, // Comprehensive response
+    apiKey: apiKeys.openRouter,
+    onToken: (token) => {
+      sendLLMMessageToMeet({
+        type: 'LLM_STREAM',
+        responseId,
+        model: 'full',
+        token,
+      });
+    },
+    onComplete: () => {
+      fullComplete = true;
+      sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'full',
+        status: 'complete',
+      });
+      checkAllComplete();
+    },
+    onError: (error) => {
+      fullComplete = true;
+      sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'full',
+        status: 'error',
+        error: error.message,
+      });
+      checkAllComplete();
+    },
+    abortSignal: abortController.signal,
+  });
+
+  // Send streaming status for both
+  await sendLLMMessageToMeet({
+    type: 'LLM_STATUS',
+    responseId,
+    model: 'both',
+    status: 'streaming',
+  });
+
+  // Wait for both to complete (but don't block message handler return)
+  Promise.all([fastPromise, fullPromise]).catch((error) => {
+    console.error('LLM request error:', error);
+  });
+}
 
 // Register message listener synchronously at top level - CRITICAL
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -436,6 +641,47 @@ async function handleMessage(
       // This goes directly to content script via chrome.tabs.sendMessage, not here
       console.log('REQUEST_MIC_PERMISSION received in background (unexpected)');
       return { received: true };
+
+    // LLM request lifecycle messages
+    case 'LLM_REQUEST': {
+      // Fire dual parallel LLM requests (non-blocking)
+      handleLLMRequest(
+        message.responseId,
+        message.question,
+        message.recentContext,
+        message.fullTranscript,
+        message.templateId
+      );
+      console.log('LLM_REQUEST received, starting dual parallel streams:', message.responseId);
+      return { success: true };
+    }
+
+    case 'LLM_STREAM':
+      // This is outbound only (background -> content script)
+      console.log('LLM_STREAM received in background (outbound only)');
+      return { received: true };
+
+    case 'LLM_STATUS':
+      // This is outbound only (background -> content script)
+      console.log('LLM_STATUS received in background (outbound only)');
+      return { received: true };
+
+    case 'LLM_CANCEL': {
+      // Cancel active request
+      const abortController = activeAbortControllers.get(message.responseId);
+      if (abortController) {
+        abortController.abort();
+        activeAbortControllers.delete(message.responseId);
+        console.log('LLM request cancelled:', message.responseId);
+        // Stop keep-alive if no other active requests
+        if (activeAbortControllers.size === 0) {
+          stopKeepAlive();
+        }
+      } else {
+        console.log('LLM_CANCEL: no active request found for:', message.responseId);
+      }
+      return { success: true };
+    }
 
     default: {
       // Exhaustive check - TypeScript will error if we miss a case
