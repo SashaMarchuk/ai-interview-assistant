@@ -4,6 +4,7 @@ import { useOverlayPosition } from './hooks/useOverlayPosition';
 import { OverlayHeader } from './OverlayHeader';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ResponsePanel } from './ResponsePanel';
+import { useStore } from '../store';
 import {
   type TranscriptEntry,
   type LLMResponse,
@@ -41,6 +42,9 @@ export function Overlay({ transcript, response }: OverlayProps) {
     setMinimized,
     setMinimizedPosition,
   } = useOverlayPosition();
+
+  // Get blur level from settings store
+  const blurLevel = useStore((state) => state.blurLevel);
 
   // Use mock data if no real data provided (Phase 5 development mode)
   const [mockTranscript] = useState<TranscriptEntry[]>(MOCK_TRANSCRIPT);
@@ -114,7 +118,10 @@ export function Overlay({ transcript, response }: OverlayProps) {
         bottomRight: { cursor: 'nwse-resize' },
       }}
     >
-      <div className="overlay-container h-full flex flex-col bg-black/10 backdrop-blur-md rounded-lg shadow-2xl border border-white/20 overflow-hidden">
+      <div
+        className="overlay-container h-full flex flex-col bg-black/10 rounded-lg shadow-2xl border border-white/20 overflow-hidden"
+        style={{ backdropFilter: `blur(${blurLevel}px)` }}
+      >
         <OverlayHeader onMinimize={() => setMinimized(true)} />
 
         {/* Content area with panels */}

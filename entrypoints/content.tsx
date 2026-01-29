@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { Overlay } from '../src/overlay';
+import { storeReadyPromise } from '../src/store';
 import '../src/assets/app.css';
 
 // Only inject on active Google Meet meeting pages (not landing/join pages)
@@ -19,6 +20,9 @@ export default defineContentScript({
     }
 
     console.log('AI Interview Assistant: Content script loaded on Meet page');
+
+    // Wait for store to sync before rendering (for blur level, etc.)
+    await storeReadyPromise;
 
     // Create UI container using WXT's createShadowRootUi for proper isolation
     const ui = await createShadowRootUi(ctx, {

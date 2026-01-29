@@ -15,6 +15,11 @@ storeReadyPromise.then(() => {
 
 // Register message listener synchronously at top level - CRITICAL
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Ignore webext-zustand internal sync messages - let the library handle them
+  if (message?.type === 'chromex.dispatch') {
+    return false; // Don't send response, let other listeners handle it
+  }
+
   handleMessage(message, sender)
     .then(sendResponse)
     .catch((error) => {

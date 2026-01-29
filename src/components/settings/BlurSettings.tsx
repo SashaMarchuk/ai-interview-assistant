@@ -22,7 +22,7 @@ export default function BlurSettings() {
         max="20"
         value={blurLevel}
         onChange={(e) => setBlurLevel(Number(e.target.value))}
-        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        className="w-full h-2 bg-gray-200 rounded-lg cursor-pointer accent-blue-600"
       />
       <div className="flex justify-between text-xs text-gray-400 mt-1">
         <span>Clear</span>
