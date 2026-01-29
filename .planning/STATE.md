@@ -1,8 +1,8 @@
 # Project State
 
 **Last Updated:** 2026-01-29
-**Current Phase:** 1 (complete)
-**Current Plan:** Phase 1 complete (4/4 plans)
+**Current Phase:** 2 (in progress)
+**Current Plan:** Phase 2, Plan 1 complete (1/4 plans)
 
 ## Project Reference
 
@@ -10,40 +10,40 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** Phase 1 Complete - Ready for parallel track development
+**Current focus:** Track A - Audio Pipeline development
 
 ## Progress
 
 | Phase | Name | Track | Status | Plans |
 |-------|------|-------|--------|-------|
-| 1 | Foundation | — | COMPLETE | 4/4 |
-| 2 | Audio Pipeline | A | ○ Pending | 0/0 |
-| 3 | Transcription | A | ○ Pending | 0/0 |
-| 4 | LLM Integration | A | ○ Pending | 0/0 |
-| 5 | Overlay UI | B | ○ Pending | 0/0 |
-| 6 | Prompts & Settings | C | ○ Pending | 0/0 |
-| 7 | Integration | — | ○ Pending | 0/0 |
+| 1 | Foundation | -- | COMPLETE | 4/4 |
+| 2 | Audio Pipeline | A | In Progress | 1/4 |
+| 3 | Transcription | A | Pending | 0/0 |
+| 4 | LLM Integration | A | Pending | 0/0 |
+| 5 | Overlay UI | B | Pending | 0/0 |
+| 6 | Prompts & Settings | C | Pending | 0/0 |
+| 7 | Integration | -- | Pending | 0/0 |
 
 **Overall:** 1/7 phases complete
 
 **Parallel execution:** Phase 1 complete - Tracks A/B/C can now run in separate terminals
 
 ```
-[████                ] 20%
+[█████               ] 25%
 ```
 
 ## Current Position
 
-- **Phase:** 1 - Foundation (COMPLETE)
-- **Plan:** 4/4 complete
-- **Status:** Phase complete, ready for parallel tracks
+- **Phase:** 2 - Audio Pipeline (In Progress)
+- **Plan:** 1/4 complete
+- **Status:** Plan 02-01 complete, ready for Plan 02-02
 - **Blocker:** None
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 4 |
+| Plans completed | 5 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
 | Phases completed | 1/7 |
 
@@ -64,6 +64,9 @@ See: .planning/PROJECT.md
 | Type cast for Chrome 116+ APIs | @types/chrome incomplete for OFFSCREEN_DOCUMENT context type | 2026-01-29 |
 | Shadow DOM via createShadowRootUi | CSS isolation from Google Meet page styles | 2026-01-29 |
 | URL pattern for active meetings | Only inject on xxx-xxxx-xxx pattern, not landing/lobby pages | 2026-01-29 |
+| AudioChunkMessage union type | TAB_AUDIO_CHUNK and MIC_AUDIO_CHUNK share chunk/timestamp structure | 2026-01-29 |
+| PCM processor buffer size 1600 | 100ms at 16kHz sample rate for consistent chunk timing | 2026-01-29 |
+| Vanilla JS for AudioWorklet | Worklet runs in separate thread without module resolution | 2026-01-29 |
 
 ### Technical Notes
 
@@ -77,6 +80,8 @@ See: .planning/PROJECT.md
 - Offscreen document creation uses Promise tracking for race condition protection
 - Content script uses /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i pattern
 - createShadowRootUi with cssInjectionMode: 'ui' handles Shadow DOM CSS injection
+- AudioWorklet processors must be vanilla JS in public/ folder
+- Transferable ArrayBuffer for zero-copy audio chunk messages
 
 ### Open Questions
 
@@ -103,17 +108,13 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 01-04-PLAN.md (End-to-end verification)
-- **Outcome:** All Phase 1 success criteria verified, phase complete
+- **Activity:** Completed 02-01-PLAN.md (Audio foundation)
+- **Outcome:** Audio message types and PCM processor created
 
 ### Next Actions
 
-1. Begin parallel track development:
-   - **Track A:** Start Phase 2 (Audio Pipeline) - sequential with 3, 4
-   - **Track B:** Start Phase 5 (Overlay UI) - independent
-   - **Track C:** Start Phase 6 (Prompts & Settings) - independent
-2. Each track can run in separate terminal
-3. Phase 7 will integrate all tracks
+1. Continue Track A with Phase 2 Plan 02 (Tab Audio Capture)
+2. Tracks B/C can run in separate terminals
 
 ---
 
