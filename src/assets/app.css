@@ -60,11 +60,17 @@
   --tw-scale-x: 1;
   --tw-scale-y: 1;
 
-  /* Backdrop filter fallbacks */
-  --tw-backdrop-blur: ;
+  /* Backdrop filter fallbacks - need actual values for blur to work */
+  --tw-backdrop-blur: blur(4px);
   --tw-backdrop-brightness: ;
   --tw-backdrop-contrast: ;
   --tw-backdrop-saturate: ;
+}
+
+/* Explicit backdrop blur for Shadow DOM since @property doesn't work */
+.backdrop-blur-sm {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 /* Ensure overlay container styles work in Shadow DOM */

@@ -28,6 +28,7 @@ interface OverlayProps {
 export function Overlay({ transcript, response }: OverlayProps) {
   const {
     position,
+    minimizedPosition,
     size,
     isMinimized,
     isLoaded,
@@ -49,26 +50,27 @@ export function Overlay({ transcript, response }: OverlayProps) {
     return null;
   }
 
-  // Minimized state: render small expandable button
+  // Minimized state: render small fixed button at bottom-right
+  // Not draggable - always stays at bottom-right corner
   if (isMinimized) {
     return (
-      <Rnd
-        position={position}
-        size={{ width: 140, height: 36 }}
-        enableResizing={false}
-        bounds="window"
-        onDragStop={(e, d) => setPosition({ x: d.x, y: d.y })}
-        className="z-[999999]"
+      <div
+        style={{
+          position: 'fixed',
+          right: 20,
+          bottom: 20,
+          zIndex: 999999,
+        }}
       >
         <button
           onClick={() => setMinimized(false)}
-          className="w-full h-full bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 text-sm font-medium px-3 flex items-center justify-center gap-2 transition-colors"
+          className="w-[140px] h-9 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 text-sm font-medium px-3 flex items-center justify-center gap-2 transition-colors"
           title="Expand AI Assistant"
         >
           <span>AI Assistant</span>
           <span className="text-blue-200">+</span>
         </button>
-      </Rnd>
+      </div>
     );
   }
 
