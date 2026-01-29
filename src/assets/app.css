@@ -1,1 +1,73 @@
 @import "tailwindcss";
+
+/*
+ * Tailwind v4 Shadow DOM Compatibility
+ *
+ * Problem: Tailwind v4 uses @property CSS declarations for variable defaults,
+ * but @property has no effect inside Shadow DOM.
+ *
+ * Solution: Provide explicit fallback values using @theme inline and :host selector.
+ * This ensures spacing, colors, and effects work correctly in Shadow DOM.
+ */
+
+@theme inline {
+  /* Override rem-based spacing with px values for Shadow DOM */
+  --spacing-0: 0;
+  --spacing-0-5: 2px;
+  --spacing-1: 4px;
+  --spacing-1-5: 6px;
+  --spacing-2: 8px;
+  --spacing-2-5: 10px;
+  --spacing-3: 12px;
+  --spacing-3-5: 14px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-7: 28px;
+  --spacing-8: 32px;
+  --spacing-9: 36px;
+  --spacing-10: 40px;
+  --spacing-11: 44px;
+  --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+
+  /* Text sizes in px for Shadow DOM */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+}
+
+/* Shadow DOM fallbacks for @property-dependent features */
+:host {
+  /* Shadow/ring effect fallbacks */
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+
+  /* Border style fallback */
+  --tw-border-style: solid;
+
+  /* Transform fallbacks */
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+
+  /* Backdrop filter fallbacks */
+  --tw-backdrop-blur: ;
+  --tw-backdrop-brightness: ;
+  --tw-backdrop-contrast: ;
+  --tw-backdrop-saturate: ;
+}
+
+/* Ensure overlay container styles work in Shadow DOM */
+.overlay-container {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
