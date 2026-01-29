@@ -3,6 +3,12 @@
  *
  * Combined template management UI that renders the template list
  * and editor in a stacked layout optimized for the popup width.
+ *
+ * Layout:
+ * - Top: TemplateList - Displays available templates with selection
+ * - Bottom: TemplateEditor - Edits the selected template's properties
+ *
+ * Used in: popup/App.tsx Templates tab
  */
 
 import { TemplateList } from './TemplateList';

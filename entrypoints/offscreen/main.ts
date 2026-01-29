@@ -2,15 +2,130 @@ import type {
   OffscreenReadyMessage,
   PingMessage,
   CaptureErrorMessage,
+  CaptureStartedMessage,
+  CaptureStoppedMessage,
+  TabStreamIdMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
 } from '../../src/types/messages';
 import { isMessage } from '../../src/types/messages';
 
+// Module-level state for tab audio capture
+let tabAudioContext: AudioContext | null = null;
+let tabStream: MediaStream | null = null;
+let tabWorkletNode: AudioWorkletNode | null = null;
+
 // Module-level state for microphone capture
 let micAudioContext: AudioContext | null = null;
 let micStream: MediaStream | null = null;
 let micWorkletNode: AudioWorkletNode | null = null;
+
+/**
+ * Start tab audio capture from stream ID.
+ * Creates MediaStream via getUserMedia with chromeMediaSource constraint.
+ * Routes audio to destination (passthrough) and to PCM processor.
+ */
+async function startTabCapture(streamId: string): Promise<void> {
+  // Clean up any existing capture
+  if (tabStream || tabAudioContext) {
+    stopTabCapture();
+  }
+
+  try {
+    // Get MediaStream using Chrome's tab capture API
+    // Note: chromeMediaSource is a Chrome-specific constraint not in standard TypeScript types
+    tabStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: 'tab',
+          chromeMediaSourceId: streamId,
+        },
+      } as MediaTrackConstraints,
+      video: false,
+    });
+    console.log('Tab stream acquired');
+
+    // Create AudioContext at 16kHz for STT
+    tabAudioContext = new AudioContext({ sampleRate: 16000 });
+    console.log('Tab AudioContext created, actual sampleRate:', tabAudioContext.sampleRate);
+
+    // Create source from tab stream
+    const source = tabAudioContext.createMediaStreamSource(tabStream);
+
+    // CRITICAL: Connect source to destination for audio passthrough
+    // This ensures the user can still hear the tab audio (interviewer's voice)
+    source.connect(tabAudioContext.destination);
+    console.log('Audio passthrough enabled - tab audio will be audible');
+
+    // Load AudioWorklet processor for PCM conversion
+    await tabAudioContext.audioWorklet.addModule(chrome.runtime.getURL('pcm-processor.js'));
+
+    // Create worklet node for PCM conversion
+    tabWorkletNode = new AudioWorkletNode(tabAudioContext, 'pcm-processor');
+
+    // Handle PCM chunks from worklet
+    tabWorkletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+      chrome.runtime.sendMessage({
+        type: 'TAB_AUDIO_CHUNK',
+        chunk: event.data,
+        timestamp: Date.now(),
+      });
+    };
+
+    // Connect source to worklet for PCM processing
+    source.connect(tabWorkletNode);
+
+    // Notify that capture has started
+    chrome.runtime.sendMessage({
+      type: 'CAPTURE_STARTED',
+    } satisfies CaptureStartedMessage);
+
+    console.log('Tab capture started successfully');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Tab capture failed:', errorMessage);
+
+    // Send error message
+    chrome.runtime.sendMessage({
+      type: 'CAPTURE_ERROR',
+      error: `Tab capture failed: ${errorMessage}`,
+    } satisfies CaptureErrorMessage);
+
+    // Clean up on failure
+    stopTabCapture();
+    throw error;
+  }
+}
+
+/**
+ * Stop tab audio capture and clean up resources.
+ */
+function stopTabCapture(): void {
+  // Stop all tracks on the stream
+  if (tabStream) {
+    tabStream.getTracks().forEach((track) => track.stop());
+    tabStream = null;
+  }
+
+  // Disconnect worklet node
+  if (tabWorkletNode) {
+    tabWorkletNode.disconnect();
+    tabWorkletNode = null;
+  }
+
+  // Close audio context
+  if (tabAudioContext) {
+    tabAudioContext.close().catch(console.error);
+    tabAudioContext = null;
+  }
+
+  // Notify that capture has stopped
+  chrome.runtime.sendMessage({
+    type: 'CAPTURE_STOPPED',
+  } satisfies CaptureStoppedMessage);
+
+  console.log('Tab capture stopped');
+}
 
 /**
  * Start microphone capture and convert to PCM via AudioWorklet.
@@ -114,6 +229,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle messages sent to offscreen document
   if (isMessage<PingMessage>(message, 'PING')) {
     sendResponse({ type: 'PONG', timestamp: message.timestamp, receivedAt: Date.now() });
+    return true;
+  }
+
+  // Handle TAB_STREAM_ID - start tab audio capture
+  if (isMessage<TabStreamIdMessage>(message, 'TAB_STREAM_ID')) {
+    startTabCapture(message.streamId)
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep channel open for async response
+  }
+
+  // Handle STOP_CAPTURE - stop tab audio capture
+  if (message.type === 'STOP_CAPTURE') {
+    stopTabCapture();
+    sendResponse({ success: true });
     return true;
   }
 
