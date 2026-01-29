@@ -227,6 +227,14 @@ Plans:
 
 **Research flag:** Standard patterns, chrome.storage API straightforward
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Zustand store with settings slice, templates slice, chrome.storage persistence
+- [ ] 06-02-PLAN.md — Settings UI (API keys, models, hotkeys, blur level)
+- [ ] 06-03-PLAN.md — Template Manager UI (list, editor, CRUD operations)
+- [ ] 06-04-PLAN.md — Human verification of complete settings flow
+
 ---
 
 ### Phase 7: Integration
@@ -271,7 +279,7 @@ Plans:
 | 3 - Transcription | A | ○ Pending | 0/0 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
 | 5 - Overlay UI | B | ○ Pending | 0/0 |
-| 6 - Prompts & Settings | C | ○ Pending | 0/0 |
+| 6 - Prompts & Settings | C | ○ Planned | 0/4 |
 | 7 - Integration | — | ○ Pending | 0/0 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
@@ -325,4 +333,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 1 complete*
+*Last updated: 2026-01-29 — Phase 6 planned*
