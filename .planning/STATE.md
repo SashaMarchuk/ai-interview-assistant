@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** 1 (in progress)
-**Current Plan:** 01-02 complete
+**Current Plan:** 01-03 complete
 
 ## Project Reference
 
@@ -16,7 +16,7 @@ See: .planning/PROJECT.md
 
 | Phase | Name | Track | Status | Plans |
 |-------|------|-------|--------|-------|
-| 1 | Foundation | — | ◐ In Progress | 2/4 |
+| 1 | Foundation | — | ◐ In Progress | 3/4 |
 | 2 | Audio Pipeline | A | ○ Pending | 0/0 |
 | 3 | Transcription | A | ○ Pending | 0/0 |
 | 4 | LLM Integration | A | ○ Pending | 0/0 |
@@ -29,13 +29,13 @@ See: .planning/PROJECT.md
 **Parallel execution:** After Phase 1, Tracks A/B/C can run in separate terminals
 
 ```
-[██                  ] 10%
+[███                 ] 15%
 ```
 
 ## Current Position
 
 - **Phase:** 1 - Foundation
-- **Plan:** 01-02 complete, 01-03 next
+- **Plan:** 01-03 complete, 01-04 next
 - **Status:** In progress
 - **Blocker:** None
 
@@ -43,7 +43,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 2 |
+| Plans completed | 3 |
 | Requirements delivered | 0/44 |
 | Phases completed | 0/7 |
 
@@ -54,7 +54,7 @@ See: .planning/PROJECT.md
 | Decision | Rationale | Date |
 |----------|-----------|------|
 | 7-phase structure with parallel tracks | Phase 1 first, then Tracks A/B/C in parallel, Phase 7 integrates | 2026-01-28 |
-| Track A (2→3→4) sequential | Tight coupling: audio required for STT, STT required for LLM context | 2026-01-28 |
+| Track A (2->3->4) sequential | Tight coupling: audio required for STT, STT required for LLM context | 2026-01-28 |
 | Track B (Phase 5) parallel | Overlay UI uses mock data, doesn't need real pipeline | 2026-01-28 |
 | Track C (Phase 6) parallel | Settings/Popup independent of overlay and pipeline | 2026-01-28 |
 | Phase 7 Integration | Wire tracks together, resolve conflicts, E2E testing | 2026-01-28 |
@@ -62,6 +62,8 @@ See: .planning/PROJECT.md
 | Tailwind v4 with CSS-first config | No tailwind.config.ts needed, uses @import "tailwindcss" | 2026-01-29 |
 | Relative imports for WXT entrypoints | Path aliases cause vite-node resolution issues during build | 2026-01-29 |
 | Type cast for Chrome 116+ APIs | @types/chrome incomplete for OFFSCREEN_DOCUMENT context type | 2026-01-29 |
+| Shadow DOM via createShadowRootUi | CSS isolation from Google Meet page styles | 2026-01-29 |
+| URL pattern for active meetings | Only inject on xxx-xxxx-xxx pattern, not landing/lobby pages | 2026-01-29 |
 
 ### Technical Notes
 
@@ -73,6 +75,8 @@ See: .planning/PROJECT.md
 - Message types use discriminated unions with isMessage type guard
 - Service Worker event listeners must be registered synchronously at top level
 - Offscreen document creation uses Promise tracking for race condition protection
+- Content script uses /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i pattern
+- createShadowRootUi with cssInjectionMode: 'ui' handles Shadow DOM CSS injection
 
 ### Open Questions
 
@@ -87,14 +91,13 @@ None at this time.
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 01-02-PLAN.md (Extension component wiring)
-- **Outcome:** Service Worker, Popup, Offscreen Document communication working
+- **Activity:** Completed 01-03-PLAN.md (Content Script with overlay injection)
+- **Outcome:** Content script injects Shadow DOM overlay on Google Meet meeting pages
 
 ### Next Actions
 
-1. Execute 01-03-PLAN.md (Content Script with overlay injection)
-2. Execute 01-04-PLAN.md (End-to-end verification)
-3. After Phase 1 completes, open 3 terminals for parallel execution
+1. Execute 01-04-PLAN.md (End-to-end verification)
+2. After Phase 1 completes, open 3 terminals for parallel execution
 
 ---
 
