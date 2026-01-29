@@ -10,6 +10,7 @@ import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
 import ModelSettings from '../../src/components/settings/ModelSettings';
 import HotkeySettings from '../../src/components/settings/HotkeySettings';
 import BlurSettings from '../../src/components/settings/BlurSettings';
+import TemplateManager from '../../src/components/templates/TemplateManager';
 
 type Tab = 'settings' | 'templates';
 
@@ -77,12 +78,7 @@ function App() {
           </div>
         ) : (
           <div className="p-4">
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-sm">Template management coming soon</p>
-              <p className="text-xs mt-2 text-gray-400">
-                Configure interview prompt templates here
-              </p>
-            </div>
+            <TemplateManager />
           </div>
         )}
       </div>
