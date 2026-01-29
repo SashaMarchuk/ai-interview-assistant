@@ -17,25 +17,25 @@ See: .planning/PROJECT.md
 | Phase | Name | Track | Status | Plans |
 |-------|------|-------|--------|-------|
 | 1 | Foundation | -- | COMPLETE | 4/4 |
-| 2 | Audio Pipeline | A | In Progress | 3/4 |
+| 2 | Audio Pipeline | A | COMPLETE | 4/4 |
 | 3 | Transcription | A | Pending | 0/0 |
 | 4 | LLM Integration | A | Pending | 0/0 |
 | 5 | Overlay UI | B | In Progress | 3/? |
 | 6 | Prompts & Settings | C | In Progress | 3/? |
 | 7 | Integration | -- | Pending | 0/0 |
 
-**Overall:** 1/7 phases complete
+**Overall:** 2/7 phases complete
 
 **Parallel execution:** Tracks A/B/C running in parallel
 
 ```
-[██████              ] 30%
+[████████            ] 40%
 ```
 
 ## Current Position
 
 - **Phase:** Multi-track execution
-- **Track A:** Phase 2, Plan 3 complete (Microphone Capture)
+- **Track A:** Phase 2 COMPLETE, ready for Phase 3 (Transcription)
 - **Track B:** Phase 5, Plan 3 complete (Content Panels)
 - **Track C:** Phase 6, Plan 3 complete (Template Manager UI)
 - **Blocker:** None
@@ -44,9 +44,9 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 13 |
+| Plans completed | 14 |
 | Requirements delivered | 5/44 (Phase 1 success criteria) |
-| Phases completed | 1/7 |
+| Phases completed | 2/7 |
 
 ## Accumulated Context
 
@@ -138,12 +138,12 @@ All 5 success criteria verified:
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 02-02-PLAN.md (Tab Audio Capture)
-- **Outcome:** Tab audio capture with chromeMediaSource constraint, audio passthrough via connect(destination)
+- **Activity:** Completed 02-04-PLAN.md (Popup Start/Stop UI)
+- **Outcome:** Phase 2 Audio Pipeline COMPLETE - all success criteria verified
 
 ### Next Actions
 
-1. Track A: Continue Phase 2 Plan 04 (Audio Control & Integration)
+1. Track A: Begin Phase 3 (Transcription) - plans need creation
 2. Track B: Continue Phase 5 (Overlay components)
 3. Track C: Phase 6 Template Manager complete - check for remaining plans
 
