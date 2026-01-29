@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (2/4 complete), Track B (5/4 COMPLETE), Track C (6/4 COMPLETE)
+**Current Plan:** Track A (3/4 in progress - 03-01 complete), Track B (5/4 COMPLETE), Track C (6/4 COMPLETE)
 
 ## Project Reference
 
@@ -18,7 +18,7 @@ See: .planning/PROJECT.md
 |-------|------|-------|--------|-------|
 | 1 | Foundation | -- | COMPLETE | 4/4 |
 | 2 | Audio Pipeline | A | COMPLETE | 4/4 |
-| 3 | Transcription | A | Pending | 0/0 |
+| 3 | Transcription | A | In Progress | 1/? |
 | 4 | LLM Integration | A | Pending | 0/0 |
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
@@ -29,13 +29,13 @@ See: .planning/PROJECT.md
 **Parallel execution:** Tracks A/B/C running in parallel
 
 ```
-[████████████        ] 60%
+[████████████░       ] 65%
 ```
 
 ## Current Position
 
 - **Phase:** Multi-track execution
-- **Track A:** Phase 2 COMPLETE, ready for Phase 3 (Transcription)
+- **Track A:** Phase 3 (Transcription) in progress - 03-01 complete
 - **Track B:** Phase 5 COMPLETE - all overlay components integrated
 - **Track C:** Phase 6 COMPLETE - settings and templates fully functional
 - **Blocker:** None
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 16 |
+| Plans completed | 17 |
 | Requirements delivered | 15/44 |
 | Phases completed | 4/7 |
 
@@ -86,6 +86,10 @@ See: .planning/PROJECT.md
 | Transparent glassmorphism overlay | bg-black/10 with backdrop-blur-md shows page content through overlay | 2026-01-29 |
 | Small draggable AI button for minimized | 56x44 draggable button maintains position consistency | 2026-01-29 |
 | Window resize listener for overlay | Repositions overlay within viewport on window resize | 2026-01-29 |
+| btoa() for base64 encoding | Browser-native base64, no library needed for WebSocket audio | 2026-01-29 |
+| Exponential backoff for WebSocket reconnect | 500ms base, max 5000ms, with jitter to prevent thundering herd | 2026-01-29 |
+| Audio buffer max 100 chunks | ~6 seconds of audio buffered during WebSocket disconnect | 2026-01-29 |
+| Speaker labels: You/Interviewer | 'You' for mic source, 'Interviewer' for tab source | 2026-01-29 |
 
 ### Technical Notes
 
@@ -118,6 +122,9 @@ See: .planning/PROJECT.md
 - Overlay barrel export at src/overlay/index.ts for clean imports
 - Minimized overlay button is draggable Rnd component, not fixed position
 - Window resize event triggers boundary repositioning for overlay
+- ElevenLabs WebSocket URL: wss://api.elevenlabs.io/v1/speech-to-text/realtime with query params
+- VAD commit strategy with include_timestamps=true for ElevenLabs
+- ElevenLabsConnection class handles reconnection lifecycle automatically
 
 ### Open Questions
 
@@ -172,14 +179,14 @@ Requirements UI-01 through UI-08 complete.
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Executed Phase 5 Overlay UI (4 plans, 3 waves)
-- **Outcome:** Phase 5 COMPLETE with human verification - drag/resize, transparent glassmorphism, minimize/maximize, position persistence all working
+- **Activity:** Executed Phase 3 Plan 01 - Transcription types and WebSocket wrapper
+- **Outcome:** 03-01 COMPLETE - ElevenLabsConnection, AudioBuffer, message types all implemented
 
 ### Next Actions
 
-1. Track A: Begin Phase 3 (Transcription) - plans need creation
+1. Track A: Continue Phase 3 (Transcription) - execute 03-02 (offscreen wiring)
 2. Track B: Phase 5 COMPLETE - no further action needed
-3. Track C: Continue Phase 6 (Prompts & Settings)
+3. Track C: Phase 6 COMPLETE - no further action needed
 
 ---
 
