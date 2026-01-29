@@ -4,8 +4,13 @@ import { Overlay } from '../src/overlay';
 import { storeReadyPromise, useStore } from '../src/store';
 import { useCaptureMode, type CaptureState } from '../src/hooks';
 import '../src/assets/app.css';
-import type { TranscriptEntry } from '../src/types/transcript';
-import type { ExtensionMessage, LLMRequestMessage } from '../src/types/messages';
+import type { TranscriptEntry, LLMResponse } from '../src/types/transcript';
+import type {
+  ExtensionMessage,
+  LLMRequestMessage,
+  LLMStreamMessage,
+  LLMStatusMessage,
+} from '../src/types/messages';
 
 // Only inject on active Google Meet meeting pages (not landing/join pages)
 // Meeting URL pattern: meet.google.com/xxx-xxxx-xxx
@@ -21,8 +26,90 @@ export interface CaptureStateEventDetail {
   state: CaptureState;
 }
 
+// Custom event type for LLM response updates
+export interface LLMResponseEventDetail {
+  response: LLMResponse;
+}
+
 // Module-level transcript state
 let currentTranscript: TranscriptEntry[] = [];
+
+// Module-level LLM response state
+let currentLLMResponse: LLMResponse | null = null;
+
+/**
+ * Dispatch LLM response update to the React overlay via custom event.
+ * The overlay listens for this event to update its response state.
+ */
+function dispatchLLMResponseUpdate(response: LLMResponse): void {
+  currentLLMResponse = response;
+  window.dispatchEvent(
+    new CustomEvent<LLMResponseEventDetail>('llm-response-update', {
+      detail: { response },
+    })
+  );
+}
+
+/**
+ * Initialize a new LLM response with pending status
+ */
+function initLLMResponse(responseId: string): void {
+  const response: LLMResponse = {
+    id: responseId,
+    questionId: responseId, // Use same ID for now
+    fastHint: null,
+    fullAnswer: null,
+    status: 'pending',
+  };
+  dispatchLLMResponseUpdate(response);
+}
+
+/**
+ * Handle LLM stream token message
+ */
+function handleLLMStream(message: LLMStreamMessage): void {
+  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
+    // Initialize if response doesn't exist
+    initLLMResponse(message.responseId);
+  }
+
+  const response = { ...currentLLMResponse! };
+  response.status = 'streaming';
+
+  if (message.model === 'fast') {
+    response.fastHint = (response.fastHint || '') + message.token;
+  } else if (message.model === 'full') {
+    response.fullAnswer = (response.fullAnswer || '') + message.token;
+  }
+
+  dispatchLLMResponseUpdate(response);
+}
+
+/**
+ * Handle LLM status change message
+ */
+function handleLLMStatus(message: LLMStatusMessage): void {
+  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
+    // Initialize if response doesn't exist
+    initLLMResponse(message.responseId);
+  }
+
+  const response = { ...currentLLMResponse! };
+
+  // Update status based on which model(s) the status applies to
+  if (message.status === 'error') {
+    response.status = 'error';
+    response.error = message.error;
+  } else if (message.status === 'complete' && message.model === 'both') {
+    response.status = 'complete';
+  } else if (message.status === 'streaming') {
+    response.status = 'streaming';
+  } else if (message.status === 'pending') {
+    response.status = 'pending';
+  }
+
+  dispatchLLMResponseUpdate(response);
+}
 
 /**
  * Get transcript entries since a given timestamp, formatted as string
@@ -67,6 +154,9 @@ async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Pro
   }
 
   const responseId = crypto.randomUUID();
+
+  // Initialize LLM response state before sending request
+  initLLMResponse(responseId);
 
   const message: LLMRequestMessage = {
     type: 'LLM_REQUEST',
@@ -169,36 +259,46 @@ export default defineContentScript({
 
     // Set up message listener for messages from Service Worker/Popup
     chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-      if (message.type === 'TRANSCRIPT_UPDATE') {
-        console.log(
-          'AI Interview Assistant: Received transcript update',
-          message.entries.length,
-          'entries'
-        );
-        dispatchTranscriptUpdate(message.entries);
-        return false;
-      }
+      switch (message.type) {
+        case 'TRANSCRIPT_UPDATE':
+          console.log(
+            'AI Interview Assistant: Received transcript update',
+            message.entries.length,
+            'entries'
+          );
+          dispatchTranscriptUpdate(message.entries);
+          return false;
 
-      // Handle mic permission request from popup
-      // Content scripts run in the web page context, so permission prompts work properly here
-      if (message.type === 'REQUEST_MIC_PERMISSION') {
-        console.log('AI Interview Assistant: Requesting mic permission from page context');
-        navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then((stream) => {
-            // Permission granted - immediately stop the stream (we just needed the permission)
-            stream.getTracks().forEach((track) => track.stop());
-            console.log('AI Interview Assistant: Mic permission granted');
-            sendResponse({ success: true });
-          })
-          .catch((error) => {
-            console.error('AI Interview Assistant: Mic permission denied', error);
-            sendResponse({ success: false, error: error.message || 'Permission denied' });
-          });
-        return true; // Keep channel open for async response
-      }
+        case 'LLM_STREAM':
+          handleLLMStream(message);
+          return false;
 
-      return false;
+        case 'LLM_STATUS':
+          console.log('AI Interview Assistant: LLM status update', message.status, message.model);
+          handleLLMStatus(message);
+          return false;
+
+        case 'REQUEST_MIC_PERMISSION':
+          // Handle mic permission request from popup
+          // Content scripts run in the web page context, so permission prompts work properly here
+          console.log('AI Interview Assistant: Requesting mic permission from page context');
+          navigator.mediaDevices
+            .getUserMedia({ audio: true })
+            .then((stream) => {
+              // Permission granted - immediately stop the stream (we just needed the permission)
+              stream.getTracks().forEach((track) => track.stop());
+              console.log('AI Interview Assistant: Mic permission granted');
+              sendResponse({ success: true });
+            })
+            .catch((error) => {
+              console.error('AI Interview Assistant: Mic permission denied', error);
+              sendResponse({ success: false, error: error.message || 'Permission denied' });
+            });
+          return true; // Keep channel open for async response
+
+        default:
+          return false;
+      }
     });
 
     // Wait for store to sync before rendering (for blur level, hotkey settings, etc.)
