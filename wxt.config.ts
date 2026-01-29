@@ -21,7 +21,7 @@ export default defineConfig({
     host_permissions: ['https://meet.google.com/*'],
     content_security_policy: {
       extension_pages:
-        "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' ws://localhost:* http://localhost:* wss://api.elevenlabs.io https://openrouter.ai",
+        "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' ws://localhost:* http://localhost:* wss://api.elevenlabs.io https://api.elevenlabs.io https://openrouter.ai",
     },
     minimum_chrome_version: '116',
     icons: {

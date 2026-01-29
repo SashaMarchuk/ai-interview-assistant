@@ -14,6 +14,8 @@ export interface TranscriptionConfig {
   languageCode?: string;
   /** Audio source: 'tab' for interviewer, 'mic' for user */
   source: 'tab' | 'mic';
+  /** VAD silence threshold in seconds (default: 0.5 for fast commits) */
+  vadSilenceThresholdSecs?: number;
 }
 
 /**
@@ -41,7 +43,12 @@ export type ServerMessage =
   | PartialTranscriptMessage
   | CommittedTranscriptMessage
   | CommittedTranscriptWithTimestampsMessage
-  | ErrorMessage;
+  | FinalTranscriptMessage
+  | VadEventMessage
+  | InternalVadScoreMessage
+  | InternalTentativeTranscriptMessage
+  | ErrorMessage
+  | AuthErrorMessage;
 
 export interface SessionStartedMessage {
   message_type: 'session_started';
@@ -65,10 +72,40 @@ export interface CommittedTranscriptWithTimestampsMessage {
   words: Word[];
 }
 
+/** Alternative final transcript message type (some API versions) */
+export interface FinalTranscriptMessage {
+  message_type: 'final_transcript';
+  text: string;
+}
+
+/** Voice Activity Detection event */
+export interface VadEventMessage {
+  message_type: 'vad_event';
+  type?: string;
+}
+
+/** Internal VAD score message (debug) */
+export interface InternalVadScoreMessage {
+  message_type: 'internal_vad_score';
+  score?: number;
+}
+
+/** Internal tentative transcript (debug) */
+export interface InternalTentativeTranscriptMessage {
+  message_type: 'internal_tentative_transcript';
+  text?: string;
+}
+
 export interface ErrorMessage {
   message_type: 'error';
   error_type: string;
   message: string;
+}
+
+/** Authentication error message */
+export interface AuthErrorMessage {
+  message_type: 'auth_error';
+  error?: string;
 }
 
 /**

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Interview Assistant - Grant Permissions</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 500px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #4ade80; }
+    .btn {
+      background: #4ade80;
+      color: #1a1a2e;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 10px 5px 10px 0;
+    }
+    .btn:hover { background: #22c55e; }
+    .btn:disabled { background: #666; cursor: not-allowed; }
+    .btn-secondary {
+      background: #3b82f6;
+      color: white;
+    }
+    .btn-secondary:hover { background: #2563eb; }
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .status.success { background: #166534; }
+    .status.error { background: #991b1b; }
+    .status.pending { background: #854d0e; }
+    #micStatus, #tabStatus { margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>Grant Permissions</h1>
+  <p>This extension needs microphone access to transcribe your voice during interviews.</p>
+
+  <h2>Step 1: Microphone</h2>
+  <div id="micStatus" class="status pending">Checking...</div>
+  <button id="grantMic" class="btn">Grant Microphone Access</button>
+
+  <h2>Step 2: Ready!</h2>
+  <p>Once microphone is granted, you can close this tab and use the extension.</p>
+  <button id="closeTab" class="btn btn-secondary" disabled>Close & Return to Extension</button>
+
+  <script>
+    const micStatus = document.getElementById('micStatus');
+    const grantMicBtn = document.getElementById('grantMic');
+    const closeTabBtn = document.getElementById('closeTab');
+
+    async function checkMicPermission() {
+      try {
+        const result = await navigator.permissions.query({ name: 'microphone' });
+        updateMicStatus(result.state);
+        result.addEventListener('change', () => updateMicStatus(result.state));
+      } catch (e) {
+        micStatus.textContent = 'Click "Grant Microphone Access" to enable';
+        micStatus.className = 'status pending';
+      }
+    }
+
+    function updateMicStatus(state) {
+      if (state === 'granted') {
+        micStatus.textContent = '✓ Microphone permission granted!';
+        micStatus.className = 'status success';
+        grantMicBtn.disabled = true;
+        grantMicBtn.textContent = 'Already Granted';
+        closeTabBtn.disabled = false;
+      } else if (state === 'denied') {
+        micStatus.textContent = '✗ Microphone blocked. Click the lock icon in the address bar to change.';
+        micStatus.className = 'status error';
+      } else {
+        micStatus.textContent = 'Click "Grant Microphone Access" to enable';
+        micStatus.className = 'status pending';
+      }
+    }
+
+    grantMicBtn.addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        updateMicStatus('granted');
+      } catch (e) {
+        if (e.name === 'NotAllowedError') {
+          updateMicStatus('denied');
+        } else {
+          micStatus.textContent = 'Error: ' + e.message;
+          micStatus.className = 'status error';
+        }
+      }
+    });
+
+    closeTabBtn.addEventListener('click', () => {
+      window.close();
+    });
+
+    // Check on load
+    checkMicPermission();
+  </script>
+</body>
+</html>

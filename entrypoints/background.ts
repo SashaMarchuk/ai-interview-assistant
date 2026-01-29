@@ -8,6 +8,7 @@ import type {
   StartTranscriptionMessage,
   StopTranscriptionMessage,
   TranscriptUpdateMessage,
+  GetCaptureStateMessage,
 } from '../src/types/messages';
 import type { TranscriptEntry } from '../src/types/transcript';
 
@@ -16,11 +17,60 @@ let mergedTranscript: TranscriptEntry[] = [];
 let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
   new Map();
 
+// Module state for capture tracking
+let isTabCaptureActive = false;
+let isTranscriptionActive = false;
+
+/**
+ * Broadcast transcript to all Google Meet content scripts.
+ * Includes both final entries and current interim (partial) entries.
+ */
+async function broadcastTranscript(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+
+    // Build entries array: final entries + current interim entries
+    const interimAsEntries: TranscriptEntry[] = [];
+    for (const [source, interim] of interimEntries) {
+      interimAsEntries.push({
+        id: `interim-${source}`,
+        speaker: source === 'mic' ? 'You' : 'Interviewer',
+        text: interim.text,
+        timestamp: interim.timestamp,
+        isFinal: false,
+      });
+    }
+
+    // Sort interim by timestamp and append after final entries
+    interimAsEntries.sort((a, b) => a.timestamp - b.timestamp);
+
+    const message: TranscriptUpdateMessage = {
+      type: 'TRANSCRIPT_UPDATE',
+      entries: [...mergedTranscript, ...interimAsEntries],
+    };
+
+    for (const tab of tabs) {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, message).catch((err) => {
+          // Ignore - content script might not be loaded on this tab
+          console.log(`Could not send to tab ${tab.id}:`, err.message);
+        });
+      }
+    }
+
+    if (tabs.length > 0) {
+      console.log(`Broadcast ${mergedTranscript.length} final + ${interimAsEntries.length} interim entries`);
+    }
+  } catch (error) {
+    console.error('Failed to broadcast transcript:', error);
+  }
+}
+
 /**
  * Add a transcript entry maintaining chronological order.
- * Broadcasts TRANSCRIPT_UPDATE to all contexts.
+ * Broadcasts TRANSCRIPT_UPDATE to content scripts on Google Meet tabs.
  */
-function addTranscriptEntry(entry: TranscriptEntry): void {
+async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
   // Find correct insertion index to maintain chronological order by timestamp
   let insertIndex = mergedTranscript.length;
   for (let i = mergedTranscript.length - 1; i >= 0; i--) {
@@ -36,20 +86,14 @@ function addTranscriptEntry(entry: TranscriptEntry): void {
   // Insert entry at the correct position
   mergedTranscript.splice(insertIndex, 0, entry);
 
-  // Broadcast update to all contexts
-  chrome.runtime.sendMessage({
-    type: 'TRANSCRIPT_UPDATE',
-    entries: [...mergedTranscript],
-  } satisfies TranscriptUpdateMessage).catch((error) => {
-    // Ignore errors if no listeners (e.g., content script not yet loaded)
-    console.log('Could not broadcast transcript update:', error);
-  });
-
   console.log(
     'Transcript entry added:',
     entry.speaker,
     entry.text.substring(0, 50) + (entry.text.length > 50 ? '...' : '')
   );
+
+  // Broadcast updated transcript
+  await broadcastTranscript();
 }
 
 // Initialize store in service worker - required for webext-zustand cross-context sync
@@ -104,38 +148,78 @@ async function handleMessage(
 
     case 'START_CAPTURE': {
       try {
+        // Check if capture is already active
+        if (isTabCaptureActive) {
+          // Force cleanup first
+          console.log('Previous capture was active, cleaning up first...');
+          try {
+            await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } satisfies StopCaptureMessage);
+          } catch (e) {
+            console.log('Cleanup error (may be expected):', e);
+          }
+          isTabCaptureActive = false;
+          // Longer delay to let Chrome fully release the stream and close AudioContext
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        // IMPORTANT: Ensure offscreen document exists FIRST
+        // Stream IDs expire quickly, so we need offscreen ready before requesting
+        console.log('Ensuring offscreen document is ready...');
+        await ensureOffscreenDocument();
+        // Give offscreen document a moment to fully initialize
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
         // Get the active tab
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!activeTab?.id) {
           throw new Error('No active tab found');
         }
 
+        // Validate tab URL - some tabs can't be captured
+        if (!activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('chrome-extension://')) {
+          throw new Error('Cannot capture this tab. Navigate to a regular webpage first.');
+        }
+
         // Get stream ID for tab capture (requires user gesture context from popup)
-        // Note: getMediaStreamId uses callback API, wrap in Promise
+        // Do NOT specify consumerTabId - the stream will be used by extension's offscreen document
+        console.log('Getting stream ID for tab:', activeTab.id, 'URL:', activeTab.url);
         const streamId = await new Promise<string>((resolve, reject) => {
-          chrome.tabCapture.getMediaStreamId({ targetTabId: activeTab.id }, (id) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (!id) {
-              reject(new Error('No stream ID returned'));
-            } else {
-              resolve(id);
+          chrome.tabCapture.getMediaStreamId(
+            { targetTabId: activeTab.id },
+            (id) => {
+              if (chrome.runtime.lastError) {
+                console.error('getMediaStreamId error:', chrome.runtime.lastError);
+                reject(new Error(chrome.runtime.lastError.message));
+              } else if (!id) {
+                reject(new Error('No stream ID returned'));
+              } else {
+                console.log('Got stream ID:', id.substring(0, 20) + '...');
+                resolve(id);
+              }
             }
-          });
+          );
         });
 
-        // Ensure offscreen document exists to handle the audio
-        await ensureOffscreenDocument();
+        // Mark capture as starting (will be confirmed by CAPTURE_STARTED)
+        isTabCaptureActive = true;
 
-        // Send stream ID to offscreen document
-        await chrome.runtime.sendMessage({
+        // IMMEDIATELY send stream ID to offscreen document (stream IDs expire quickly!)
+        const response = await chrome.runtime.sendMessage({
           type: 'TAB_STREAM_ID',
           streamId,
         } satisfies TabStreamIdMessage);
 
+        // Check if offscreen capture actually succeeded
+        if (!response?.success) {
+          isTabCaptureActive = false;
+          throw new Error(response?.error || 'Tab capture failed in offscreen');
+        }
+
         console.log('Tab capture started, stream ID sent to offscreen');
         return { success: true };
       } catch (error) {
+        // Reset state on failure
+        isTabCaptureActive = false;
         const errorMessage = error instanceof Error ? error.message : 'Unknown capture error';
         console.error('Tab capture failed:', errorMessage);
         return { success: false, error: errorMessage };
@@ -144,13 +228,20 @@ async function handleMessage(
 
     case 'STOP_CAPTURE': {
       try {
+        console.log('STOP_CAPTURE received, forwarding to offscreen...');
         // Forward stop command to offscreen document
-        await chrome.runtime.sendMessage({
+        const response = await chrome.runtime.sendMessage({
           type: 'STOP_CAPTURE',
         } satisfies StopCaptureMessage);
-        console.log('Stop capture command sent to offscreen');
+        console.log('STOP_CAPTURE response from offscreen:', response);
+        isTabCaptureActive = false;
+        // Give Chrome extra time to fully release the stream
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        console.log('Stop capture complete');
         return { success: true };
       } catch (error) {
+        // Reset state even on error
+        isTabCaptureActive = false;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Stop capture failed:', errorMessage);
         return { success: false, error: errorMessage };
@@ -158,20 +249,23 @@ async function handleMessage(
     }
 
     case 'TAB_AUDIO_CHUNK':
-      console.log('Tab audio chunk received:', {
-        timestamp: message.timestamp,
-        size: message.chunk.byteLength,
-      });
-      // Future: Forward to transcription service
+      // Note: ArrayBuffer cannot be cloned via message passing, so chunk.byteLength will be undefined
+      // This is just for logging - actual audio goes directly to transcription in offscreen
+      console.log('Tab audio chunk received:', { timestamp: message.timestamp });
       return { received: true };
 
     case 'MIC_AUDIO_CHUNK':
-      console.log('Mic audio chunk received:', {
-        timestamp: message.timestamp,
-        size: message.chunk.byteLength,
-      });
-      // Future: Forward to transcription service
+      // Note: ArrayBuffer cannot be cloned via message passing, so chunk.byteLength will be undefined
+      // This is just for logging - actual audio goes directly to transcription in offscreen
+      console.log('Mic audio chunk received:', { timestamp: message.timestamp });
       return { received: true };
+
+    case 'GET_CAPTURE_STATE':
+      // Return current capture/transcription state for popup sync
+      return {
+        isCapturing: isTabCaptureActive,
+        isTranscribing: isTranscriptionActive,
+      };
 
     case 'START_MIC_CAPTURE': {
       try {
@@ -213,10 +307,12 @@ async function handleMessage(
       return { received: true };
 
     case 'CAPTURE_STOPPED':
+      isTabCaptureActive = false;
       console.log('Capture stopped notification received');
       return { received: true };
 
     case 'CAPTURE_ERROR':
+      isTabCaptureActive = false;
       console.error('Capture error:', message.error);
       return { received: true };
 
@@ -252,9 +348,11 @@ async function handleMessage(
           apiKey: message.apiKey,
         } satisfies StartTranscriptionMessage);
 
+        isTranscriptionActive = true;
         console.log('START_TRANSCRIPTION forwarded to offscreen');
         return { success: true };
       } catch (error) {
+        isTranscriptionActive = false;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Start transcription failed:', errorMessage);
         return { success: false, error: errorMessage };
@@ -268,9 +366,11 @@ async function handleMessage(
           type: 'STOP_TRANSCRIPTION',
         } satisfies StopTranscriptionMessage);
 
+        isTranscriptionActive = false;
         console.log('STOP_TRANSCRIPTION forwarded to offscreen');
         return { success: true };
       } catch (error) {
+        isTranscriptionActive = false;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Stop transcription failed:', errorMessage);
         return { success: false, error: errorMessage };
@@ -278,10 +378,12 @@ async function handleMessage(
     }
 
     case 'TRANSCRIPTION_STARTED':
+      isTranscriptionActive = true;
       console.log('Transcription started - WebSocket connections established');
       return { received: true };
 
     case 'TRANSCRIPTION_STOPPED':
+      isTranscriptionActive = false;
       console.log('Transcription stopped - WebSocket connections closed');
       return { received: true };
 
@@ -303,6 +405,8 @@ async function handleMessage(
         timestamp: message.timestamp,
       });
       console.log('Partial transcript from', message.source + ':', message.text);
+      // Broadcast to show real-time partial transcripts in UI
+      broadcastTranscript();
       return { received: true };
 
     case 'TRANSCRIPT_FINAL': {
@@ -326,6 +430,11 @@ async function handleMessage(
     case 'TRANSCRIPT_UPDATE':
       // This is outbound only, but handle for exhaustive check
       console.log('Transcript update message (outbound):', message.entries.length, 'entries');
+      return { received: true };
+
+    case 'REQUEST_MIC_PERMISSION':
+      // This goes directly to content script via chrome.tabs.sendMessage, not here
+      console.log('REQUEST_MIC_PERMISSION received in background (unexpected)');
       return { received: true };
 
     default: {

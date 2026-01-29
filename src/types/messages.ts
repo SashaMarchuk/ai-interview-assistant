@@ -20,6 +20,10 @@ export type MessageType =
   | 'START_MIC_CAPTURE'
   | 'STOP_MIC_CAPTURE'
   | 'MIC_AUDIO_CHUNK'
+  // Permission request (from content script context)
+  | 'REQUEST_MIC_PERMISSION'
+  // State query
+  | 'GET_CAPTURE_STATE'
   // Transcription lifecycle
   | 'START_TRANSCRIPTION'
   | 'STOP_TRANSCRIPTION'
@@ -116,6 +120,16 @@ export interface StopMicCaptureMessage extends BaseMessage {
   type: 'STOP_MIC_CAPTURE';
 }
 
+// Permission request message interface
+export interface RequestMicPermissionMessage extends BaseMessage {
+  type: 'REQUEST_MIC_PERMISSION';
+}
+
+// State query message interface
+export interface GetCaptureStateMessage extends BaseMessage {
+  type: 'GET_CAPTURE_STATE';
+}
+
 // Transcription lifecycle message interfaces
 export interface StartTranscriptionMessage extends BaseMessage {
   type: 'START_TRANSCRIPTION';
@@ -181,6 +195,8 @@ export type ExtensionMessage =
   | MicAudioChunkMessage
   | StartMicCaptureMessage
   | StopMicCaptureMessage
+  | RequestMicPermissionMessage
+  | GetCaptureStateMessage
   | StartTranscriptionMessage
   | StopTranscriptionMessage
   | TranscriptionStartedMessage

@@ -44,13 +44,32 @@ export default defineContentScript({
 
     console.log('AI Interview Assistant: Content script loaded on Meet page');
 
-    // Set up message listener for transcript updates from Service Worker
-    chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
+    // Set up message listener for messages from Service Worker/Popup
+    chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
       if (message.type === 'TRANSCRIPT_UPDATE') {
         console.log('AI Interview Assistant: Received transcript update', message.entries.length, 'entries');
         dispatchTranscriptUpdate(message.entries);
+        return false;
       }
-      // Return false to not keep the channel open (no async response needed)
+
+      // Handle mic permission request from popup
+      // Content scripts run in the web page context, so permission prompts work properly here
+      if (message.type === 'REQUEST_MIC_PERMISSION') {
+        console.log('AI Interview Assistant: Requesting mic permission from page context');
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then((stream) => {
+            // Permission granted - immediately stop the stream (we just needed the permission)
+            stream.getTracks().forEach(track => track.stop());
+            console.log('AI Interview Assistant: Mic permission granted');
+            sendResponse({ success: true });
+          })
+          .catch((error) => {
+            console.error('AI Interview Assistant: Mic permission denied', error);
+            sendResponse({ success: false, error: error.message || 'Permission denied' });
+          });
+        return true; // Keep channel open for async response
+      }
+
       return false;
     });
 

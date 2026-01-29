@@ -32,6 +32,7 @@ let micWorkletNode: AudioWorkletNode | null = null;
 let tabTranscription: ElevenLabsConnection | null = null;
 let micTranscription: ElevenLabsConnection | null = null;
 let transcriptionApiKey: string | null = null;
+let transcriptionStarting: boolean = false; // Guard against duplicate START_TRANSCRIPTION
 
 /**
  * Start tab audio capture from stream ID.
@@ -41,22 +42,27 @@ let transcriptionApiKey: string | null = null;
 async function startTabCapture(streamId: string): Promise<void> {
   // Clean up any existing capture
   if (tabStream || tabAudioContext) {
-    stopTabCapture();
+    await stopTabCapture();
   }
+
+  console.log('Starting tab capture with stream ID:', streamId);
 
   try {
     // Get MediaStream using Chrome's tab capture API
-    // Note: chromeMediaSource is a Chrome-specific constraint not in standard TypeScript types
-    tabStream = await navigator.mediaDevices.getUserMedia({
+    // Note: mandatory syntax is deprecated but REQUIRED for chromeMediaSource
+    const constraints = {
       audio: {
         mandatory: {
           chromeMediaSource: 'tab',
           chromeMediaSourceId: streamId,
         },
-      } as MediaTrackConstraints,
+      },
       video: false,
-    });
-    console.log('Tab stream acquired');
+    };
+    console.log('Requesting tab stream with constraints');
+
+    tabStream = await (navigator.mediaDevices.getUserMedia as (constraints: unknown) => Promise<MediaStream>)(constraints);
+    console.log('Tab stream acquired, tracks:', tabStream.getTracks().length);
 
     // Create AudioContext at 16kHz for STT
     tabAudioContext = new AudioContext({ sampleRate: 16000 });
@@ -100,30 +106,48 @@ async function startTabCapture(streamId: string): Promise<void> {
     console.log('Tab capture started successfully');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Tab capture failed:', errorMessage);
+    console.error('Tab capture failed:', errorMessage, error);
+
+    // Provide more helpful error messages
+    let userFriendlyError = errorMessage;
+    if (errorMessage.includes('Permission dismissed') || errorMessage.includes('NotAllowedError')) {
+      userFriendlyError = 'Tab audio permission denied. Try reloading the tab and clicking Start again.';
+    } else if (errorMessage.includes('invalid') || errorMessage.includes('expired')) {
+      userFriendlyError = 'Stream ID expired. Please try again.';
+    }
 
     // Send error message
     chrome.runtime.sendMessage({
       type: 'CAPTURE_ERROR',
-      error: `Tab capture failed: ${errorMessage}`,
+      error: userFriendlyError,
     } satisfies CaptureErrorMessage);
 
     // Clean up on failure
     stopTabCapture();
-    throw error;
+    throw new Error(userFriendlyError);
   }
 }
 
 /**
  * Stop tab audio capture and clean up resources.
+ * Returns a promise that resolves when cleanup is complete.
  */
-function stopTabCapture(): void {
+async function stopTabCapture(): Promise<void> {
+  console.log('stopTabCapture called, current state:', {
+    hasStream: !!tabStream,
+    hasContext: !!tabAudioContext,
+    hasWorklet: !!tabWorkletNode,
+  });
+
   try {
-    // Stop all tracks on the stream
+    // Stop all tracks on the stream FIRST (releases Chrome's tab capture)
     if (tabStream) {
-      tabStream.getTracks().forEach((track) => {
+      const tracks = tabStream.getTracks();
+      console.log(`Stopping ${tracks.length} tab stream tracks...`);
+      tracks.forEach((track) => {
         try {
           track.stop();
+          console.log(`Tab track stopped: ${track.kind}`);
         } catch (e) {
           console.error('Error stopping tab track:', e);
         }
@@ -135,15 +159,21 @@ function stopTabCapture(): void {
     if (tabWorkletNode) {
       try {
         tabWorkletNode.disconnect();
+        console.log('Tab worklet disconnected');
       } catch (e) {
         console.error('Error disconnecting tab worklet:', e);
       }
       tabWorkletNode = null;
     }
 
-    // Close audio context
+    // Close audio context and AWAIT completion
     if (tabAudioContext) {
-      tabAudioContext.close().catch((e) => console.error('Error closing tab AudioContext:', e));
+      try {
+        await tabAudioContext.close();
+        console.log('Tab AudioContext closed');
+      } catch (e) {
+        console.error('Error closing tab AudioContext:', e);
+      }
       tabAudioContext = null;
     }
 
@@ -155,7 +185,7 @@ function stopTabCapture(): void {
       console.log('Could not notify capture stopped:', e);
     });
 
-    console.log('Tab capture stopped');
+    console.log('Tab capture stopped successfully');
   } catch (error) {
     console.error('Error during tab capture cleanup:', error);
   }
@@ -168,11 +198,23 @@ function stopTabCapture(): void {
 async function startMicCapture(): Promise<void> {
   // Clean up any existing capture
   if (micStream || micAudioContext) {
-    stopMicCapture();
+    await stopMicCapture();
   }
 
   try {
+    // Check current permission state first
+    try {
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      console.log('Microphone permission status:', permissionStatus.state);
+      if (permissionStatus.state === 'denied') {
+        throw new Error('Microphone permission is blocked. Go to chrome://settings/content/microphone and allow this extension.');
+      }
+    } catch (e) {
+      console.log('Could not query permission status:', e);
+    }
+
     // Request microphone access with audio processing
+    console.log('Requesting microphone access...');
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -180,7 +222,7 @@ async function startMicCapture(): Promise<void> {
         sampleRate: 16000,
       },
     });
-    console.log('Mic stream acquired');
+    console.log('Mic stream acquired, tracks:', micStream.getTracks().length);
 
     // Create AudioContext at 16kHz for STT
     micAudioContext = new AudioContext({ sampleRate: 16000 });
@@ -215,36 +257,46 @@ async function startMicCapture(): Promise<void> {
     console.log('Mic capture started successfully');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Mic capture failed:', errorMessage, error);
 
-    // Check for permission denied error
-    if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      console.error(
-        'Microphone permission denied. Grant permission via extension settings or reload the extension.'
-      );
+    // Provide helpful error message
+    let userFriendlyError = errorMessage;
+    if (error instanceof DOMException && (error.name === 'NotAllowedError' || errorMessage.includes('Permission'))) {
+      userFriendlyError = 'Microphone blocked. Click the extension icon in Chrome toolbar, then click the 3-dot menu → "Site settings" → Allow Microphone.';
     }
 
     // Send error message
     chrome.runtime.sendMessage({
       type: 'CAPTURE_ERROR',
-      error: `Mic capture failed: ${errorMessage}`,
+      error: `Mic: ${userFriendlyError}`,
     } satisfies CaptureErrorMessage);
 
     // Clean up on failure
     stopMicCapture();
-    throw error;
+    throw new Error(userFriendlyError);
   }
 }
 
 /**
  * Stop microphone capture and clean up resources.
+ * Returns a promise that resolves when cleanup is complete.
  */
-function stopMicCapture(): void {
+async function stopMicCapture(): Promise<void> {
+  console.log('stopMicCapture called, current state:', {
+    hasStream: !!micStream,
+    hasContext: !!micAudioContext,
+    hasWorklet: !!micWorkletNode,
+  });
+
   try {
     // Stop all tracks on the stream
     if (micStream) {
-      micStream.getTracks().forEach((track) => {
+      const tracks = micStream.getTracks();
+      console.log(`Stopping ${tracks.length} mic stream tracks...`);
+      tracks.forEach((track) => {
         try {
           track.stop();
+          console.log(`Mic track stopped: ${track.kind}`);
         } catch (e) {
           console.error('Error stopping mic track:', e);
         }
@@ -256,19 +308,25 @@ function stopMicCapture(): void {
     if (micWorkletNode) {
       try {
         micWorkletNode.disconnect();
+        console.log('Mic worklet disconnected');
       } catch (e) {
         console.error('Error disconnecting mic worklet:', e);
       }
       micWorkletNode = null;
     }
 
-    // Close audio context
+    // Close audio context and AWAIT completion
     if (micAudioContext) {
-      micAudioContext.close().catch((e) => console.error('Error closing mic AudioContext:', e));
+      try {
+        await micAudioContext.close();
+        console.log('Mic AudioContext closed');
+      } catch (e) {
+        console.error('Error closing mic AudioContext:', e);
+      }
       micAudioContext = null;
     }
 
-    console.log('Mic capture stopped');
+    console.log('Mic capture stopped successfully');
   } catch (error) {
     console.error('Error during mic capture cleanup:', error);
   }
@@ -279,9 +337,11 @@ function stopMicCapture(): void {
  * Creates WebSocket connection and forwards transcript results to Service Worker.
  */
 function startTabTranscription(apiKey: string): void {
+  console.log('startTabTranscription called, existing:', !!tabTranscription);
   if (tabTranscription) {
-    console.log('Tab transcription already running');
-    return;
+    console.log('Tab transcription already running, disconnecting first');
+    tabTranscription.disconnect();
+    tabTranscription = null;
   }
 
   tabTranscription = new ElevenLabsConnection(
@@ -308,17 +368,25 @@ function startTabTranscription(apiKey: string): void {
     },
     // onError callback
     (error: string, canRetry: boolean) => {
+      console.error('Tab transcription error:', error);
       chrome.runtime.sendMessage({
         type: 'TRANSCRIPTION_ERROR',
         source: 'tab',
         error,
         canRetry,
       } satisfies TranscriptionErrorMessage);
+    },
+    // onConnect callback - notify background when WebSocket connects
+    () => {
+      console.log('Tab WebSocket connected! Sending notification to background...');
+      chrome.runtime.sendMessage({
+        type: 'TRANSCRIPTION_STARTED',
+      } satisfies TranscriptionStartedMessage);
     }
   );
 
   tabTranscription.connect();
-  console.log('Tab transcription started');
+  console.log('Tab transcription connect() called');
 }
 
 /**
@@ -326,9 +394,11 @@ function startTabTranscription(apiKey: string): void {
  * Creates WebSocket connection and forwards transcript results to Service Worker.
  */
 function startMicTranscription(apiKey: string): void {
+  console.log('startMicTranscription called, existing:', !!micTranscription);
   if (micTranscription) {
-    console.log('Mic transcription already running');
-    return;
+    console.log('Mic transcription already running, disconnecting first');
+    micTranscription.disconnect();
+    micTranscription = null;
   }
 
   micTranscription = new ElevenLabsConnection(
@@ -355,17 +425,22 @@ function startMicTranscription(apiKey: string): void {
     },
     // onError callback
     (error: string, canRetry: boolean) => {
+      console.error('Mic transcription error:', error);
       chrome.runtime.sendMessage({
         type: 'TRANSCRIPTION_ERROR',
         source: 'mic',
         error,
         canRetry,
       } satisfies TranscriptionErrorMessage);
+    },
+    // onConnect callback - notify background when WebSocket connects
+    () => {
+      console.log('Mic WebSocket connected!');
     }
   );
 
   micTranscription.connect();
-  console.log('Mic transcription started');
+  console.log('Mic transcription connect() called');
 }
 
 /**
@@ -383,6 +458,7 @@ function stopTranscription(): void {
   }
 
   transcriptionApiKey = null;
+  transcriptionStarting = false;
   console.log('Transcription stopped');
 }
 
@@ -410,13 +486,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Handle STOP_CAPTURE - stop tab audio capture
   if (message.type === 'STOP_CAPTURE') {
-    stopTabCapture();
-    sendResponse({ success: true });
-    return true;
+    stopTabCapture()
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep channel open for async response
   }
 
   // Handle START_MIC_CAPTURE
   if (isMessage<StartMicCaptureMessage>(message, 'START_MIC_CAPTURE')) {
+    // Guard against duplicate messages
+    if (micStream || micAudioContext) {
+      console.log('Mic capture already active, ignoring duplicate message');
+      sendResponse({ success: true, alreadyActive: true });
+      return true;
+    }
+
     startMicCapture()
       .then(() => {
         sendResponse({ success: true });
@@ -429,20 +517,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Handle STOP_MIC_CAPTURE
   if (isMessage<StopMicCaptureMessage>(message, 'STOP_MIC_CAPTURE')) {
-    stopMicCapture();
-    sendResponse({ success: true });
-    return true;
+    stopMicCapture()
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep channel open for async response
   }
 
   // Handle START_TRANSCRIPTION
   if (isMessage<StartTranscriptionMessage>(message, 'START_TRANSCRIPTION')) {
+    console.log('=== START_TRANSCRIPTION received ===');
+
+    // Guard against duplicate messages (popup and background both send this)
+    if (transcriptionStarting || transcriptionApiKey) {
+      console.log('Transcription already starting/active, ignoring duplicate message');
+      sendResponse({ success: true, alreadyStarting: true });
+      return true;
+    }
+
+    console.log('API Key length:', message.apiKey?.length || 0);
+    // Don't log API key prefix for security
+
+    if (!message.apiKey) {
+      console.error('No API key provided!');
+      sendResponse({ success: false, error: 'No API key' });
+      return true;
+    }
+
+    transcriptionStarting = true;
     transcriptionApiKey = message.apiKey;
+    console.log('Starting tab transcription...');
     startTabTranscription(message.apiKey);
+    console.log('Starting mic transcription...');
     startMicTranscription(message.apiKey);
-    // Send confirmation back
-    chrome.runtime.sendMessage({
-      type: 'TRANSCRIPTION_STARTED',
-    } satisfies TranscriptionStartedMessage);
+    transcriptionStarting = false;
+
+    // Note: TRANSCRIPTION_STARTED is sent when WebSocket actually connects (in onConnect callback)
+    // This allows proper tracking of connection state
     sendResponse({ success: true });
     return true;
   }

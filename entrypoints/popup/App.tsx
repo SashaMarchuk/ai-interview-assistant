@@ -5,7 +5,7 @@
  * Includes audio capture controls and settings interface.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
 import { useStore } from '../../src/store';
 import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
@@ -21,15 +21,73 @@ function App() {
 
   // Audio capture state
   const [isCapturing, setIsCapturing] = useState(false);
-  const [captureStatus, setCaptureStatus] = useState<string>('Idle');
+  const [captureStatus, setCaptureStatus] = useState<string>('Loading...');
   const [captureError, setCaptureError] = useState<string | null>(null);
 
   // Transcription state
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string>('');
 
+  // Query capture state on mount to sync with background
+  useEffect(() => {
+    async function syncCaptureState() {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: 'GET_CAPTURE_STATE',
+        } as ExtensionMessage);
+
+        console.log('Got capture state:', response);
+
+        if (response?.isCapturing) {
+          setIsCapturing(true);
+          setCaptureStatus('Capturing');
+        } else {
+          setIsCapturing(false);
+          setCaptureStatus('Idle');
+        }
+
+        if (response?.isTranscribing) {
+          setIsTranscribing(true);
+          setTranscriptionStatus('Transcribing...');
+        } else {
+          setIsTranscribing(false);
+        }
+      } catch (error) {
+        console.error('Failed to get capture state:', error);
+        setCaptureStatus('Idle');
+      }
+    }
+
+    syncCaptureState();
+  }, []);
+
   // Get API keys from store
   const apiKeys = useStore((state) => state.apiKeys);
+
+  /**
+   * Open the permissions page to grant microphone access
+   */
+  async function openPermissionsPage() {
+    const url = chrome.runtime.getURL('permissions.html');
+    await chrome.tabs.create({ url });
+  }
+
+  /**
+   * Check if we're on a valid page for capture
+   */
+  async function checkActivePage(): Promise<{ valid: boolean; tabId?: number; error?: string }> {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!activeTab?.id || !activeTab.url) {
+      return { valid: false, error: 'No active tab found' };
+    }
+
+    // Check for chrome:// or other restricted pages
+    if (activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('chrome-extension://')) {
+      return { valid: false, error: 'Cannot capture Chrome internal pages. Navigate to a regular website.' };
+    }
+
+    return { valid: true, tabId: activeTab.id };
+  }
 
   /**
    * Start both tab and microphone capture
@@ -39,32 +97,50 @@ function App() {
     setCaptureError(null);
 
     try {
-      // Start tab audio capture
+      // Step 1: Validate we're on a capturable page
+      const pageCheck = await checkActivePage();
+      if (!pageCheck.valid) {
+        throw new Error(pageCheck.error || 'Invalid page for capture');
+      }
+
+      // Step 2: Start tab audio capture
+      setCaptureStatus('Starting tab capture...');
+      console.log('Sending START_CAPTURE...');
       const tabResponse = await chrome.runtime.sendMessage({
         type: 'START_CAPTURE',
       } as ExtensionMessage);
 
+      console.log('START_CAPTURE response:', tabResponse);
       if (!tabResponse?.success) {
-        throw new Error(tabResponse?.error || 'Tab capture failed');
+        const errorMsg = typeof tabResponse?.error === 'string'
+          ? tabResponse.error
+          : 'Tab capture failed - unknown error';
+        throw new Error(errorMsg);
       }
       console.log('Tab capture started');
 
-      // Start microphone capture
+      // Step 3: Start microphone capture
+      setCaptureStatus('Starting mic capture...');
+      console.log('Sending START_MIC_CAPTURE...');
       const micResponse = await chrome.runtime.sendMessage({
         type: 'START_MIC_CAPTURE',
       } as ExtensionMessage);
 
+      console.log('START_MIC_CAPTURE response:', micResponse);
       if (!micResponse?.success) {
         // Tab capture succeeded but mic failed - stop tab capture for clean state
         await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } as ExtensionMessage);
-        throw new Error(micResponse?.error || 'Microphone capture failed');
+        const errorMsg = typeof micResponse?.error === 'string'
+          ? micResponse.error
+          : 'Microphone capture failed - unknown error';
+        throw new Error(errorMsg);
       }
       console.log('Mic capture started');
 
       setIsCapturing(true);
       setCaptureStatus('Capturing');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown capture error';
       console.error('Capture error:', errorMessage);
       setCaptureStatus('Error');
       setCaptureError(errorMessage);
@@ -261,8 +337,21 @@ function App() {
 
               {/* Help Text */}
               <p className="mt-3 text-xs text-gray-500">
-                Starts tab audio and microphone capture. Check the Service Worker console for audio chunk logs.
+                Starts tab audio and microphone capture.
               </p>
+
+              {/* First-time setup */}
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">
+                  First time? Grant microphone permission:
+                </p>
+                <button
+                  onClick={openPermissionsPage}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  Open Permission Setup
+                </button>
+              </div>
             </section>
 
             {/* Transcription Section */}
