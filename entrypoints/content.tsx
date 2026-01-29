@@ -1,9 +1,11 @@
 import { createRoot } from 'react-dom/client';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Overlay } from '../src/overlay';
-import { storeReadyPromise } from '../src/store';
+import { storeReadyPromise, useStore } from '../src/store';
+import { useCaptureMode, type CaptureState } from '../src/hooks';
 import '../src/assets/app.css';
 import type { TranscriptEntry } from '../src/types/transcript';
-import type { ExtensionMessage } from '../src/types/messages';
+import type { ExtensionMessage, LLMRequestMessage } from '../src/types/messages';
 
 // Only inject on active Google Meet meeting pages (not landing/join pages)
 // Meeting URL pattern: meet.google.com/xxx-xxxx-xxx
@@ -14,8 +16,82 @@ export interface TranscriptUpdateEventDetail {
   entries: TranscriptEntry[];
 }
 
+// Custom event type for capture state updates (for visual indicator)
+export interface CaptureStateEventDetail {
+  state: CaptureState;
+}
+
 // Module-level transcript state
 let currentTranscript: TranscriptEntry[] = [];
+
+/**
+ * Get transcript entries since a given timestamp, formatted as string
+ */
+function getTranscriptSince(timestamp: number): string {
+  return currentTranscript
+    .filter((e) => e.timestamp >= timestamp && e.isFinal)
+    .map((e) => `${e.speaker}: ${e.text}`)
+    .join('\n');
+}
+
+/**
+ * Get recent transcript (last 5 final entries)
+ */
+function getRecentTranscript(): string {
+  return currentTranscript
+    .filter((e) => e.isFinal)
+    .slice(-5)
+    .map((e) => `${e.speaker}: ${e.text}`)
+    .join('\n');
+}
+
+/**
+ * Get full transcript formatted as string
+ */
+function getFullTranscript(): string {
+  return currentTranscript
+    .filter((e) => e.isFinal)
+    .map((e) => `${e.speaker}: ${e.text}`)
+    .join('\n');
+}
+
+/**
+ * Send LLM request to background service worker
+ */
+async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Promise<void> {
+  const state = useStore.getState();
+
+  if (!state.activeTemplateId) {
+    console.warn('AI Interview Assistant: No active template selected');
+    return;
+  }
+
+  const responseId = crypto.randomUUID();
+
+  const message: LLMRequestMessage = {
+    type: 'LLM_REQUEST',
+    responseId,
+    question,
+    recentContext: getRecentTranscript(),
+    fullTranscript: getFullTranscript(),
+    templateId: state.activeTemplateId,
+  };
+
+  console.log('AI Interview Assistant: Sending LLM request', {
+    mode,
+    questionLength: question.length,
+    responseId,
+  });
+
+  try {
+    const response = await chrome.runtime.sendMessage(message);
+    if (!response?.success) {
+      console.error('AI Interview Assistant: LLM request failed', response?.error);
+    }
+  } catch (error) {
+    console.error('AI Interview Assistant: Failed to send LLM request', error);
+  }
+}
 
 /**
  * Dispatch transcript update to the React overlay via custom event.
@@ -28,6 +104,53 @@ function dispatchTranscriptUpdate(entries: TranscriptEntry[]): void {
       detail: { entries },
     })
   );
+}
+
+// Context to expose capture state to children (for visual indicator)
+const CaptureContext = createContext<CaptureState | null>(null);
+
+/**
+ * Hook to access capture state from within the overlay
+ */
+export function useCaptureState(): CaptureState | null {
+  return useContext(CaptureContext);
+}
+
+interface CaptureProviderProps {
+  children: ReactNode;
+  onCapture: (text: string, mode: 'hold' | 'highlight') => void;
+  getTranscriptSince: (timestamp: number) => string;
+  getRecentTranscript: () => string;
+  getFullTranscript: () => string;
+}
+
+/**
+ * Provider component that manages capture mode and exposes state via context.
+ * Also dispatches custom events for components outside React tree.
+ */
+function CaptureProvider({
+  children,
+  onCapture,
+  getTranscriptSince: gts,
+  getRecentTranscript: grt,
+  getFullTranscript: gft,
+}: CaptureProviderProps) {
+  const captureState = useCaptureMode({
+    onCapture,
+    getTranscriptSince: gts,
+    getRecentTranscript: grt,
+    getFullTranscript: gft,
+  });
+
+  // Dispatch custom event for components outside React tree to consume
+  // (e.g., for debugging or non-React visual indicators)
+  window.dispatchEvent(
+    new CustomEvent<CaptureStateEventDetail>('capture-state-update', {
+      detail: { state: captureState },
+    })
+  );
+
+  return <CaptureContext.Provider value={captureState}>{children}</CaptureContext.Provider>;
 }
 
 export default defineContentScript({
@@ -47,7 +170,11 @@ export default defineContentScript({
     // Set up message listener for messages from Service Worker/Popup
     chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
       if (message.type === 'TRANSCRIPT_UPDATE') {
-        console.log('AI Interview Assistant: Received transcript update', message.entries.length, 'entries');
+        console.log(
+          'AI Interview Assistant: Received transcript update',
+          message.entries.length,
+          'entries'
+        );
         dispatchTranscriptUpdate(message.entries);
         return false;
       }
@@ -56,10 +183,11 @@ export default defineContentScript({
       // Content scripts run in the web page context, so permission prompts work properly here
       if (message.type === 'REQUEST_MIC_PERMISSION') {
         console.log('AI Interview Assistant: Requesting mic permission from page context');
-        navigator.mediaDevices.getUserMedia({ audio: true })
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
           .then((stream) => {
             // Permission granted - immediately stop the stream (we just needed the permission)
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach((track) => track.stop());
             console.log('AI Interview Assistant: Mic permission granted');
             sendResponse({ success: true });
           })
@@ -73,7 +201,7 @@ export default defineContentScript({
       return false;
     });
 
-    // Wait for store to sync before rendering (for blur level, etc.)
+    // Wait for store to sync before rendering (for blur level, hotkey settings, etc.)
     await storeReadyPromise;
 
     // Create UI container using WXT's createShadowRootUi for proper isolation
@@ -84,8 +212,17 @@ export default defineContentScript({
       onMount: (container) => {
         // Create React root inside shadow DOM
         const root = createRoot(container);
-        // Render the overlay - it will listen for transcript-update events
-        root.render(<Overlay />);
+        // Render the overlay wrapped with CaptureProvider for keyboard handling
+        root.render(
+          <CaptureProvider
+            onCapture={sendLLMRequest}
+            getTranscriptSince={getTranscriptSince}
+            getRecentTranscript={getRecentTranscript}
+            getFullTranscript={getFullTranscript}
+          >
+            <Overlay />
+          </CaptureProvider>
+        );
         return root;
       },
       onRemove: (root) => {
@@ -94,7 +231,7 @@ export default defineContentScript({
     });
 
     ui.mount();
-    console.log('AI Interview Assistant: Overlay injected with drag/resize support');
+    console.log('AI Interview Assistant: Overlay injected with capture mode support');
 
     // Notify background that UI is ready
     try {
