@@ -70,10 +70,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INF-01**: Chrome MV3 extension with Service Worker
-- [ ] **INF-02**: Offscreen Document for WebSocket connections
-- [ ] **INF-03**: Message passing between SW, Content Script, Offscreen, Popup
-- [ ] **INF-04**: Proper CSP configuration for external WebSocket/API connections
+- [x] **INF-01**: Chrome MV3 extension with Service Worker
+- [x] **INF-02**: Offscreen Document for WebSocket connections
+- [x] **INF-03**: Message passing between SW, Content Script, Offscreen, Popup
+- [x] **INF-04**: Proper CSP configuration for external WebSocket/API connections
 
 ## v2 Requirements
 
@@ -114,10 +114,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INF-01 | Phase 1 | Pending |
-| INF-02 | Phase 1 | Pending |
-| INF-03 | Phase 1 | Pending |
-| INF-04 | Phase 1 | Pending |
+| INF-01 | Phase 1 | Complete |
+| INF-02 | Phase 1 | Complete |
+| INF-03 | Phase 1 | Complete |
+| INF-04 | Phase 1 | Complete |
 | AUD-01 | Phase 2 | Pending |
 | AUD-02 | Phase 2 | Pending |
 | AUD-03 | Phase 2 | Pending |
@@ -166,4 +166,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-28*
-*Last updated: 2026-01-28 after roadmap creation*
+*Last updated: 2026-01-29 — Phase 1 complete (INF-01 through INF-04)*
