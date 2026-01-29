@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** Multi-track execution
-**Current Plan:** Track A (3/4 in progress - 03-01 complete), Track B (5/4 COMPLETE), Track C (6/4 COMPLETE)
+**Current Plan:** Track A (3/4 in progress - 03-02 complete), Track B (5/4 COMPLETE), Track C (6/4 COMPLETE)
 
 ## Project Reference
 
@@ -18,7 +18,7 @@ See: .planning/PROJECT.md
 |-------|------|-------|--------|-------|
 | 1 | Foundation | -- | COMPLETE | 4/4 |
 | 2 | Audio Pipeline | A | COMPLETE | 4/4 |
-| 3 | Transcription | A | In Progress | 1/? |
+| 3 | Transcription | A | In Progress | 2/? |
 | 4 | LLM Integration | A | Pending | 0/0 |
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
@@ -35,7 +35,7 @@ See: .planning/PROJECT.md
 ## Current Position
 
 - **Phase:** Multi-track execution
-- **Track A:** Phase 3 (Transcription) in progress - 03-01 complete
+- **Track A:** Phase 3 (Transcription) in progress - 03-02 complete
 - **Track B:** Phase 5 COMPLETE - all overlay components integrated
 - **Track C:** Phase 6 COMPLETE - settings and templates fully functional
 - **Blocker:** None
@@ -44,7 +44,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 17 |
+| Plans completed | 18 |
 | Requirements delivered | 15/44 |
 | Phases completed | 4/7 |
 
@@ -90,6 +90,9 @@ See: .planning/PROJECT.md
 | Exponential backoff for WebSocket reconnect | 500ms base, max 5000ms, with jitter to prevent thundering herd | 2026-01-29 |
 | Audio buffer max 100 chunks | ~6 seconds of audio buffered during WebSocket disconnect | 2026-01-29 |
 | Speaker labels: You/Interviewer | 'You' for mic source, 'Interviewer' for tab source | 2026-01-29 |
+| Forward audio in worklet handlers | Immediate forwarding when transcription active, no separate step | 2026-01-29 |
+| Chronological insertion with splice | Maintain sorted order by timestamp in mergedTranscript | 2026-01-29 |
+| Broadcast on each final entry | Immediate UI updates via TRANSCRIPT_UPDATE message | 2026-01-29 |
 
 ### Technical Notes
 
@@ -125,6 +128,9 @@ See: .planning/PROJECT.md
 - ElevenLabs WebSocket URL: wss://api.elevenlabs.io/v1/speech-to-text/realtime with query params
 - VAD commit strategy with include_timestamps=true for ElevenLabs
 - ElevenLabsConnection class handles reconnection lifecycle automatically
+- Offscreen manages dual ElevenLabsConnection instances (tabTranscription, micTranscription)
+- Service Worker maintains mergedTranscript[] and interimEntries Map for state
+- Transcription lifecycle: START_TRANSCRIPTION -> TRANSCRIPTION_STARTED -> TRANSCRIPT_* -> STOP_TRANSCRIPTION
 
 ### Open Questions
 
@@ -179,12 +185,12 @@ Requirements UI-01 through UI-08 complete.
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Executed Phase 3 Plan 01 - Transcription types and WebSocket wrapper
-- **Outcome:** 03-01 COMPLETE - ElevenLabsConnection, AudioBuffer, message types all implemented
+- **Activity:** Executed Phase 3 Plan 02 - Transcription integration
+- **Outcome:** 03-02 COMPLETE - Dual WebSocket connections in offscreen, transcript merging in Service Worker
 
 ### Next Actions
 
-1. Track A: Continue Phase 3 (Transcription) - execute 03-02 (offscreen wiring)
+1. Track A: Continue Phase 3 (Transcription) - execute 03-03 (content script integration)
 2. Track B: Phase 5 COMPLETE - no further action needed
 3. Track C: Phase 6 COMPLETE - no further action needed
 
