@@ -1,16 +1,31 @@
+import { useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { useOverlayPosition } from './hooks/useOverlayPosition';
 import { OverlayHeader } from './OverlayHeader';
+import { TranscriptPanel } from './TranscriptPanel';
+import { ResponsePanel } from './ResponsePanel';
+import {
+  type TranscriptEntry,
+  type LLMResponse,
+  MOCK_TRANSCRIPT,
+  MOCK_RESPONSE,
+} from '../types/transcript';
 
 interface OverlayProps {
-  children?: React.ReactNode;
+  // These props will be used in Phase 7 for real data
+  // For now, we use mock data internally
+  transcript?: TranscriptEntry[];
+  response?: LLMResponse | null;
 }
 
 /**
  * Main overlay container with drag and resize functionality.
  * Uses react-rnd for interaction and persists position/size to chrome.storage.
+ *
+ * In Phase 5, uses mock data for development.
+ * In Phase 7, will receive real data via props.
  */
-export function Overlay({ children }: OverlayProps) {
+export function Overlay({ transcript, response }: OverlayProps) {
   const {
     position,
     size,
@@ -20,6 +35,13 @@ export function Overlay({ children }: OverlayProps) {
     setSize,
     setMinimized,
   } = useOverlayPosition();
+
+  // Use mock data if no real data provided (Phase 5 development mode)
+  const [mockTranscript] = useState<TranscriptEntry[]>(MOCK_TRANSCRIPT);
+  const [mockResponse] = useState<LLMResponse | null>(MOCK_RESPONSE);
+
+  const displayTranscript = transcript ?? mockTranscript;
+  const displayResponse = response ?? mockResponse;
 
   // Don't render until initial position loaded from storage
   // This prevents flash of default position
@@ -89,18 +111,15 @@ export function Overlay({ children }: OverlayProps) {
       <div className="overlay-container h-full flex flex-col bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200 overflow-hidden">
         <OverlayHeader onMinimize={() => setMinimized(true)} />
 
-        {/* Content area */}
+        {/* Content area with panels */}
         <div className="flex-1 p-4 overflow-hidden flex flex-col gap-3">
-          {children || (
-            <div className="text-sm text-gray-400 italic">
-              Content will be added in Plan 03
-            </div>
-          )}
+          <TranscriptPanel entries={displayTranscript} />
+          <ResponsePanel response={displayResponse} />
         </div>
 
         {/* Footer with status indicator */}
         <div className="px-4 py-2 bg-gray-50 border-t flex items-center justify-between text-xs text-gray-400">
-          <span>Phase 5 - Overlay UI</span>
+          <span>AI Interview Assistant</span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 bg-green-400 rounded-full"></span>
             Ready
