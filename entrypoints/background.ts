@@ -5,7 +5,52 @@ import type {
   StopCaptureMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
+  StartTranscriptionMessage,
+  StopTranscriptionMessage,
+  TranscriptUpdateMessage,
 } from '../src/types/messages';
+import type { TranscriptEntry } from '../src/types/transcript';
+
+// Module state for transcript management
+let mergedTranscript: TranscriptEntry[] = [];
+let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
+  new Map();
+
+/**
+ * Add a transcript entry maintaining chronological order.
+ * Broadcasts TRANSCRIPT_UPDATE to all contexts.
+ */
+function addTranscriptEntry(entry: TranscriptEntry): void {
+  // Find correct insertion index to maintain chronological order by timestamp
+  let insertIndex = mergedTranscript.length;
+  for (let i = mergedTranscript.length - 1; i >= 0; i--) {
+    if (mergedTranscript[i].timestamp <= entry.timestamp) {
+      insertIndex = i + 1;
+      break;
+    }
+    if (i === 0) {
+      insertIndex = 0;
+    }
+  }
+
+  // Insert entry at the correct position
+  mergedTranscript.splice(insertIndex, 0, entry);
+
+  // Broadcast update to all contexts
+  chrome.runtime.sendMessage({
+    type: 'TRANSCRIPT_UPDATE',
+    entries: [...mergedTranscript],
+  } satisfies TranscriptUpdateMessage).catch((error) => {
+    // Ignore errors if no listeners (e.g., content script not yet loaded)
+    console.log('Could not broadcast transcript update:', error);
+  });
+
+  console.log(
+    'Transcript entry added:',
+    entry.speaker,
+    entry.text.substring(0, 50) + (entry.text.length > 50 ? '...' : '')
+  );
+}
 
 // Initialize store in service worker - required for webext-zustand cross-context sync
 import { storeReadyPromise } from '../src/store';
@@ -191,42 +236,96 @@ async function handleMessage(
       console.log('PONG received in background - unexpected');
       return { received: true };
 
-    // Transcription lifecycle messages - to be implemented in Phase 3
-    case 'START_TRANSCRIPTION':
-      // TODO: Forward to offscreen document to initiate WebSocket connections
-      console.log('START_TRANSCRIPTION received - not yet implemented');
-      return { received: true };
+    // Transcription lifecycle messages
+    case 'START_TRANSCRIPTION': {
+      try {
+        // Ensure offscreen document exists
+        await ensureOffscreenDocument();
 
-    case 'STOP_TRANSCRIPTION':
-      // TODO: Forward to offscreen document to close WebSocket connections
-      console.log('STOP_TRANSCRIPTION received - not yet implemented');
-      return { received: true };
+        // Clear transcript state for new session
+        mergedTranscript = [];
+        interimEntries.clear();
+
+        // Forward to offscreen document to initiate WebSocket connections
+        await chrome.runtime.sendMessage({
+          type: 'START_TRANSCRIPTION',
+          apiKey: message.apiKey,
+        } satisfies StartTranscriptionMessage);
+
+        console.log('START_TRANSCRIPTION forwarded to offscreen');
+        return { success: true };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Start transcription failed:', errorMessage);
+        return { success: false, error: errorMessage };
+      }
+    }
+
+    case 'STOP_TRANSCRIPTION': {
+      try {
+        // Forward to offscreen document to close WebSocket connections
+        await chrome.runtime.sendMessage({
+          type: 'STOP_TRANSCRIPTION',
+        } satisfies StopTranscriptionMessage);
+
+        console.log('STOP_TRANSCRIPTION forwarded to offscreen');
+        return { success: true };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Stop transcription failed:', errorMessage);
+        return { success: false, error: errorMessage };
+      }
+    }
 
     case 'TRANSCRIPTION_STARTED':
-      console.log('Transcription started notification received');
+      console.log('Transcription started - WebSocket connections established');
       return { received: true };
 
     case 'TRANSCRIPTION_STOPPED':
-      console.log('Transcription stopped notification received');
+      console.log('Transcription stopped - WebSocket connections closed');
       return { received: true };
 
     case 'TRANSCRIPTION_ERROR':
-      console.error('Transcription error:', message.source, message.error, 'canRetry:', message.canRetry);
+      console.error(
+        'Transcription error:',
+        message.source,
+        message.error,
+        'canRetry:',
+        message.canRetry
+      );
       return { received: true };
 
     case 'TRANSCRIPT_PARTIAL':
-      console.log('Partial transcript:', message.source, message.text);
-      // TODO: Forward to content script for UI update
+      // Store interim entry for this source
+      interimEntries.set(message.source, {
+        source: message.source,
+        text: message.text,
+        timestamp: message.timestamp,
+      });
+      console.log('Partial transcript from', message.source + ':', message.text);
       return { received: true };
 
-    case 'TRANSCRIPT_FINAL':
-      console.log('Final transcript:', message.source, message.speaker, message.text);
-      // TODO: Forward to content script for UI update
+    case 'TRANSCRIPT_FINAL': {
+      // Clear interim entry for this source
+      interimEntries.delete(message.source);
+
+      // Create and add the final transcript entry
+      const entry: TranscriptEntry = {
+        id: message.id,
+        speaker: message.speaker,
+        text: message.text,
+        timestamp: message.timestamp,
+        isFinal: true,
+      };
+      addTranscriptEntry(entry);
+
+      console.log('Final transcript from', message.source + ':', message.speaker, message.text);
       return { received: true };
+    }
 
     case 'TRANSCRIPT_UPDATE':
-      console.log('Transcript update:', message.entries.length, 'entries');
-      // TODO: Forward to content script for UI update
+      // This is outbound only, but handle for exhaustive check
+      console.log('Transcript update message (outbound):', message.entries.length, 'entries');
       return { received: true };
 
     default: {
