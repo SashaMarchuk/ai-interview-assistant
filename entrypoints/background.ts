@@ -7,6 +7,12 @@ import type {
   StopMicCaptureMessage,
 } from '../src/types/messages';
 
+// Initialize store in service worker - required for webext-zustand cross-context sync
+import { storeReadyPromise } from '../src/store';
+storeReadyPromise.then(() => {
+  console.log('Store ready in service worker');
+});
+
 // Register message listener synchronously at top level - CRITICAL
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)

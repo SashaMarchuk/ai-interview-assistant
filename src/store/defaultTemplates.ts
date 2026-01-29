@@ -20,7 +20,7 @@ import type { PromptTemplate } from './types';
  */
 export const DEFAULT_TEMPLATES: PromptTemplate[] = [
   {
-    id: crypto.randomUUID(),
+    id: 'default-system-design',
     name: 'System Design',
     type: 'system-design',
     systemPrompt: `You are an expert system design interview coach. Focus on:
@@ -47,7 +47,7 @@ Provide a structured approach to answer this system design question. Include key
     isDefault: true,
   },
   {
-    id: crypto.randomUUID(),
+    id: 'default-coding',
     name: 'Coding',
     type: 'coding',
     systemPrompt: `You are an expert coding interview coach. Focus on:
@@ -75,7 +75,7 @@ Help me understand this problem. Suggest an approach, identify key edge cases, a
     isDefault: true,
   },
   {
-    id: crypto.randomUUID(),
+    id: 'default-behavioral',
     name: 'Behavioral',
     type: 'behavioral',
     systemPrompt: `You are an expert behavioral interview coach using the STAR method:

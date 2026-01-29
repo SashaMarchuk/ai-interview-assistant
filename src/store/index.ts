@@ -55,6 +55,9 @@ export const useStore = create<StoreState>()(
 /**
  * Store ready promise for cross-context synchronization
  *
+ * Lazy initialization to avoid build-time errors when chrome APIs
+ * aren't available. Only calls wrapStore in browser context.
+ *
  * Usage:
  * ```ts
  * // In popup or content script
@@ -66,7 +69,30 @@ export const useStore = create<StoreState>()(
  * }
  * ```
  */
-export const storeReadyPromise = wrapStore(useStore);
+let _storeReadyPromise: Promise<void> | null = null;
+
+/**
+ * Check if we're running in a real browser extension context
+ * (not during build where fake-browser is used)
+ */
+function isExtensionContext(): boolean {
+  try {
+    // fake-browser throws on getManifest(), real chrome returns manifest
+    return !!(typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.());
+  } catch {
+    return false;
+  }
+}
+
+export const storeReadyPromise: Promise<void> = new Promise((resolve) => {
+  if (isExtensionContext()) {
+    _storeReadyPromise = wrapStore(useStore);
+    _storeReadyPromise.then(resolve);
+  } else {
+    // During build or in non-extension context, resolve immediately
+    resolve();
+  }
+});
 
 // Re-export types for consumers
 export type { StoreState } from './types';
