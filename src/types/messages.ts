@@ -5,14 +5,23 @@ export type MessageType =
   | 'CREATE_OFFSCREEN'
   | 'OFFSCREEN_READY'
   | 'INJECT_UI'
-  | 'UI_INJECTED';
+  | 'UI_INJECTED'
+  // Audio capture lifecycle
+  | 'START_CAPTURE'
+  | 'STOP_CAPTURE'
+  | 'CAPTURE_STARTED'
+  | 'CAPTURE_STOPPED'
+  | 'CAPTURE_ERROR'
+  | 'TAB_STREAM_ID'
+  | 'TAB_AUDIO_CHUNK'
+  | 'MIC_AUDIO_CHUNK';
 
 // Base message interface
 interface BaseMessage {
   type: MessageType;
 }
 
-// Specific message interfaces
+// Existing message interfaces
 export interface PingMessage extends BaseMessage {
   type: 'PING';
   timestamp: number;
@@ -41,6 +50,39 @@ export interface UIInjectedMessage extends BaseMessage {
   success: boolean;
 }
 
+// Audio capture message interfaces
+export interface StartCaptureMessage extends BaseMessage {
+  type: 'START_CAPTURE';
+}
+
+export interface StopCaptureMessage extends BaseMessage {
+  type: 'STOP_CAPTURE';
+}
+
+export interface CaptureStartedMessage extends BaseMessage {
+  type: 'CAPTURE_STARTED';
+}
+
+export interface CaptureStoppedMessage extends BaseMessage {
+  type: 'CAPTURE_STOPPED';
+}
+
+export interface CaptureErrorMessage extends BaseMessage {
+  type: 'CAPTURE_ERROR';
+  error: string;
+}
+
+export interface TabStreamIdMessage extends BaseMessage {
+  type: 'TAB_STREAM_ID';
+  streamId: string;
+}
+
+export interface AudioChunkMessage extends BaseMessage {
+  type: 'TAB_AUDIO_CHUNK' | 'MIC_AUDIO_CHUNK';
+  chunk: ArrayBuffer;
+  timestamp: number;
+}
+
 // Union type for all messages
 export type ExtensionMessage =
   | PingMessage
@@ -48,7 +90,14 @@ export type ExtensionMessage =
   | CreateOffscreenMessage
   | OffscreenReadyMessage
   | InjectUIMessage
-  | UIInjectedMessage;
+  | UIInjectedMessage
+  | StartCaptureMessage
+  | StopCaptureMessage
+  | CaptureStartedMessage
+  | CaptureStoppedMessage
+  | CaptureErrorMessage
+  | TabStreamIdMessage
+  | AudioChunkMessage;
 
 // Type guard for message checking
 export function isMessage<T extends ExtensionMessage>(
