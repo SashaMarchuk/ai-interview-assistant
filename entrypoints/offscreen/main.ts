@@ -7,8 +7,16 @@ import type {
   TabStreamIdMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
+  StartTranscriptionMessage,
+  StopTranscriptionMessage,
+  TranscriptionStartedMessage,
+  TranscriptionStoppedMessage,
+  TranscriptionErrorMessage,
+  TranscriptPartialMessage,
+  TranscriptFinalMessage,
 } from '../../src/types/messages';
 import { isMessage } from '../../src/types/messages';
+import { ElevenLabsConnection } from '../../src/services/transcription';
 
 // Module-level state for tab audio capture
 let tabAudioContext: AudioContext | null = null;
@@ -19,6 +27,11 @@ let tabWorkletNode: AudioWorkletNode | null = null;
 let micAudioContext: AudioContext | null = null;
 let micStream: MediaStream | null = null;
 let micWorkletNode: AudioWorkletNode | null = null;
+
+// Module-level state for transcription
+let tabTranscription: ElevenLabsConnection | null = null;
+let micTranscription: ElevenLabsConnection | null = null;
+let transcriptionApiKey: string | null = null;
 
 /**
  * Start tab audio capture from stream ID.
@@ -70,6 +83,10 @@ async function startTabCapture(streamId: string): Promise<void> {
         chunk: event.data,
         timestamp: Date.now(),
       });
+      // Forward audio to transcription if active
+      if (tabTranscription) {
+        tabTranscription.sendAudio(event.data);
+      }
     };
 
     // Connect source to worklet for PCM processing
@@ -186,6 +203,10 @@ async function startMicCapture(): Promise<void> {
         chunk: event.data,
         timestamp: Date.now(),
       });
+      // Forward audio to transcription if active
+      if (micTranscription) {
+        micTranscription.sendAudio(event.data);
+      }
     };
 
     // Connect source to worklet (NOT to destination)
@@ -253,6 +274,118 @@ function stopMicCapture(): void {
   }
 }
 
+/**
+ * Start tab transcription connection to ElevenLabs.
+ * Creates WebSocket connection and forwards transcript results to Service Worker.
+ */
+function startTabTranscription(apiKey: string): void {
+  if (tabTranscription) {
+    console.log('Tab transcription already running');
+    return;
+  }
+
+  tabTranscription = new ElevenLabsConnection(
+    { apiKey, source: 'tab' },
+    // onTranscript callback
+    (text: string, isFinal: boolean, timestamp: number) => {
+      if (isFinal) {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPT_FINAL',
+          source: 'tab',
+          text,
+          timestamp,
+          id: crypto.randomUUID(),
+          speaker: 'Interviewer',
+        } satisfies TranscriptFinalMessage);
+      } else {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPT_PARTIAL',
+          source: 'tab',
+          text,
+          timestamp,
+        } satisfies TranscriptPartialMessage);
+      }
+    },
+    // onError callback
+    (error: string, canRetry: boolean) => {
+      chrome.runtime.sendMessage({
+        type: 'TRANSCRIPTION_ERROR',
+        source: 'tab',
+        error,
+        canRetry,
+      } satisfies TranscriptionErrorMessage);
+    }
+  );
+
+  tabTranscription.connect();
+  console.log('Tab transcription started');
+}
+
+/**
+ * Start microphone transcription connection to ElevenLabs.
+ * Creates WebSocket connection and forwards transcript results to Service Worker.
+ */
+function startMicTranscription(apiKey: string): void {
+  if (micTranscription) {
+    console.log('Mic transcription already running');
+    return;
+  }
+
+  micTranscription = new ElevenLabsConnection(
+    { apiKey, source: 'mic' },
+    // onTranscript callback
+    (text: string, isFinal: boolean, timestamp: number) => {
+      if (isFinal) {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPT_FINAL',
+          source: 'mic',
+          text,
+          timestamp,
+          id: crypto.randomUUID(),
+          speaker: 'You',
+        } satisfies TranscriptFinalMessage);
+      } else {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPT_PARTIAL',
+          source: 'mic',
+          text,
+          timestamp,
+        } satisfies TranscriptPartialMessage);
+      }
+    },
+    // onError callback
+    (error: string, canRetry: boolean) => {
+      chrome.runtime.sendMessage({
+        type: 'TRANSCRIPTION_ERROR',
+        source: 'mic',
+        error,
+        canRetry,
+      } satisfies TranscriptionErrorMessage);
+    }
+  );
+
+  micTranscription.connect();
+  console.log('Mic transcription started');
+}
+
+/**
+ * Stop all transcription connections and clean up state.
+ */
+function stopTranscription(): void {
+  if (tabTranscription) {
+    tabTranscription.disconnect();
+    tabTranscription = null;
+  }
+
+  if (micTranscription) {
+    micTranscription.disconnect();
+    micTranscription = null;
+  }
+
+  transcriptionApiKey = null;
+  console.log('Transcription stopped');
+}
+
 // Register message listener
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Offscreen received:', message.type, 'from:', sender.id);
@@ -301,6 +434,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Handle START_TRANSCRIPTION
+  if (isMessage<StartTranscriptionMessage>(message, 'START_TRANSCRIPTION')) {
+    transcriptionApiKey = message.apiKey;
+    startTabTranscription(message.apiKey);
+    startMicTranscription(message.apiKey);
+    // Send confirmation back
+    chrome.runtime.sendMessage({
+      type: 'TRANSCRIPTION_STARTED',
+    } satisfies TranscriptionStartedMessage);
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // Handle STOP_TRANSCRIPTION
+  if (isMessage<StopTranscriptionMessage>(message, 'STOP_TRANSCRIPTION')) {
+    stopTranscription();
+    // Send confirmation back
+    chrome.runtime.sendMessage({
+      type: 'TRANSCRIPTION_STOPPED',
+    } satisfies TranscriptionStoppedMessage);
+    sendResponse({ success: true });
+    return true;
+  }
+
   // Echo back unknown messages
   sendResponse({ received: true, originalType: message.type });
   return true;
@@ -324,6 +481,13 @@ async function notifyReady(): Promise<void> {
  */
 function cleanupAllCapture(): void {
   console.log('Cleaning up all audio capture resources...');
+
+  // Stop transcription WebSocket connections
+  try {
+    stopTranscription();
+  } catch (error) {
+    console.error('Error stopping transcription during cleanup:', error);
+  }
 
   // Stop tab capture
   if (tabStream || tabAudioContext) {
