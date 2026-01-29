@@ -14,6 +14,9 @@ export type MessageType =
   | 'CAPTURE_ERROR'
   | 'TAB_STREAM_ID'
   | 'TAB_AUDIO_CHUNK'
+  // Microphone capture lifecycle
+  | 'START_MIC_CAPTURE'
+  | 'STOP_MIC_CAPTURE'
   | 'MIC_AUDIO_CHUNK';
 
 // Base message interface
@@ -77,10 +80,28 @@ export interface TabStreamIdMessage extends BaseMessage {
   streamId: string;
 }
 
-export interface AudioChunkMessage extends BaseMessage {
-  type: 'TAB_AUDIO_CHUNK' | 'MIC_AUDIO_CHUNK';
+export interface TabAudioChunkMessage extends BaseMessage {
+  type: 'TAB_AUDIO_CHUNK';
   chunk: ArrayBuffer;
   timestamp: number;
+}
+
+export interface MicAudioChunkMessage extends BaseMessage {
+  type: 'MIC_AUDIO_CHUNK';
+  chunk: ArrayBuffer;
+  timestamp: number;
+}
+
+// Union type for audio chunks (backwards compatibility)
+export type AudioChunkMessage = TabAudioChunkMessage | MicAudioChunkMessage;
+
+// Microphone capture message interfaces
+export interface StartMicCaptureMessage extends BaseMessage {
+  type: 'START_MIC_CAPTURE';
+}
+
+export interface StopMicCaptureMessage extends BaseMessage {
+  type: 'STOP_MIC_CAPTURE';
 }
 
 // Union type for all messages
@@ -97,7 +118,10 @@ export type ExtensionMessage =
   | CaptureStoppedMessage
   | CaptureErrorMessage
   | TabStreamIdMessage
-  | AudioChunkMessage;
+  | TabAudioChunkMessage
+  | MicAudioChunkMessage
+  | StartMicCaptureMessage
+  | StopMicCaptureMessage;
 
 // Type guard for message checking
 export function isMessage<T extends ExtensionMessage>(
