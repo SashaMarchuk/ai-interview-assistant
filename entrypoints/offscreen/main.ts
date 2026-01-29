@@ -101,30 +101,47 @@ async function startTabCapture(streamId: string): Promise<void> {
  * Stop tab audio capture and clean up resources.
  */
 function stopTabCapture(): void {
-  // Stop all tracks on the stream
-  if (tabStream) {
-    tabStream.getTracks().forEach((track) => track.stop());
-    tabStream = null;
+  try {
+    // Stop all tracks on the stream
+    if (tabStream) {
+      tabStream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.error('Error stopping tab track:', e);
+        }
+      });
+      tabStream = null;
+    }
+
+    // Disconnect worklet node
+    if (tabWorkletNode) {
+      try {
+        tabWorkletNode.disconnect();
+      } catch (e) {
+        console.error('Error disconnecting tab worklet:', e);
+      }
+      tabWorkletNode = null;
+    }
+
+    // Close audio context
+    if (tabAudioContext) {
+      tabAudioContext.close().catch((e) => console.error('Error closing tab AudioContext:', e));
+      tabAudioContext = null;
+    }
+
+    // Notify that capture has stopped
+    chrome.runtime.sendMessage({
+      type: 'CAPTURE_STOPPED',
+    } satisfies CaptureStoppedMessage).catch((e) => {
+      // Ignore errors if service worker is inactive
+      console.log('Could not notify capture stopped:', e);
+    });
+
+    console.log('Tab capture stopped');
+  } catch (error) {
+    console.error('Error during tab capture cleanup:', error);
   }
-
-  // Disconnect worklet node
-  if (tabWorkletNode) {
-    tabWorkletNode.disconnect();
-    tabWorkletNode = null;
-  }
-
-  // Close audio context
-  if (tabAudioContext) {
-    tabAudioContext.close().catch(console.error);
-    tabAudioContext = null;
-  }
-
-  // Notify that capture has stopped
-  chrome.runtime.sendMessage({
-    type: 'CAPTURE_STOPPED',
-  } satisfies CaptureStoppedMessage);
-
-  console.log('Tab capture stopped');
 }
 
 /**
@@ -201,25 +218,39 @@ async function startMicCapture(): Promise<void> {
  * Stop microphone capture and clean up resources.
  */
 function stopMicCapture(): void {
-  // Stop all tracks on the stream
-  if (micStream) {
-    micStream.getTracks().forEach((track) => track.stop());
-    micStream = null;
-  }
+  try {
+    // Stop all tracks on the stream
+    if (micStream) {
+      micStream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.error('Error stopping mic track:', e);
+        }
+      });
+      micStream = null;
+    }
 
-  // Disconnect worklet node
-  if (micWorkletNode) {
-    micWorkletNode.disconnect();
-    micWorkletNode = null;
-  }
+    // Disconnect worklet node
+    if (micWorkletNode) {
+      try {
+        micWorkletNode.disconnect();
+      } catch (e) {
+        console.error('Error disconnecting mic worklet:', e);
+      }
+      micWorkletNode = null;
+    }
 
-  // Close audio context
-  if (micAudioContext) {
-    micAudioContext.close().catch(console.error);
-    micAudioContext = null;
-  }
+    // Close audio context
+    if (micAudioContext) {
+      micAudioContext.close().catch((e) => console.error('Error closing mic AudioContext:', e));
+      micAudioContext = null;
+    }
 
-  console.log('Mic capture stopped');
+    console.log('Mic capture stopped');
+  } catch (error) {
+    console.error('Error during mic capture cleanup:', error);
+  }
 }
 
 // Register message listener
@@ -286,6 +317,41 @@ async function notifyReady(): Promise<void> {
     console.error('Failed to notify ready:', error);
   }
 }
+
+/**
+ * Clean up all audio resources.
+ * Called on page unload or extension suspend.
+ */
+function cleanupAllCapture(): void {
+  console.log('Cleaning up all audio capture resources...');
+
+  // Stop tab capture
+  if (tabStream || tabAudioContext) {
+    try {
+      stopTabCapture();
+    } catch (error) {
+      console.error('Error stopping tab capture during cleanup:', error);
+    }
+  }
+
+  // Stop mic capture
+  if (micStream || micAudioContext) {
+    try {
+      stopMicCapture();
+    } catch (error) {
+      console.error('Error stopping mic capture during cleanup:', error);
+    }
+  }
+
+  console.log('Audio capture cleanup complete');
+}
+
+// Register cleanup on page unload
+// This fires when extension reloads, unloads, or updates
+window.addEventListener('beforeunload', () => {
+  console.log('Offscreen document unloading - cleaning up resources');
+  cleanupAllCapture();
+});
 
 // Initialize
 console.log('Offscreen document loaded');
