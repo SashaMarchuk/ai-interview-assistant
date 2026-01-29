@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-29
 **Current Phase:** 1 (in progress)
-**Current Plan:** 01-01 complete
+**Current Plan:** 01-02 complete
 
 ## Project Reference
 
@@ -16,7 +16,7 @@ See: .planning/PROJECT.md
 
 | Phase | Name | Track | Status | Plans |
 |-------|------|-------|--------|-------|
-| 1 | Foundation | — | ◐ In Progress | 1/4 |
+| 1 | Foundation | — | ◐ In Progress | 2/4 |
 | 2 | Audio Pipeline | A | ○ Pending | 0/0 |
 | 3 | Transcription | A | ○ Pending | 0/0 |
 | 4 | LLM Integration | A | ○ Pending | 0/0 |
@@ -29,13 +29,13 @@ See: .planning/PROJECT.md
 **Parallel execution:** After Phase 1, Tracks A/B/C can run in separate terminals
 
 ```
-[█                   ] 5%
+[██                  ] 10%
 ```
 
 ## Current Position
 
 - **Phase:** 1 - Foundation
-- **Plan:** 01-01 complete, 01-02 next
+- **Plan:** 01-02 complete, 01-03 next
 - **Status:** In progress
 - **Blocker:** None
 
@@ -43,7 +43,7 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 1 |
+| Plans completed | 2 |
 | Requirements delivered | 0/44 |
 | Phases completed | 0/7 |
 
@@ -60,6 +60,8 @@ See: .planning/PROJECT.md
 | Phase 7 Integration | Wire tracks together, resolve conflicts, E2E testing | 2026-01-28 |
 | WXT 0.19.x for Node 18 compatibility | Latest WXT 0.20.x requires Node 20+, current env is Node 18 | 2026-01-29 |
 | Tailwind v4 with CSS-first config | No tailwind.config.ts needed, uses @import "tailwindcss" | 2026-01-29 |
+| Relative imports for WXT entrypoints | Path aliases cause vite-node resolution issues during build | 2026-01-29 |
+| Type cast for Chrome 116+ APIs | @types/chrome incomplete for OFFSCREEN_DOCUMENT context type | 2026-01-29 |
 
 ### Technical Notes
 
@@ -68,6 +70,9 @@ See: .planning/PROJECT.md
 - CSP must allow wss://api.elevenlabs.io and https://openrouter.ai
 - WXT entrypoints live in entrypoints/ directory
 - Shared CSS in src/assets/app.css with Tailwind v4
+- Message types use discriminated unions with isMessage type guard
+- Service Worker event listeners must be registered synchronously at top level
+- Offscreen document creation uses Promise tracking for race condition protection
 
 ### Open Questions
 
@@ -82,15 +87,14 @@ None at this time.
 ### Last Session
 
 - **Date:** 2026-01-29
-- **Activity:** Completed 01-01-PLAN.md (WXT project setup)
-- **Outcome:** WXT dev environment ready with React, TypeScript, Tailwind
+- **Activity:** Completed 01-02-PLAN.md (Extension component wiring)
+- **Outcome:** Service Worker, Popup, Offscreen Document communication working
 
 ### Next Actions
 
-1. Execute 01-02-PLAN.md (Popup and content script scaffolding)
-2. Execute 01-03-PLAN.md (Service worker communication)
-3. Execute 01-04-PLAN.md (End-to-end verification)
-4. After Phase 1 completes, open 3 terminals for parallel execution
+1. Execute 01-03-PLAN.md (Content Script with overlay injection)
+2. Execute 01-04-PLAN.md (End-to-end verification)
+3. After Phase 1 completes, open 3 terminals for parallel execution
 
 ---
 
