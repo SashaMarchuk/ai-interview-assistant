@@ -168,6 +168,14 @@ Plans:
 
 **Research flag:** MEDIUM PRIORITY - Dual parallel SSE streams, cancellation handling
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Install eventsource-parser, LLM types, OpenRouter streaming client
+- [ ] 04-02-PLAN.md — LLM message types and dual parallel streaming in background.ts
+- [ ] 04-03-PLAN.md — Capture mode hook and keyboard handling in content script
+- [ ] 04-04-PLAN.md — Wire LLM responses to overlay, capture indicator, human verification
+
 ---
 
 ### Phase 5: Overlay UI (Track B — can run parallel)
@@ -292,7 +300,7 @@ Plans:
 | 1 - Foundation | — | ✓ Complete | 4/4 |
 | 2 - Audio Pipeline | A | ✓ Complete | 4/4 |
 | 3 - Transcription | A | ○ Planning | 0/3 |
-| 4 - LLM Integration | A | ○ Pending | 0/0 |
+| 4 - LLM Integration | A | ○ Planning | 0/4 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
 | 7 - Integration | — | ○ Pending | 0/0 |
