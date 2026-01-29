@@ -134,9 +134,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Transcription types and ElevenLabs WebSocket wrapper
-- [ ] 03-02-PLAN.md — Offscreen transcription and Service Worker merging
-- [ ] 03-03-PLAN.md — Wire transcript to overlay and human verification
+- [x] 03-01-PLAN.md — Transcription types and ElevenLabs WebSocket wrapper
+- [x] 03-02-PLAN.md — Offscreen transcription and Service Worker merging
+- [x] 03-03-PLAN.md — Wire transcript to overlay and human verification
 
 ---
 
