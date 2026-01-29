@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 import { useOverlayPosition } from './hooks/useOverlayPosition';
 import { OverlayHeader } from './OverlayHeader';
@@ -8,14 +8,12 @@ import { useStore } from '../store';
 import {
   type TranscriptEntry,
   type LLMResponse,
-  MOCK_TRANSCRIPT,
   MOCK_RESPONSE,
 } from '../types/transcript';
+import type { TranscriptUpdateEventDetail } from '../../entrypoints/content';
 
 interface OverlayProps {
-  // These props will be used in Phase 7 for real data
-  // For now, we use mock data internally
-  transcript?: TranscriptEntry[];
+  // Response prop for Phase 7 LLM integration
   response?: LLMResponse | null;
 }
 
@@ -27,10 +25,10 @@ const MIN_BTN_HEIGHT = 44;
  * Main overlay container with drag and resize functionality.
  * Uses react-rnd for interaction and persists position/size to chrome.storage.
  *
- * In Phase 5, uses mock data for development.
- * In Phase 7, will receive real data via props.
+ * Listens for 'transcript-update' custom events from content script
+ * to display real-time transcript data.
  */
-export function Overlay({ transcript, response }: OverlayProps) {
+export function Overlay({ response }: OverlayProps) {
   const {
     position,
     minimizedPosition,
@@ -46,11 +44,25 @@ export function Overlay({ transcript, response }: OverlayProps) {
   // Get blur level from settings store
   const blurLevel = useStore((state) => state.blurLevel);
 
-  // Use mock data if no real data provided (Phase 5 development mode)
-  const [mockTranscript] = useState<TranscriptEntry[]>(MOCK_TRANSCRIPT);
+  // Real transcript state - populated by transcript-update events
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+
+  // Mock response for Phase 5/6 - will be replaced in Phase 7
   const [mockResponse] = useState<LLMResponse | null>(MOCK_RESPONSE);
 
-  const displayTranscript = transcript ?? mockTranscript;
+  // Listen for transcript updates from content script
+  useEffect(() => {
+    function handleTranscriptUpdate(event: Event) {
+      const customEvent = event as CustomEvent<TranscriptUpdateEventDetail>;
+      setTranscript(customEvent.detail.entries);
+    }
+
+    window.addEventListener('transcript-update', handleTranscriptUpdate);
+    return () => {
+      window.removeEventListener('transcript-update', handleTranscriptUpdate);
+    };
+  }, []);
+
   const displayResponse = response ?? mockResponse;
 
   // Don't render until initial position loaded from storage
@@ -126,7 +138,7 @@ export function Overlay({ transcript, response }: OverlayProps) {
 
         {/* Content area with panels */}
         <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2">
-          <TranscriptPanel entries={displayTranscript} />
+          <TranscriptPanel entries={transcript} />
           <ResponsePanel response={displayResponse} />
         </div>
 

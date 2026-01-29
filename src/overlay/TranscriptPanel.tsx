@@ -22,6 +22,16 @@ function getSpeakerColor(speaker: string): string {
 }
 
 /**
+ * Format timestamp to HH:MM format.
+ */
+function formatTimestamp(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
  * Transcript panel displaying live transcript with speaker labels.
  * Auto-scrolls to bottom when new entries are added.
  */
@@ -52,16 +62,19 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps) {
               <div
                 key={entry.id}
                 className={`text-sm mb-1.5 last:mb-0 ${
-                  !entry.isFinal ? 'opacity-60' : ''
+                  !entry.isFinal ? 'opacity-60 italic' : ''
                 }`}
               >
                 <span className={`font-medium ${getSpeakerColor(entry.speaker)}`}>
-                  {entry.speaker}:
-                </span>{' '}
-                <span className="text-white/90">
+                  {entry.speaker}
+                </span>
+                <span className="text-white/40 ml-1 text-xs">
+                  ({formatTimestamp(entry.timestamp)})
+                </span>
+                <span className="text-white/90 ml-1">
                   {entry.text}
                   {!entry.isFinal && (
-                    <span className="ml-1 text-white/40 italic">...</span>
+                    <span className="text-white/40">...</span>
                   )}
                 </span>
               </div>
