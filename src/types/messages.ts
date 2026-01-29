@@ -33,7 +33,12 @@ export type MessageType =
   // Transcript updates
   | 'TRANSCRIPT_PARTIAL'
   | 'TRANSCRIPT_FINAL'
-  | 'TRANSCRIPT_UPDATE';
+  | 'TRANSCRIPT_UPDATE'
+  // LLM request lifecycle
+  | 'LLM_REQUEST'
+  | 'LLM_STREAM'
+  | 'LLM_STATUS'
+  | 'LLM_CANCEL';
 
 // Base message interface
 interface BaseMessage {
@@ -177,6 +182,39 @@ export interface TranscriptUpdateMessage extends BaseMessage {
   entries: TranscriptEntry[];
 }
 
+// LLM request from content script to background
+export interface LLMRequestMessage extends BaseMessage {
+  type: 'LLM_REQUEST';
+  responseId: string;        // Unique ID for this request/response pair
+  question: string;          // Captured/highlighted text
+  recentContext: string;     // Last N transcript entries formatted
+  fullTranscript: string;    // Full session transcript formatted
+  templateId: string;        // Active template ID
+}
+
+// Streaming token updates from background to content script
+export interface LLMStreamMessage extends BaseMessage {
+  type: 'LLM_STREAM';
+  responseId: string;
+  model: 'fast' | 'full';
+  token: string;
+}
+
+// Status updates for the LLM request lifecycle
+export interface LLMStatusMessage extends BaseMessage {
+  type: 'LLM_STATUS';
+  responseId: string;
+  model: 'fast' | 'full' | 'both';
+  status: 'pending' | 'streaming' | 'complete' | 'error';
+  error?: string;
+}
+
+// Cancel an in-flight LLM request
+export interface LLMCancelMessage extends BaseMessage {
+  type: 'LLM_CANCEL';
+  responseId: string;
+}
+
 // Union type for all messages
 export type ExtensionMessage =
   | PingMessage
@@ -204,7 +242,11 @@ export type ExtensionMessage =
   | TranscriptionErrorMessage
   | TranscriptPartialMessage
   | TranscriptFinalMessage
-  | TranscriptUpdateMessage;
+  | TranscriptUpdateMessage
+  | LLMRequestMessage
+  | LLMStreamMessage
+  | LLMStatusMessage
+  | LLMCancelMessage;
 
 // Type guard for message checking
 export function isMessage<T extends ExtensionMessage>(
