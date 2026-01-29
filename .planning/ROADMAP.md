@@ -101,10 +101,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Message types and PCM AudioWorklet processor
-- [ ] 02-02-PLAN.md — Tab audio capture with passthrough in Offscreen Document
-- [ ] 02-03-PLAN.md — Microphone capture as separate stream
-- [ ] 02-04-PLAN.md — Popup Start/Stop UI and end-to-end verification
+- [x] 02-01-PLAN.md — Message types and PCM AudioWorklet processor
+- [x] 02-02-PLAN.md — Tab audio capture with passthrough in Offscreen Document
+- [x] 02-03-PLAN.md — Microphone capture as separate stream
+- [x] 02-04-PLAN.md — Popup Start/Stop UI and end-to-end verification
 
 ---
 
@@ -283,7 +283,7 @@ Plans:
 | Phase | Track | Status | Plans |
 |-------|-------|--------|-------|
 | 1 - Foundation | — | ✓ Complete | 4/4 |
-| 2 - Audio Pipeline | A | ○ Pending | 0/4 |
+| 2 - Audio Pipeline | A | ✓ Complete | 4/4 |
 | 3 - Transcription | A | ○ Pending | 0/0 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
 | 5 - Overlay UI | B | ○ Planned | 0/4 |
@@ -341,4 +341,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-29 — Phases 5 and 6 planned*
+*Last updated: 2026-01-29 — Phase 2 complete*

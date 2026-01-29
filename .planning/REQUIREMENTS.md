@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Audio Capture
 
-- [ ] **AUD-01**: Extension captures audio from browser tab via tabCapture API
-- [ ] **AUD-02**: Extension captures user's microphone as separate stream
-- [ ] **AUD-03**: Tab audio remains audible to user while capturing (passthrough)
-- [ ] **AUD-04**: Audio converted to PCM 16-bit 16kHz via AudioWorklet
-- [ ] **AUD-05**: User gesture required from popup to initiate capture
+- [x] **AUD-01**: Extension captures audio from browser tab via tabCapture API
+- [x] **AUD-02**: Extension captures user's microphone as separate stream
+- [x] **AUD-03**: Tab audio remains audible to user while capturing (passthrough)
+- [x] **AUD-04**: Audio converted to PCM 16-bit 16kHz via AudioWorklet
+- [x] **AUD-05**: User gesture required from popup to initiate capture
 
 ### Transcription
 
@@ -118,11 +118,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INF-02 | Phase 1 | Complete |
 | INF-03 | Phase 1 | Complete |
 | INF-04 | Phase 1 | Complete |
-| AUD-01 | Phase 2 | Pending |
-| AUD-02 | Phase 2 | Pending |
-| AUD-03 | Phase 2 | Pending |
-| AUD-04 | Phase 2 | Pending |
-| AUD-05 | Phase 2 | Pending |
+| AUD-01 | Phase 2 | Complete |
+| AUD-02 | Phase 2 | Complete |
+| AUD-03 | Phase 2 | Complete |
+| AUD-04 | Phase 2 | Complete |
+| AUD-05 | Phase 2 | Complete |
 | STT-01 | Phase 3 | Pending |
 | STT-02 | Phase 3 | Pending |
 | STT-03 | Phase 3 | Pending |
@@ -166,4 +166,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 1 complete (INF-01 through INF-04)*
+*Last updated: 2026-01-29 — Phase 2 complete (AUD-01 through AUD-05)*
