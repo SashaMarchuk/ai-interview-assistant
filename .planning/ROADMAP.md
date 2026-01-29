@@ -131,6 +131,13 @@ Plans:
 
 **Research flag:** Standard patterns, ElevenLabs API well-documented
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Transcription types and ElevenLabs WebSocket wrapper
+- [ ] 03-02-PLAN.md — Offscreen transcription and Service Worker merging
+- [ ] 03-03-PLAN.md — Wire transcript to overlay and human verification
+
 ---
 
 ### Phase 4: LLM Integration
@@ -238,10 +245,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Zustand store with settings slice, templates slice, chrome.storage persistence
-- [ ] 06-02-PLAN.md — Settings UI (API keys, models, hotkeys, blur level)
-- [ ] 06-03-PLAN.md — Template Manager UI (list, editor, CRUD operations)
-- [ ] 06-04-PLAN.md — Human verification of complete settings flow
+- [x] 06-01-PLAN.md — Zustand store with settings slice, templates slice, chrome.storage persistence
+- [x] 06-02-PLAN.md — Settings UI (API keys, models, hotkeys, blur level)
+- [x] 06-03-PLAN.md — Template Manager UI (list, editor, CRUD operations)
+- [x] 06-04-PLAN.md — Human verification of complete settings flow
 
 ---
 
@@ -284,7 +291,7 @@ Plans:
 |-------|-------|--------|-------|
 | 1 - Foundation | — | ✓ Complete | 4/4 |
 | 2 - Audio Pipeline | A | ✓ Complete | 4/4 |
-| 3 - Transcription | A | ○ Pending | 0/0 |
+| 3 - Transcription | A | ○ Planning | 0/3 |
 | 4 - LLM Integration | A | ○ Pending | 0/0 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
@@ -341,4 +348,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 5 complete (Track B)*
+*Last updated: 2026-01-29 — Phase 3 plans created*
