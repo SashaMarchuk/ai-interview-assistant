@@ -9,9 +9,9 @@ interface OverlayHeaderProps {
 export function OverlayHeader({ onMinimize }: OverlayHeaderProps) {
   return (
     <div
-      className="overlay-drag-handle flex items-center justify-between px-4 py-2 bg-gray-50 border-b cursor-move select-none"
+      className="overlay-drag-handle flex items-center justify-between px-3 py-2 border-b border-white/10 cursor-move select-none"
     >
-      <span className="font-medium text-gray-700 text-sm">
+      <span className="font-medium text-white/90 text-sm">
         AI Interview Assistant
       </span>
       <button
@@ -19,7 +19,7 @@ export function OverlayHeader({ onMinimize }: OverlayHeaderProps) {
           e.stopPropagation(); // Prevent drag when clicking button
           onMinimize();
         }}
-        className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 rounded hover:bg-gray-200 transition-colors"
+        className="text-white/50 hover:text-white/90 text-lg leading-none px-2 py-1 rounded hover:bg-white/10 transition-colors"
         title="Minimize"
         aria-label="Minimize overlay"
       >

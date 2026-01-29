@@ -73,6 +73,11 @@
   backdrop-filter: blur(4px);
 }
 
+.backdrop-blur-md {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 /* Ensure overlay container styles work in Shadow DOM */
 .overlay-container {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

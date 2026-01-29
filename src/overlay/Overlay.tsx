@@ -18,6 +18,10 @@ interface OverlayProps {
   response?: LLMResponse | null;
 }
 
+// Minimized button dimensions
+const MIN_BTN_WIDTH = 56;
+const MIN_BTN_HEIGHT = 44;
+
 /**
  * Main overlay container with drag and resize functionality.
  * Uses react-rnd for interaction and persists position/size to chrome.storage.
@@ -51,13 +55,13 @@ export function Overlay({ transcript, response }: OverlayProps) {
     return null;
   }
 
-  // Minimized state: small draggable "AI" button
+  // Minimized state: draggable "AI" button
   // Positioned top-right by default (doesn't block Meet navigation)
   if (isMinimized) {
     return (
       <Rnd
         position={minimizedPosition}
-        size={{ width: 40, height: 40 }}
+        size={{ width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT }}
         enableResizing={false}
         bounds="window"
         onDragStop={(e, d) => setMinimizedPosition({ x: d.x, y: d.y })}
@@ -65,7 +69,7 @@ export function Overlay({ transcript, response }: OverlayProps) {
       >
         <button
           onClick={() => setMinimized(false)}
-          className="w-10 h-10 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 text-xs font-bold flex items-center justify-center transition-colors cursor-move"
+          className="w-full h-full bg-blue-500/80 backdrop-blur-sm text-white rounded-lg shadow-lg hover:bg-blue-600/90 text-sm font-bold flex items-center justify-center transition-colors cursor-move"
           title="Expand AI Assistant (drag to move)"
         >
           AI
@@ -110,17 +114,17 @@ export function Overlay({ transcript, response }: OverlayProps) {
         bottomRight: { cursor: 'nwse-resize' },
       }}
     >
-      <div className="overlay-container h-full flex flex-col bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+      <div className="overlay-container h-full flex flex-col bg-black/10 backdrop-blur-md rounded-lg shadow-2xl border border-white/20 overflow-hidden">
         <OverlayHeader onMinimize={() => setMinimized(true)} />
 
         {/* Content area with panels */}
-        <div className="flex-1 p-4 overflow-hidden flex flex-col gap-3">
+        <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2">
           <TranscriptPanel entries={displayTranscript} />
           <ResponsePanel response={displayResponse} />
         </div>
 
         {/* Footer with status indicator */}
-        <div className="px-4 py-2 bg-gray-50 border-t flex items-center justify-between text-xs text-gray-400">
+        <div className="px-3 py-1.5 border-t border-white/10 flex items-center justify-between text-xs text-white/60">
           <span>AI Interview Assistant</span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 bg-green-400 rounded-full"></span>

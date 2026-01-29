@@ -4,7 +4,8 @@ import { DEFAULT_OVERLAY_STATE, type OverlayState } from '../../types/transcript
 const STORAGE_KEY = 'ai-interview-overlay-state';
 
 // Button dimensions for bounds calculation
-const MIN_BTN_SIZE = 40;
+const MIN_BTN_WIDTH = 56;
+const MIN_BTN_HEIGHT = 44;
 const MARGIN = 20;
 
 /**
@@ -48,7 +49,7 @@ export function useOverlayPosition() {
    */
   const getDefaultMinimizedPosition = useCallback(() => {
     return {
-      x: window.innerWidth - MIN_BTN_SIZE - MARGIN,
+      x: window.innerWidth - MIN_BTN_WIDTH - MARGIN,
       y: 80, // Below Meet top bar
     };
   }, []);
@@ -82,7 +83,7 @@ export function useOverlayPosition() {
           updates.minBtnY = defaultPos.y;
         } else {
           // Manual position - clamp to viewport
-          const clamped = clampToViewport(prev.minBtnX, prev.minBtnY, MIN_BTN_SIZE, MIN_BTN_SIZE);
+          const clamped = clampToViewport(prev.minBtnX, prev.minBtnY, MIN_BTN_WIDTH, MIN_BTN_HEIGHT);
           if (clamped.x !== prev.minBtnX || clamped.y !== prev.minBtnY) {
             updates.minBtnX = clamped.x;
             updates.minBtnY = clamped.y;

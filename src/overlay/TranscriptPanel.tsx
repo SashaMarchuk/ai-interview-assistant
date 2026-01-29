@@ -7,18 +7,17 @@ interface TranscriptPanelProps {
 
 /**
  * Returns color classes based on speaker name.
- * "You" gets blue, "Interviewer" gets purple, others get gray.
+ * Uses light colors for transparent dark background.
  */
 function getSpeakerColor(speaker: string): string {
   switch (speaker.toLowerCase()) {
     case 'you':
     case 'me':
-      return 'text-blue-600';
+      return 'text-blue-300';
     case 'interviewer':
-      return 'text-purple-600';
+      return 'text-purple-300';
     default:
-      // For speaker diarization labels like "Speaker 1", "Speaker 2"
-      return 'text-gray-600';
+      return 'text-gray-300';
   }
 }
 
@@ -27,24 +26,23 @@ function getSpeakerColor(speaker: string): string {
  * Auto-scrolls to bottom when new entries are added.
  */
 export function TranscriptPanel({ entries }: TranscriptPanelProps) {
-  // Auto-scroll when entry count changes
   const bottomRef = useAutoScroll(entries.length);
 
   return (
     <div className="flex-shrink-0">
-      <div className="text-xs font-medium text-gray-500 mb-1 flex items-center justify-between">
+      <div className="text-xs font-medium text-white/60 mb-1 flex items-center justify-between">
         <span>Transcript</span>
         {entries.length > 0 && (
-          <span className="text-gray-400">
+          <span className="text-white/40">
             {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
           </span>
         )}
       </div>
 
-      <div className="bg-gray-50 rounded p-2 h-28 overflow-y-auto">
+      <div className="rounded p-2 h-28 overflow-y-auto">
         {entries.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <span className="text-sm text-gray-400 italic">
+            <span className="text-sm text-white/40 italic">
               Waiting for audio...
             </span>
           </div>
@@ -60,15 +58,14 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps) {
                 <span className={`font-medium ${getSpeakerColor(entry.speaker)}`}>
                   {entry.speaker}:
                 </span>{' '}
-                <span className="text-gray-700">
+                <span className="text-white/90">
                   {entry.text}
                   {!entry.isFinal && (
-                    <span className="ml-1 text-gray-400 italic">...</span>
+                    <span className="ml-1 text-white/40 italic">...</span>
                   )}
                 </span>
               </div>
             ))}
-            {/* Scroll anchor - auto-scroll target */}
             <div ref={bottomRef} />
           </>
         )}
