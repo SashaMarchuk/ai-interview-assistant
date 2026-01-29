@@ -24,6 +24,8 @@
     "@wxt-dev/module-react": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-rnd": "^10.5.2",
+    "use-chrome-storage": "^1.3.2",
     "webext-zustand": "^0.2.0",
     "wxt": "^0.19.0",
     "zustand": "^4.5.7"
