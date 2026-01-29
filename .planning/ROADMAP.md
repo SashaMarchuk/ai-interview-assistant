@@ -134,9 +134,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [x] 03-01-PLAN.md — Transcription types and ElevenLabs WebSocket wrapper
-- [x] 03-02-PLAN.md — Offscreen transcription and Service Worker merging
-- [x] 03-03-PLAN.md — Wire transcript to overlay and human verification
+- [x] 03-01-PLAN.md — Transcription types and ElevenLabs WebSocket wrapper ✓
+- [x] 03-02-PLAN.md — Offscreen transcription and Service Worker merging ✓
+- [x] 03-03-PLAN.md — Wire transcript to overlay and human verification ✓
 
 ---
 
@@ -171,10 +171,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Install eventsource-parser, LLM types, OpenRouter streaming client
-- [ ] 04-02-PLAN.md — LLM message types and dual parallel streaming in background.ts
-- [ ] 04-03-PLAN.md — Capture mode hook and keyboard handling in content script
-- [ ] 04-04-PLAN.md — Wire LLM responses to overlay, capture indicator, human verification
+- [x] 04-01-PLAN.md — Install eventsource-parser, LLM types, OpenRouter streaming client ✓
+- [x] 04-02-PLAN.md — LLM message types and dual parallel streaming in background.ts ✓
+- [x] 04-03-PLAN.md — Capture mode hook and keyboard handling in content script ✓
+- [x] 04-04-PLAN.md — Wire LLM responses to overlay, capture indicator, human verification ✓
 
 ---
 
@@ -299,8 +299,8 @@ Plans:
 |-------|-------|--------|-------|
 | 1 - Foundation | — | ✓ Complete | 4/4 |
 | 2 - Audio Pipeline | A | ✓ Complete | 4/4 |
-| 3 - Transcription | A | ○ Planning | 0/3 |
-| 4 - LLM Integration | A | ○ Planning | 0/4 |
+| 3 - Transcription | A | ✓ Complete | 3/3 |
+| 4 - LLM Integration | A | ✓ Complete | 4/4 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
 | 7 - Integration | — | ○ Pending | 0/0 |
@@ -356,4 +356,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 3 plans created*
+*Last updated: 2026-01-29 — Phases 1-6 complete, ready for Phase 7 Integration*

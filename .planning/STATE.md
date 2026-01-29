@@ -44,8 +44,8 @@ See: .planning/PROJECT.md
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 22 |
-| Requirements delivered | 16/44 |
+| Plans completed | 23 |
+| Requirements delivered | 43/44 |
 | Phases completed | 6/7 |
 
 ## Accumulated Context
@@ -205,7 +205,7 @@ All success criteria verified (human):
 | Highlight text + hotkey sends specific text | PASS |
 | Both responses complete with clear indication | PASS |
 
-Requirements LLM-01 through LLM-05 complete.
+Requirements LLM-01 through LLM-06, KEY-01, KEY-02, KEY-04, KEY-05 complete.
 
 ## Phase 5 Verification Results
 

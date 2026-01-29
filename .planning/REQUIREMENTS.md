@@ -17,29 +17,29 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Transcription
 
-- [ ] **STT-01**: Real-time streaming transcription with < 500ms latency
-- [ ] **STT-02**: Partial/interim results displayed before finalization
-- [ ] **STT-03**: Speaker diarization for tab audio (Speaker 0, 1, 2...)
-- [ ] **STT-04**: Microphone stream labeled as "Me" in transcript
-- [ ] **STT-05**: Tab and mic transcripts merged by timestamp
-- [ ] **STT-06**: WebSocket connection to ElevenLabs maintained via Offscreen Document
+- [x] **STT-01**: Real-time streaming transcription with < 500ms latency
+- [x] **STT-02**: Partial/interim results displayed before finalization
+- [x] **STT-03**: Speaker diarization for tab audio (Speaker 0, 1, 2...)
+- [x] **STT-04**: Microphone stream labeled as "Me" in transcript
+- [x] **STT-05**: Tab and mic transcripts merged by timestamp
+- [x] **STT-06**: WebSocket connection to ElevenLabs maintained via Offscreen Document
 
 ### LLM Integration
 
-- [ ] **LLM-01**: Dual parallel LLM requests on hotkey trigger (fast + full)
-- [ ] **LLM-02**: Fast response streams 1-2 sentence hint
-- [ ] **LLM-03**: Full response streams comprehensive answer
-- [ ] **LLM-04**: Both responses stream to overlay simultaneously
-- [ ] **LLM-05**: Context variables work in prompts ($highlighted, $recent, $transcript)
-- [ ] **LLM-06**: OpenRouter API with SSE streaming
+- [x] **LLM-01**: Dual parallel LLM requests on hotkey trigger (fast + full)
+- [x] **LLM-02**: Fast response streams 1-2 sentence hint
+- [x] **LLM-03**: Full response streams comprehensive answer
+- [x] **LLM-04**: Both responses stream to overlay simultaneously
+- [x] **LLM-05**: Context variables work in prompts ($highlighted, $recent, $transcript)
+- [x] **LLM-06**: OpenRouter API with SSE streaming
 
 ### Hotkey System
 
-- [ ] **KEY-01**: Hold-to-capture mode (press and hold, release to send) as default
-- [ ] **KEY-02**: Highlight-to-send mode (select transcript text, press key to send)
+- [x] **KEY-01**: Hold-to-capture mode (press and hold, release to send) as default
+- [x] **KEY-02**: Highlight-to-send mode (select transcript text, press key to send)
 - [ ] **KEY-03**: Toggle mode available in settings (press to start/stop capture)
-- [ ] **KEY-04**: Visual indicator when capture is active
-- [ ] **KEY-05**: Captured text extracted and sent to LLM pipeline
+- [x] **KEY-04**: Visual indicator when capture is active
+- [x] **KEY-05**: Captured text extracted and sent to LLM pipeline
 
 ### Overlay UI
 
@@ -54,19 +54,19 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Prompt System
 
-- [ ] **PRM-01**: Multiple saved prompt templates (System Design, Coding, Behavioral, custom)
-- [ ] **PRM-02**: Variable substitution in prompts ($highlighted, $recent, $transcript)
-- [ ] **PRM-03**: Per-template model override (different models for different templates)
-- [ ] **PRM-04**: Template switching during active session
-- [ ] **PRM-05**: Default templates provided on first install
+- [x] **PRM-01**: Multiple saved prompt templates (System Design, Coding, Behavioral, custom)
+- [x] **PRM-02**: Variable substitution in prompts ($highlighted, $recent, $transcript)
+- [x] **PRM-03**: Per-template model override (different models for different templates)
+- [x] **PRM-04**: Template switching during active session
+- [x] **PRM-05**: Default templates provided on first install
 
 ### Settings
 
-- [ ] **SET-01**: API key management for ElevenLabs and OpenRouter
-- [ ] **SET-02**: Model selection for fast and full response models
-- [ ] **SET-03**: Hotkey customization (change default bindings)
-- [ ] **SET-04**: Blur level adjustment for overlay transparency
-- [ ] **SET-05**: Settings persisted via chrome.storage.local
+- [x] **SET-01**: API key management for ElevenLabs and OpenRouter
+- [x] **SET-02**: Model selection for fast and full response models
+- [x] **SET-03**: Hotkey customization (change default bindings)
+- [x] **SET-04**: Blur level adjustment for overlay transparency
+- [x] **SET-05**: Settings persisted via chrome.storage.local
 
 ### Infrastructure
 
@@ -123,23 +123,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUD-03 | Phase 2 | Complete |
 | AUD-04 | Phase 2 | Complete |
 | AUD-05 | Phase 2 | Complete |
-| STT-01 | Phase 3 | Pending |
-| STT-02 | Phase 3 | Pending |
-| STT-03 | Phase 3 | Pending |
-| STT-04 | Phase 3 | Pending |
-| STT-05 | Phase 3 | Pending |
-| STT-06 | Phase 3 | Pending |
-| LLM-01 | Phase 4 | Pending |
-| LLM-02 | Phase 4 | Pending |
-| LLM-03 | Phase 4 | Pending |
-| LLM-04 | Phase 4 | Pending |
-| LLM-05 | Phase 4 | Pending |
-| LLM-06 | Phase 4 | Pending |
-| KEY-01 | Phase 4 | Pending |
-| KEY-02 | Phase 4 | Pending |
-| KEY-03 | Phase 4 | Pending |
-| KEY-04 | Phase 4 | Pending |
-| KEY-05 | Phase 4 | Pending |
+| STT-01 | Phase 3 | Complete |
+| STT-02 | Phase 3 | Complete |
+| STT-03 | Phase 3 | Complete |
+| STT-04 | Phase 3 | Complete |
+| STT-05 | Phase 3 | Complete |
+| STT-06 | Phase 3 | Complete |
+| LLM-01 | Phase 4 | Complete |
+| LLM-02 | Phase 4 | Complete |
+| LLM-03 | Phase 4 | Complete |
+| LLM-04 | Phase 4 | Complete |
+| LLM-05 | Phase 4 | Complete |
+| LLM-06 | Phase 4 | Complete |
+| KEY-01 | Phase 4 | Complete |
+| KEY-02 | Phase 4 | Complete |
+| KEY-03 | Phase 7 | Pending |
+| KEY-04 | Phase 4 | Complete |
+| KEY-05 | Phase 4 | Complete |
 | UI-01 | Phase 5 | Complete |
 | UI-02 | Phase 5 | Complete |
 | UI-03 | Phase 5 | Complete |
@@ -148,16 +148,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-06 | Phase 5 | Complete |
 | UI-07 | Phase 5 | Complete |
 | UI-08 | Phase 5 | Complete |
-| PRM-01 | Phase 6 | Pending |
-| PRM-02 | Phase 6 | Pending |
-| PRM-03 | Phase 6 | Pending |
-| PRM-04 | Phase 6 | Pending |
-| PRM-05 | Phase 6 | Pending |
-| SET-01 | Phase 6 | Pending |
-| SET-02 | Phase 6 | Pending |
-| SET-03 | Phase 6 | Pending |
-| SET-04 | Phase 6 | Pending |
-| SET-05 | Phase 6 | Pending |
+| PRM-01 | Phase 6 | Complete |
+| PRM-02 | Phase 6 | Complete |
+| PRM-03 | Phase 6 | Complete |
+| PRM-04 | Phase 6 | Complete |
+| PRM-05 | Phase 6 | Complete |
+| SET-01 | Phase 6 | Complete |
+| SET-02 | Phase 6 | Complete |
+| SET-03 | Phase 6 | Complete |
+| SET-04 | Phase 6 | Complete |
+| SET-05 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 44 total
@@ -166,4 +166,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-28*
-*Last updated: 2026-01-29 — Phase 5 complete (UI-01 through UI-08)*
+*Last updated: 2026-01-29 — Phases 3, 4, 5, 6 complete (43/44 requirements)*
