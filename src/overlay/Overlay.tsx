@@ -5,6 +5,7 @@ import { OverlayHeader } from './OverlayHeader';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ResponsePanel } from './ResponsePanel';
 import { CaptureIndicator } from './CaptureIndicator';
+import { HealthIndicator, type HealthIssue } from './HealthIndicator';
 import { useStore } from '../store';
 import type { TranscriptEntry, LLMResponse } from '../types/transcript';
 import type { CaptureState } from '../hooks';
@@ -80,8 +81,9 @@ export function Overlay({ response }: OverlayProps) {
     setMinimizedPosition,
   } = useOverlayPosition();
 
-  // Get blur level from settings store
+  // Get blur level and API keys from settings store
   const blurLevel = useStore((state) => state.blurLevel);
+  const apiKeys = useStore((state) => state.apiKeys);
 
   // Real transcript state - populated by transcript-update events
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -91,6 +93,9 @@ export function Overlay({ response }: OverlayProps) {
 
   // Capture state for visual indicator
   const [captureState, setCaptureState] = useState<CaptureState | null>(null);
+
+  // Health issues for status display
+  const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
 
   // Listen for transcript updates from content script
   useEffect(() => {
@@ -130,6 +135,35 @@ export function Overlay({ response }: OverlayProps) {
       window.removeEventListener('capture-state-update', handleCaptureStateUpdate);
     };
   }, []);
+
+  // Check for missing API keys and build health issues array
+  // Per CONTEXT.md: only show issues when there are actual problems
+  useEffect(() => {
+    const issues: HealthIssue[] = [];
+
+    // Only add issues for missing keys when we want to inform the user
+    // Note: Real-time service status (reconnecting, etc.) will be added in plan 02
+    if (!apiKeys.elevenLabs) {
+      issues.push({
+        service: 'STT',
+        status: 'warning',
+        message: 'ElevenLabs API key not configured',
+      });
+    }
+
+    if (!apiKeys.openRouter) {
+      issues.push({
+        service: 'LLM',
+        status: 'warning',
+        message: 'OpenRouter API key not configured',
+      });
+    }
+
+    setHealthIssues(issues);
+  }, [apiKeys.elevenLabs, apiKeys.openRouter]);
+
+  // Check if BOTH API keys are missing (for setup prompt)
+  const bothKeysMissing = !apiKeys.elevenLabs && !apiKeys.openRouter;
 
   // Use prop if provided (for testing), otherwise use event-driven state
   const displayResponse = response ?? llmResponse;
@@ -203,15 +237,32 @@ export function Overlay({ response }: OverlayProps) {
         className="overlay-container relative h-full flex flex-col bg-black/10 rounded-lg shadow-2xl border border-white/20 overflow-hidden"
         style={{ backdropFilter: `blur(${blurLevel}px)` }}
       >
-        {/* Capture indicator at top (absolute positioned) */}
+        {/* Health indicator at very top (absolute positioned, z-20) */}
+        <HealthIndicator issues={healthIssues} />
+
+        {/* Capture indicator below health indicator (absolute positioned, z-10) */}
         <CaptureIndicator captureState={captureState} />
 
         <OverlayHeader onMinimize={() => setMinimized(true)} />
 
         {/* Content area with panels */}
-        <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2">
+        <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2 relative">
           <TranscriptPanel entries={transcript} />
           <ResponsePanel response={displayResponse} />
+
+          {/* Setup prompt overlay when BOTH API keys missing */}
+          {bothKeysMissing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+              <div className="text-center px-4 py-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 mx-4">
+                <div className="text-white/90 text-sm font-medium mb-1">
+                  Configure API keys in Settings
+                </div>
+                <div className="text-white/60 text-xs">
+                  to use AI features
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer with status indicator */}
