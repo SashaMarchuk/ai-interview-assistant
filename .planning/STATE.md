@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-30
 **Current Phase:** 7 (Integration)
-**Current Plan:** 07-02 complete, 07-03 next
+**Current Plan:** 07-01 complete
 
 ## Project Reference
 
@@ -33,8 +33,9 @@ See: .planning/PROJECT.md
 ## Current Position
 
 - **Phase:** 7 of 7 (Integration)
-- **Plan:** 07-02 complete
+- **Plan:** 07-01 complete
 - **Status:** In progress
+- **Last activity:** 2026-01-30 - Completed 07-01-PLAN.md (Graceful Degradation UI)
 - **Blocker:** None
 
 ## Performance Metrics
@@ -102,9 +103,9 @@ See: .planning/PROJECT.md
 | Module-level currentLLMResponse state | Maintains response state across message handler calls | 2026-01-29 |
 | StatusIndicator with pulsing animation | Visual feedback for streaming/pending/ready states in footer | 2026-01-29 |
 | useEffect for capture state dispatch | Proper React side effect handling instead of render-time dispatch | 2026-01-29 |
-| LLM retry logic: 3 retries with exponential backoff | Graceful recovery from transient LLM failures | 2026-01-30 |
-| CONNECTION_STATE message for service health | Unified way to communicate service status from offscreen -> background -> content | 2026-01-30 |
-| connection-state-update custom event | Decoupled communication for HealthIndicator component | 2026-01-30 |
+| HealthIndicator only when issues exist | Clean UI when everything working, only shows problems | 2026-01-30 |
+| Setup prompt only when BOTH keys missing | Partial functionality OK, only block when no features available | 2026-01-30 |
+| Non-blocking API key warnings | Informational warnings with Configure links, capture can proceed | 2026-01-30 |
 
 ### Technical Notes
 
@@ -147,7 +148,7 @@ See: .planning/PROJECT.md
 - OpenRouter streaming uses eventsource-parser for SSE parsing
 - buildPrompt() differentiates fast hint vs full answer via instruction appendage
 - LLM message types: LLM_REQUEST, LLM_STREAM, LLM_STATUS, LLM_CANCEL
-- handleLLMRequest() fires dual parallel streams via streamWithRetry()
+- handleLLMRequest() fires dual parallel streams via streamLLMResponse()
 - activeAbortControllers Map enables per-request cancellation
 - sendLLMMessageToMeet() broadcasts to all Google Meet tabs
 - Keep-alive uses chrome.runtime.getPlatformInfo() as no-op to reset idle timer
@@ -158,9 +159,8 @@ See: .planning/PROJECT.md
 - llm-response-update custom event for LLM response streaming to Overlay
 - CaptureIndicator component at src/overlay/CaptureIndicator.tsx
 - StatusIndicator shows streaming (blue pulse), pending (yellow pulse), ready (green solid)
-- streamWithRetry wrapper handles LLM retries with exponential backoff (1s * attempt)
-- broadcastConnectionState in offscreen sends STT connection states
-- connection-state-update custom event allows HealthIndicator to display service status
+- HealthIndicator at z-20, CaptureIndicator at z-10 for proper stacking
+- HealthIssue type: { service, status: warning|error|reconnecting, message }
 
 ### Open Questions
 
@@ -229,14 +229,14 @@ Requirements UI-01 through UI-08 complete.
 ### Last Session
 
 - **Date:** 2026-01-30
-- **Activity:** Executed Phase 7 Plan 02 - Connection State & Retry Logic
-- **Outcome:** 07-02 COMPLETE - CONNECTION_STATE message type, STT broadcasting, LLM retry, content events
+- **Activity:** Executed Phase 7 Plan 01 - Graceful Degradation UI
+- **Outcome:** 07-01 COMPLETE - HealthIndicator component, setup prompt, popup warnings
 
 ### Next Actions
 
-1. Execute Plan 07-03: Settings Wiring
-2. Execute Plan 07-04: Toggle Mode Integration
-3. Final integration testing
+1. Execute Plan 07-02: Connection State & Retry Logic
+2. Execute Plan 07-03: Settings Wiring
+3. Execute Plan 07-04: Toggle Mode Integration
 
 ---
 
