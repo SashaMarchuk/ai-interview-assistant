@@ -113,8 +113,9 @@ function getHighlightedText(): string {
 export function useCaptureMode(options: UseCaptureOptions): CaptureState {
   const { onCapture, getTranscriptSince } = options;
 
-  // Get hotkey from store
+  // Get hotkey and capture mode from store
   const captureHotkey = useStore((state) => state.hotkeys.capture);
+  const captureMode = useStore((state) => state.captureMode);
 
   const [state, setState] = useState<CaptureState>({
     isHolding: false,
@@ -156,7 +157,44 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
         return;
       }
 
-      // Otherwise, start hold-to-capture mode
+      // Toggle mode: press toggles capture state
+      if (captureMode === 'toggle') {
+        if (isHoldingRef.current) {
+          // Currently capturing - stop and send (like keyUp in hold mode)
+          const startTime = captureStartTimeRef.current;
+          isHoldingRef.current = false;
+          captureStartTimeRef.current = null;
+
+          const capturedText = startTime ? getTranscriptSince(startTime) : '';
+
+          setState({
+            isHolding: false,
+            captureStartTime: null,
+            capturedText,
+            mode: 'hold', // Keep 'hold' for consistency in CaptureState type
+          });
+
+          if (capturedText.trim()) {
+            onCapture(capturedText, 'hold');
+          }
+          return;
+        } else {
+          // Not capturing - start capture
+          const startTime = Date.now();
+          isHoldingRef.current = true;
+          captureStartTimeRef.current = startTime;
+
+          setState({
+            isHolding: true,
+            captureStartTime: startTime,
+            capturedText: '',
+            mode: 'hold',
+          });
+          return;
+        }
+      }
+
+      // Hold mode (default): start capture on keydown
       const startTime = Date.now();
       isHoldingRef.current = true;
       captureStartTimeRef.current = startTime;
@@ -168,12 +206,16 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
         mode: 'hold',
       });
     },
-    [parsedHotkey, onCapture]
+    [parsedHotkey, onCapture, captureMode, getTranscriptSince]
   );
 
   const handleKeyUp = useCallback(
     (e: KeyboardEvent) => {
       if (!matchesHotkey(e, parsedHotkey)) return;
+
+      // In toggle mode, keyUp does nothing (all logic in keyDown)
+      if (captureMode === 'toggle') return;
+
       if (!isHoldingRef.current) return;
 
       e.preventDefault();
@@ -198,7 +240,7 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
         onCapture(capturedText, 'hold');
       }
     },
-    [parsedHotkey, onCapture, getTranscriptSince]
+    [parsedHotkey, onCapture, getTranscriptSince, captureMode]
   );
 
   // Handle window blur (lost keyup - prevents stuck capture state)
