@@ -453,6 +453,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false; // Don't send response, let other listeners handle it
   }
 
+  // Messages with _fromBackground marker were sent BY background TO offscreen
+  // Background should NOT handle these to prevent race conditions and recursion
+  if (message?._fromBackground === true) {
+    // Let offscreen handle and respond
+    return false;
+  }
+
   handleMessage(message, sender)
     .then(sendResponse)
     .catch((error) => {
@@ -497,7 +504,7 @@ async function handleMessage(
           // Force cleanup first
           console.log('Previous capture was active, cleaning up first...');
           try {
-            await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } satisfies StopCaptureMessage);
+            await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE', _fromBackground: true } as StopCaptureMessage & { _fromBackground: true });
           } catch (e) {
             console.log('Cleanup error (may be expected):', e);
           }
@@ -551,7 +558,8 @@ async function handleMessage(
         const response = await chrome.runtime.sendMessage({
           type: 'TAB_STREAM_ID',
           streamId,
-        } satisfies TabStreamIdMessage);
+          _fromBackground: true,
+        } as TabStreamIdMessage & { _fromBackground: true });
 
         // Check if offscreen capture actually succeeded
         if (!response?.success) {
@@ -576,7 +584,8 @@ async function handleMessage(
         // Forward stop command to offscreen document
         const response = await chrome.runtime.sendMessage({
           type: 'STOP_CAPTURE',
-        } satisfies StopCaptureMessage);
+          _fromBackground: true,
+        } as StopCaptureMessage & { _fromBackground: true });
         console.log('STOP_CAPTURE response from offscreen:', response);
         isTabCaptureActive = false;
         // Give Chrome extra time to fully release the stream
@@ -619,7 +628,8 @@ async function handleMessage(
         // Forward start mic capture command to offscreen document
         const response = await chrome.runtime.sendMessage({
           type: 'START_MIC_CAPTURE',
-        } satisfies StartMicCaptureMessage);
+          _fromBackground: true,
+        } as StartMicCaptureMessage & { _fromBackground: true });
 
         console.log('Mic capture start response:', response);
         return response;
@@ -635,7 +645,8 @@ async function handleMessage(
         // Forward stop mic capture command to offscreen document
         const response = await chrome.runtime.sendMessage({
           type: 'STOP_MIC_CAPTURE',
-        } satisfies StopMicCaptureMessage);
+          _fromBackground: true,
+        } as StopMicCaptureMessage & { _fromBackground: true });
 
         console.log('Mic capture stop response:', response);
         return response;
@@ -662,8 +673,9 @@ async function handleMessage(
 
     case 'TAB_STREAM_ID':
       // This should only go to offscreen, not back to background
-      console.warn('Received TAB_STREAM_ID in background - unexpected');
-      return { received: true };
+      // Return undefined to NOT send a response - let offscreen handle it
+      console.log('TAB_STREAM_ID received in background - ignoring (offscreen handles)');
+      return undefined;
 
     case 'INJECT_UI':
     case 'UI_INJECTED':
@@ -690,7 +702,8 @@ async function handleMessage(
         await chrome.runtime.sendMessage({
           type: 'START_TRANSCRIPTION',
           apiKey: message.apiKey,
-        } satisfies StartTranscriptionMessage);
+          _fromBackground: true,
+        } as StartTranscriptionMessage & { _fromBackground: true });
 
         isTranscriptionActive = true;
         console.log('START_TRANSCRIPTION forwarded to offscreen');
@@ -708,7 +721,8 @@ async function handleMessage(
         // Forward to offscreen document to close WebSocket connections
         await chrome.runtime.sendMessage({
           type: 'STOP_TRANSCRIPTION',
-        } satisfies StopTranscriptionMessage);
+          _fromBackground: true,
+        } as StopTranscriptionMessage & { _fromBackground: true });
 
         isTranscriptionActive = false;
         console.log('STOP_TRANSCRIPTION forwarded to offscreen');
