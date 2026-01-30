@@ -39,6 +39,7 @@ export const useStore = create<StoreState>()(
         models: state.models,
         blurLevel: state.blurLevel,
         hotkeys: state.hotkeys,
+        captureMode: state.captureMode,
         templates: state.templates,
         activeTemplateId: state.activeTemplateId,
       }),
@@ -97,6 +98,7 @@ export const storeReadyPromise: Promise<void> = new Promise((resolve) => {
 // Re-export types for consumers
 export type { StoreState } from './types';
 export type {
+  CaptureMode,
   PromptTemplate,
   TemplateType,
   ApiKeyProvider,

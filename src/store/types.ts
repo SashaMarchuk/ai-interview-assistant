@@ -6,6 +6,13 @@
  */
 
 /**
+ * Capture mode for hotkey behavior
+ * - 'hold': Hold hotkey to capture, release to send (default)
+ * - 'toggle': Press once to start capture, press again to stop and send
+ */
+export type CaptureMode = 'hold' | 'toggle';
+
+/**
  * Template type categories for interview prompt templates
  */
 export type TemplateType = 'system-design' | 'coding' | 'behavioral' | 'custom';
@@ -65,6 +72,8 @@ export interface SettingsSlice {
   hotkeys: {
     capture: string;
   };
+  /** Capture mode: hold-to-capture or toggle */
+  captureMode: CaptureMode;
   /** Set an API key for a provider */
   setApiKey: (provider: ApiKeyProvider, key: string) => void;
   /** Set a model for a specific type */
@@ -73,6 +82,8 @@ export interface SettingsSlice {
   setBlurLevel: (level: number) => void;
   /** Set a hotkey binding for an action */
   setHotkey: (action: HotkeyAction, binding: string) => void;
+  /** Set capture mode */
+  setCaptureMode: (mode: CaptureMode) => void;
 }
 
 /**

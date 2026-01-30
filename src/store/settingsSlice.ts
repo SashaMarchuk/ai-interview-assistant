@@ -6,7 +6,7 @@
  */
 
 import type { StateCreator } from 'zustand';
-import type { SettingsSlice, StoreState, ApiKeyProvider, ModelType, HotkeyAction } from './types';
+import type { SettingsSlice, StoreState, ApiKeyProvider, ModelType, HotkeyAction, CaptureMode } from './types';
 
 /**
  * Default settings values
@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   hotkeys: {
     capture: 'Ctrl+Shift+Space',
   },
+  captureMode: 'hold' as CaptureMode,
 } as const;
 
 /**
@@ -45,6 +46,7 @@ export const createSettingsSlice: StateCreator<StoreState, [], [], SettingsSlice
   models: { ...DEFAULT_SETTINGS.models },
   blurLevel: DEFAULT_SETTINGS.blurLevel,
   hotkeys: { ...DEFAULT_SETTINGS.hotkeys },
+  captureMode: DEFAULT_SETTINGS.captureMode,
 
   // Actions
   setApiKey: (provider: ApiKeyProvider, key: string) => {
@@ -77,6 +79,12 @@ export const createSettingsSlice: StateCreator<StoreState, [], [], SettingsSlice
         ...state.hotkeys,
         [action]: binding,
       },
+    }));
+  },
+
+  setCaptureMode: (mode: CaptureMode) => {
+    set(() => ({
+      captureMode: mode,
     }));
   },
 });
