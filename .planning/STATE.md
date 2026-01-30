@@ -1,8 +1,8 @@
 # Project State
 
 **Last Updated:** 2026-01-30
-**Current Phase:** 7 (Integration)
-**Current Plan:** 07-04 complete (Phase COMPLETE)
+**Current Phase:** 8 (OpenAI Provider Support)
+**Current Plan:** 01 complete
 
 ## Project Reference
 
@@ -10,7 +10,7 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** Phase 7 Integration - COMPLETE
+**Current focus:** Phase 8 OpenAI Provider Support - Plan 01 complete
 
 ## Progress
 
@@ -23,28 +23,30 @@ See: .planning/PROJECT.md
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
 | 7 | Integration | -- | COMPLETE | 4/4 |
+| 8 | OpenAI Provider | -- | IN PROGRESS | 1/3 |
 
-**Overall:** 27/27 plans complete
+**Overall:** 28/30 plans complete
 
 ```
-[████████████████████████] 100%
+[███████████████████████████░░] ~93%
 ```
 
 ## Current Position
 
-- **Phase:** 7 of 7 (Integration)
-- **Plan:** 07-04 complete
-- **Status:** PROJECT COMPLETE
-- **Last activity:** 2026-01-30 - Completed 07-04-PLAN.md (Toggle Mode Integration)
+- **Phase:** 8 of 8 (OpenAI Provider Support)
+- **Plan:** 01 of 3 complete
+- **Status:** In progress
+- **Last activity:** 2026-01-30 - Completed 08-01 Provider Abstraction Layer
 - **Blocker:** None
+- **Next Plan:** 08-02 Background Integration
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 27 |
-| Requirements delivered | 44/44 |
-| Phases completed | 7/7 |
+| Plans completed | 28 |
+| Requirements delivered | 44/44 (v1) |
+| Phases completed | 7/8 |
 
 ## Accumulated Context
 
@@ -111,6 +113,8 @@ See: .planning/PROJECT.md
 | ConnectionStateEventDetail export | Type-safe custom events for service health propagation | 2026-01-30 |
 | Toggle mode keyDown-only | All toggle logic in keyDown, keyUp does nothing in toggle mode | 2026-01-30 |
 | CaptureMode type union | Simple 'hold' | 'toggle' union for clear behavior selection | 2026-01-30 |
+| LLMProvider interface | Strategy pattern for provider abstraction | 2026-01-30 |
+| Provider priority OpenAI > OpenRouter | Direct API preferred over aggregator for latency | 2026-01-30 |
 
 ### Technical Notes
 
@@ -172,6 +176,10 @@ See: .planning/PROJECT.md
 - MAX_LLM_RETRIES = 3, LLM_RETRY_DELAY_MS = 1000 (base)
 - CaptureMode type: 'hold' | 'toggle' for hotkey behavior
 - Toggle mode: all capture logic in keyDown, keyUp returns early
+- LLMProvider interface at src/services/llm/providers/LLMProvider.ts
+- Provider registry with getProvider, resolveActiveProvider, getAvailableModels
+- OpenAI models: gpt-4o, gpt-4.1, gpt-4o-mini, gpt-4.1-mini, gpt-4.1-nano
+- OpenRouter models: claude-3-haiku, claude-3-5-sonnet, gemini-flash-1.5, gemini-pro-1.5, gpt-4o, gpt-4o-mini
 
 ### Open Questions
 
@@ -248,17 +256,21 @@ All plans complete:
 
 Requirements KEY-03 complete. All 44 requirements delivered.
 
+## Roadmap Evolution
+
+- Phase 8 added: OpenAI Provider Support (2026-01-30)
+
 ## Session Continuity
 
 ### Last Session
 
 - **Date:** 2026-01-30
-- **Activity:** Executed Phase 7 Plan 04 - Toggle Mode Integration
-- **Outcome:** 07-04 COMPLETE - CaptureMode type, toggle mode in hook, UI in HotkeySettings
+- **Activity:** Completed 08-01 Provider Abstraction Layer
+- **Outcome:** LLMProvider interface, OpenRouter/OpenAI adapters, provider registry
 
 ### Project Status
 
-PROJECT COMPLETE - All 7 phases executed, all 44 requirements delivered.
+IN PROGRESS - Phase 8 Plan 01 complete. Ready for 08-02 Background Integration.
 
 ---
 
