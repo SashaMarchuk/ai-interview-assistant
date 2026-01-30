@@ -1,6 +1,10 @@
 /**
  * OpenRouter Streaming Client
  *
+ * @deprecated Use OpenRouterProvider from './providers' instead.
+ * This file is kept for backward compatibility but will be removed in a future version.
+ * The provider abstraction supports both OpenRouter and OpenAI with automatic selection.
+ *
  * Handles SSE streaming requests to OpenRouter API.
  * Uses eventsource-parser for robust SSE parsing.
  */
@@ -35,6 +39,11 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
  * ```
  */
 export async function streamLLMResponse(options: StreamOptions): Promise<void> {
+  console.warn(
+    '[DEPRECATED] streamLLMResponse from OpenRouterClient.ts is deprecated. ' +
+    'Use the provider abstraction from src/services/llm/providers instead.'
+  );
+
   const {
     model,
     systemPrompt,
