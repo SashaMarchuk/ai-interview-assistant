@@ -11,6 +11,7 @@ import type {
   GetCaptureStateMessage,
   LLMStreamMessage,
   LLMStatusMessage,
+  ConnectionStateMessage,
 } from '../src/types/messages';
 import { streamLLMResponse, buildPrompt } from '../src/services/llm';
 import { useStore } from '../src/store';
@@ -27,6 +28,10 @@ let isTranscriptionActive = false;
 
 // Track active LLM requests for cancellation
 const activeAbortControllers: Map<string, AbortController> = new Map();
+
+// LLM retry configuration
+const MAX_LLM_RETRIES = 3;
+const LLM_RETRY_DELAY_MS = 1000;
 
 // Keep service worker alive during streaming
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -141,6 +146,80 @@ async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage
 }
 
 /**
+ * Send connection state to all Google Meet content scripts
+ */
+async function sendConnectionState(
+  service: 'stt-tab' | 'stt-mic' | 'llm',
+  state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
+  error?: string
+): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  const message: ConnectionStateMessage = {
+    type: 'CONNECTION_STATE',
+    service,
+    state,
+    error,
+  };
+  for (const tab of tabs) {
+    if (tab.id) {
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Stream LLM response with automatic retry on failure.
+ * Retries up to MAX_LLM_RETRIES times with exponential delay.
+ */
+interface StreamWithRetryParams {
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  maxTokens: number;
+  apiKey: string;
+  onToken: (token: string) => void;
+  onComplete: () => void;
+  onError: (error: Error) => void;
+  abortSignal?: AbortSignal;
+}
+
+async function streamWithRetry(
+  params: StreamWithRetryParams,
+  modelType: 'fast' | 'full',
+  responseId: string,
+  retryCount = 0
+): Promise<void> {
+  try {
+    await streamLLMResponse(params);
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+
+    if (retryCount < MAX_LLM_RETRIES && !params.abortSignal?.aborted) {
+      // Send retry status to UI
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: modelType,
+        status: 'error',
+        error: `Retrying (${retryCount + 1}/${MAX_LLM_RETRIES})...`,
+      });
+
+      // Wait with exponential backoff before retry
+      await new Promise((r) => setTimeout(r, LLM_RETRY_DELAY_MS * (retryCount + 1)));
+
+      // Retry recursively
+      return streamWithRetry(params, modelType, responseId, retryCount + 1);
+    }
+
+    // Max retries exceeded or aborted - broadcast LLM error state
+    await sendConnectionState('llm', 'error', err.message);
+
+    // Call the original error handler
+    params.onError(err);
+  }
+}
+
+/**
  * Handle LLM_REQUEST by firing dual parallel streaming requests
  * Fast model provides quick hints, full model provides comprehensive answers
  */
@@ -215,83 +294,91 @@ async function handleLLMRequest(
     status: 'pending',
   });
 
-  // Fire fast model request (non-blocking)
-  const fastPromise = streamLLMResponse({
-    model: models.fastModel,
-    systemPrompt: prompts.system,
-    userPrompt: prompts.user,
-    maxTokens: 300, // Short response for fast hint
-    apiKey: apiKeys.openRouter,
-    onToken: (token) => {
-      sendLLMMessageToMeet({
-        type: 'LLM_STREAM',
-        responseId,
-        model: 'fast',
-        token,
-      });
+  // Fire fast model request with retry (non-blocking)
+  const fastPromise = streamWithRetry(
+    {
+      model: models.fastModel,
+      systemPrompt: prompts.system,
+      userPrompt: prompts.user,
+      maxTokens: 300, // Short response for fast hint
+      apiKey: apiKeys.openRouter,
+      onToken: (token) => {
+        sendLLMMessageToMeet({
+          type: 'LLM_STREAM',
+          responseId,
+          model: 'fast',
+          token,
+        });
+      },
+      onComplete: () => {
+        fastComplete = true;
+        sendLLMMessageToMeet({
+          type: 'LLM_STATUS',
+          responseId,
+          model: 'fast',
+          status: 'complete',
+        });
+        checkAllComplete();
+      },
+      onError: (error) => {
+        fastComplete = true;
+        sendLLMMessageToMeet({
+          type: 'LLM_STATUS',
+          responseId,
+          model: 'fast',
+          status: 'error',
+          error: error.message,
+        });
+        checkAllComplete();
+      },
+      abortSignal: abortController.signal,
     },
-    onComplete: () => {
-      fastComplete = true;
-      sendLLMMessageToMeet({
-        type: 'LLM_STATUS',
-        responseId,
-        model: 'fast',
-        status: 'complete',
-      });
-      checkAllComplete();
-    },
-    onError: (error) => {
-      fastComplete = true;
-      sendLLMMessageToMeet({
-        type: 'LLM_STATUS',
-        responseId,
-        model: 'fast',
-        status: 'error',
-        error: error.message,
-      });
-      checkAllComplete();
-    },
-    abortSignal: abortController.signal,
-  });
+    'fast',
+    responseId
+  );
 
-  // Fire full model request (non-blocking)
-  const fullPromise = streamLLMResponse({
-    model: models.fullModel,
-    systemPrompt: prompts.system,
-    userPrompt: prompts.userFull,
-    maxTokens: 2000, // Comprehensive response
-    apiKey: apiKeys.openRouter,
-    onToken: (token) => {
-      sendLLMMessageToMeet({
-        type: 'LLM_STREAM',
-        responseId,
-        model: 'full',
-        token,
-      });
+  // Fire full model request with retry (non-blocking)
+  const fullPromise = streamWithRetry(
+    {
+      model: models.fullModel,
+      systemPrompt: prompts.system,
+      userPrompt: prompts.userFull,
+      maxTokens: 2000, // Comprehensive response
+      apiKey: apiKeys.openRouter,
+      onToken: (token) => {
+        sendLLMMessageToMeet({
+          type: 'LLM_STREAM',
+          responseId,
+          model: 'full',
+          token,
+        });
+      },
+      onComplete: () => {
+        fullComplete = true;
+        sendLLMMessageToMeet({
+          type: 'LLM_STATUS',
+          responseId,
+          model: 'full',
+          status: 'complete',
+        });
+        checkAllComplete();
+      },
+      onError: (error) => {
+        fullComplete = true;
+        sendLLMMessageToMeet({
+          type: 'LLM_STATUS',
+          responseId,
+          model: 'full',
+          status: 'error',
+          error: error.message,
+        });
+        checkAllComplete();
+      },
+      abortSignal: abortController.signal,
     },
-    onComplete: () => {
-      fullComplete = true;
-      sendLLMMessageToMeet({
-        type: 'LLM_STATUS',
-        responseId,
-        model: 'full',
-        status: 'complete',
-      });
-      checkAllComplete();
-    },
-    onError: (error) => {
-      fullComplete = true;
-      sendLLMMessageToMeet({
-        type: 'LLM_STATUS',
-        responseId,
-        model: 'full',
-        status: 'error',
-        error: error.message,
-      });
-      checkAllComplete();
-    },
-    abortSignal: abortController.signal,
-  });
+    'full',
+    responseId
+  );
 
   // Send streaming status for both
   await sendLLMMessageToMeet({

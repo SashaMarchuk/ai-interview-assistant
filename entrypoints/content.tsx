@@ -31,6 +31,13 @@ export interface LLMResponseEventDetail {
   response: LLMResponse;
 }
 
+// Custom event type for connection state updates (for HealthIndicator)
+export interface ConnectionStateEventDetail {
+  service: 'stt-tab' | 'stt-mic' | 'llm';
+  state: 'connected' | 'disconnected' | 'reconnecting' | 'error';
+  error?: string;
+}
+
 // Module-level transcript state
 let currentTranscript: TranscriptEntry[] = [];
 
@@ -297,6 +304,24 @@ export default defineContentScript({
               sendResponse({ success: false, error: error.message || 'Permission denied' });
             });
           return true; // Keep channel open for async response
+
+        case 'CONNECTION_STATE':
+          // Dispatch custom event for Overlay to consume (for HealthIndicator)
+          console.log(
+            'AI Interview Assistant: Connection state update',
+            message.service,
+            message.state
+          );
+          window.dispatchEvent(
+            new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
+              detail: {
+                service: message.service,
+                state: message.state,
+                error: message.error,
+              },
+            })
+          );
+          return false;
 
         default:
           return false;
