@@ -683,6 +683,18 @@ async function handleMessage(
       return { success: true };
     }
 
+    case 'CONNECTION_STATE': {
+      // Forward connection state to content scripts for UI display
+      const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+      for (const tab of tabs) {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+        }
+      }
+      console.log('CONNECTION_STATE forwarded:', message.service, message.state);
+      return { received: true };
+    }
+
     default: {
       // Exhaustive check - TypeScript will error if we miss a case
       const _exhaustiveCheck: never = message;

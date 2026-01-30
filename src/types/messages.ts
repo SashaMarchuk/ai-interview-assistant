@@ -38,7 +38,9 @@ export type MessageType =
   | 'LLM_REQUEST'
   | 'LLM_STREAM'
   | 'LLM_STATUS'
-  | 'LLM_CANCEL';
+  | 'LLM_CANCEL'
+  // Connection state updates
+  | 'CONNECTION_STATE';
 
 // Base message interface
 interface BaseMessage {
@@ -215,6 +217,14 @@ export interface LLMCancelMessage extends BaseMessage {
   responseId: string;
 }
 
+// Connection state updates from offscreen to background to content
+export interface ConnectionStateMessage extends BaseMessage {
+  type: 'CONNECTION_STATE';
+  service: 'stt-tab' | 'stt-mic' | 'llm';
+  state: 'connected' | 'disconnected' | 'reconnecting' | 'error';
+  error?: string;
+}
+
 // Union type for all messages
 export type ExtensionMessage =
   | PingMessage
@@ -246,7 +256,8 @@ export type ExtensionMessage =
   | LLMRequestMessage
   | LLMStreamMessage
   | LLMStatusMessage
-  | LLMCancelMessage;
+  | LLMCancelMessage
+  | ConnectionStateMessage;
 
 // Type guard for message checking
 export function isMessage<T extends ExtensionMessage>(
