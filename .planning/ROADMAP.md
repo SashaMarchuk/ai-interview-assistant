@@ -262,7 +262,7 @@ Plans:
 
 ### Phase 7: Integration
 
-**Goal:** Wire all parallel tracks together, resolve any conflicts, and verify end-to-end functionality.
+**Goal:** Wire all parallel tracks together with graceful degradation and verify end-to-end functionality.
 
 **Requirements:**
 - No new requirements — this phase connects existing implementations
@@ -273,23 +273,31 @@ Plans:
 3. **Overlay → Settings:** Blur level and hotkey bindings applied to overlay
 4. **Hotkeys → Pipeline → Overlay:** Full flow from capture to response display
 
+**What gets hardened (per CONTEXT.md):**
+1. **Graceful degradation:** Missing API keys show warnings, don't block capture
+2. **Health indicators:** Visual feedback for service issues (reconnecting, errors)
+3. **LLM retry logic:** Auto-retry on failure with UI feedback
+4. **Setup prompts:** Clear guidance when both API keys missing
+
 **Success Criteria:**
 1. Start recording → see real transcript in overlay (not mock)
 2. Hold hotkey → release → see real LLM responses streaming
 3. Change API keys in settings → pipeline uses new keys
 4. Change blur level → overlay updates immediately
 5. Full end-to-end flow works on Google Meet
+6. Missing API keys show appropriate warnings/prompts
+7. Health indicator shows when services have issues
 
 **Dependencies:** Phases 4, 5, 6 all complete
 
-**Tasks:**
-1. Resolve any git conflicts from parallel development
-2. Connect Zustand store subscriptions across components
-3. Replace mock data providers with real data sources
-4. Integration testing on Google Meet
-5. Fix any interface mismatches between tracks
-
 **Research flag:** None — integration work
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Graceful degradation UI and health indicator
+- [ ] 07-02-PLAN.md — Connection state broadcasting and LLM retry logic
+- [ ] 07-03-PLAN.md — Wire connection state to UI and end-to-end verification
 
 ---
 
@@ -303,7 +311,7 @@ Plans:
 | 4 - LLM Integration | A | ✓ Complete | 4/4 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
-| 7 - Integration | — | ○ Pending | 0/0 |
+| 7 - Integration | — | ○ In Progress | 0/3 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
 
@@ -356,4 +364,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-29 — Phases 1-6 complete, ready for Phase 7 Integration*
+*Last updated: 2026-01-30 — Phase 7 Integration planned (3 plans in 2 waves)*
