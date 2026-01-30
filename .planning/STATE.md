@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-30
 **Current Phase:** 7 (Integration)
-**Current Plan:** 07-01 complete
+**Current Plan:** 07-04 complete (Phase COMPLETE)
 
 ## Project Reference
 
@@ -10,7 +10,7 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** Phase 7 Integration - wiring all tracks together
+**Current focus:** Phase 7 Integration - COMPLETE
 
 ## Progress
 
@@ -22,29 +22,29 @@ See: .planning/PROJECT.md
 | 4 | LLM Integration | A | COMPLETE | 4/4 |
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
-| 7 | Integration | -- | In Progress | 1/4 |
+| 7 | Integration | -- | COMPLETE | 4/4 |
 
-**Overall:** 24/27 plans complete
+**Overall:** 27/27 plans complete
 
 ```
-[████████████████████░░░] 89%
+[████████████████████████] 100%
 ```
 
 ## Current Position
 
 - **Phase:** 7 of 7 (Integration)
-- **Plan:** 07-01 complete
-- **Status:** In progress
-- **Last activity:** 2026-01-30 - Completed 07-01-PLAN.md (Graceful Degradation UI)
+- **Plan:** 07-04 complete
+- **Status:** PROJECT COMPLETE
+- **Last activity:** 2026-01-30 - Completed 07-04-PLAN.md (Toggle Mode Integration)
 - **Blocker:** None
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 24 |
-| Requirements delivered | 43/44 |
-| Phases completed | 6/7 |
+| Plans completed | 27 |
+| Requirements delivered | 44/44 |
+| Phases completed | 7/7 |
 
 ## Accumulated Context
 
@@ -106,6 +106,11 @@ See: .planning/PROJECT.md
 | HealthIndicator only when issues exist | Clean UI when everything working, only shows problems | 2026-01-30 |
 | Setup prompt only when BOTH keys missing | Partial functionality OK, only block when no features available | 2026-01-30 |
 | Non-blocking API key warnings | Informational warnings with Configure links, capture can proceed | 2026-01-30 |
+| CONNECTION_STATE message type | Unified way to broadcast service health from offscreen -> background -> content | 2026-01-30 |
+| LLM retry logic: 3 retries | Auto-recover from transient failures with UI feedback | 2026-01-30 |
+| ConnectionStateEventDetail export | Type-safe custom events for service health propagation | 2026-01-30 |
+| Toggle mode keyDown-only | All toggle logic in keyDown, keyUp does nothing in toggle mode | 2026-01-30 |
+| CaptureMode type union | Simple 'hold' | 'toggle' union for clear behavior selection | 2026-01-30 |
 
 ### Technical Notes
 
@@ -161,6 +166,12 @@ See: .planning/PROJECT.md
 - StatusIndicator shows streaming (blue pulse), pending (yellow pulse), ready (green solid)
 - HealthIndicator at z-20, CaptureIndicator at z-10 for proper stacking
 - HealthIssue type: { service, status: warning|error|reconnecting, message }
+- broadcastConnectionState helper in offscreen for STT state
+- streamWithRetry wrapper for LLM with exponential backoff
+- connection-state-update custom event from content.tsx to Overlay
+- MAX_LLM_RETRIES = 3, LLM_RETRY_DELAY_MS = 1000 (base)
+- CaptureMode type: 'hold' | 'toggle' for hotkey behavior
+- Toggle mode: all capture logic in keyDown, keyUp returns early
 
 ### Open Questions
 
@@ -224,19 +235,30 @@ All 5 success criteria verified:
 
 Requirements UI-01 through UI-08 complete.
 
+## Phase 7 Verification Results
+
+All plans complete:
+
+| Plan | Name | Status |
+|------|------|--------|
+| 07-01 | Graceful Degradation UI | COMPLETE |
+| 07-02 | Connection State & Retry Logic | COMPLETE |
+| 07-03 | Settings Wiring | COMPLETE |
+| 07-04 | Toggle Mode Integration | COMPLETE |
+
+Requirements KEY-03 complete. All 44 requirements delivered.
+
 ## Session Continuity
 
 ### Last Session
 
 - **Date:** 2026-01-30
-- **Activity:** Executed Phase 7 Plan 01 - Graceful Degradation UI
-- **Outcome:** 07-01 COMPLETE - HealthIndicator component, setup prompt, popup warnings
+- **Activity:** Executed Phase 7 Plan 04 - Toggle Mode Integration
+- **Outcome:** 07-04 COMPLETE - CaptureMode type, toggle mode in hook, UI in HotkeySettings
 
-### Next Actions
+### Project Status
 
-1. Execute Plan 07-02: Connection State & Retry Logic
-2. Execute Plan 07-03: Settings Wiring
-3. Execute Plan 07-04: Toggle Mode Integration
+PROJECT COMPLETE - All 7 phases executed, all 44 requirements delivered.
 
 ---
 
