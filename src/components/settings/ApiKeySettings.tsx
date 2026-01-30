@@ -20,6 +20,11 @@ const API_KEY_FIELDS: { provider: ApiKeyProvider; label: string; placeholder: st
     label: 'OpenRouter API Key',
     placeholder: 'Enter your OpenRouter API key',
   },
+  {
+    provider: 'openAI',
+    label: 'OpenAI API Key',
+    placeholder: 'Enter your OpenAI API key',
+  },
 ];
 
 export default function ApiKeySettings() {
@@ -30,6 +35,7 @@ export default function ApiKeySettings() {
   const [showKey, setShowKey] = useState<Record<string, boolean>>({
     elevenLabs: false,
     openRouter: false,
+    openAI: false,
   });
 
   const toggleShowKey = (provider: string) => {
