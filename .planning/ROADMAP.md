@@ -297,10 +297,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Graceful degradation UI and health indicator
-- [ ] 07-02-PLAN.md — Connection state broadcasting and LLM retry logic
-- [ ] 07-03-PLAN.md — Wire connection state to UI and end-to-end verification
-- [ ] 07-04-PLAN.md — Toggle mode for capture hotkey (KEY-03)
+- [x] 07-01-PLAN.md — Graceful degradation UI and health indicator ✓
+- [x] 07-02-PLAN.md — Connection state broadcasting and LLM retry logic ✓
+- [x] 07-03-PLAN.md — Wire connection state to UI and end-to-end verification ✓
+- [x] 07-04-PLAN.md — Toggle mode for capture hotkey (KEY-03) ✓
 
 ---
 
@@ -314,7 +314,7 @@ Plans:
 | 4 - LLM Integration | A | ✓ Complete | 4/4 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
-| 7 - Integration | — | ○ In Progress | 0/4 |
+| 7 - Integration | — | ✓ Complete | 4/4 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
 
@@ -367,4 +367,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-30 — Phase 7 Integration planned (4 plans in 2 waves)*
+*Last updated: 2026-01-30 — Phase 7 Integration complete (4/4 plans, all 44 requirements delivered)*
