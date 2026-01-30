@@ -1,7 +1,7 @@
 # Roadmap: AI Interview Assistant
 
 **Created:** 2026-01-28
-**Phases:** 7 (3 parallel tracks + integration)
+**Phases:** 8 (3 parallel tracks + integration + enhancements)
 **Requirements:** 44 mapped
 **Depth:** Comprehensive
 **Execution:** Parallel tracks supported
@@ -40,6 +40,7 @@ Phase 1 (Foundation) ─── SEQUENTIAL, FIRST
 | 5 | B | Overlay UI | Floating interface with mock data | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07, UI-08 |
 | 6 | C | Prompts & Settings | User configures API keys, models, and prompt templates | PRM-01, PRM-02, PRM-03, PRM-04, PRM-05, SET-01, SET-02, SET-03, SET-04, SET-05 |
 | 7 | — | Integration | Wire all tracks together, resolve conflicts, E2E test | — |
+| 8 | — | OpenAI Provider Support | Add OpenAI as alternative to OpenRouter with model availability logic | — |
 
 ---
 
@@ -304,6 +305,37 @@ Plans:
 
 ---
 
+### Phase 8: OpenAI Provider Support
+
+**Goal:** Add OpenAI as alternative LLM provider to OpenRouter with smart model availability based on configured API keys.
+
+**Requirements:**
+- LLM-07: Provider abstraction supporting multiple LLM backends
+- LLM-08: OpenAI direct API support with SSE streaming
+- SET-06: OpenAI API key management
+- SET-07: Provider-aware model selection UI
+
+**Success Criteria:**
+1. User can enter OpenAI API key in settings alongside OpenRouter and ElevenLabs
+2. Model selection UI only shows models available for the configured provider(s)
+3. Models grouped by provider (OpenAI / OpenRouter) in dropdown
+4. LLM pipeline seamlessly uses OpenAI or OpenRouter based on model selection
+5. Mixed provider configurations work (e.g., fast=OpenRouter, full=OpenAI)
+6. Unavailable models show appropriate indicator when API key is missing
+
+**Dependencies:** Phase 7 (Integration complete)
+
+**Research flag:** COMPLETE — See 08-RESEARCH.md
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Provider types, interface, OpenRouter and OpenAI adapters
+- [ ] 08-02-PLAN.md — Store updates and settings UI for OpenAI key
+- [ ] 08-03-PLAN.md — Background.ts integration and end-to-end verification
+
+---
+
 ## Progress
 
 | Phase | Track | Status | Plans |
@@ -315,6 +347,7 @@ Plans:
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
 | 7 - Integration | — | ✓ Complete | 4/4 |
+| 8 - OpenAI Provider | — | Planned | 0/3 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
 
@@ -338,6 +371,8 @@ All 44 v1 requirements mapped to exactly one phase:
 **Total:** 44/44 requirements mapped
 
 **Phase 7 (Integration):** No new requirements — connects implementations from Tracks A/B/C
+
+**Phase 8 (OpenAI Provider):** Enhancement phase — adds LLM-07, LLM-08, SET-06, SET-07
 
 ---
 
@@ -367,4 +402,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-30 — Phase 7 Integration complete (4/4 plans, all 44 requirements delivered)*
+*Last updated: 2026-01-30 — Phase 8 planned (3 plans in 2 waves)*
