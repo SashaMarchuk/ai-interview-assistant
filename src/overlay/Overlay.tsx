@@ -204,19 +204,20 @@ export function Overlay({ response }: OverlayProps) {
       });
     }
 
-    if (!apiKeys.openRouter) {
+    // Only show LLM warning when NEITHER OpenRouter nor OpenAI is configured
+    if (!apiKeys.openRouter && !apiKeys.openAI) {
       issues.push({
         service: 'LLM',
         status: 'warning',
-        message: 'OpenRouter API key not configured',
+        message: 'No LLM API key configured',
       });
     }
 
     setHealthIssues(issues);
-  }, [apiKeys.elevenLabs, apiKeys.openRouter]);
+  }, [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI]);
 
-  // Check if BOTH API keys are missing (for setup prompt)
-  const bothKeysMissing = !apiKeys.elevenLabs && !apiKeys.openRouter;
+  // Check if BOTH STT and LLM keys are missing (for setup prompt)
+  const bothKeysMissing = !apiKeys.elevenLabs && !apiKeys.openRouter && !apiKeys.openAI;
 
   // Use prop if provided (for testing), otherwise use event-driven state
   const displayResponse = response ?? llmResponse;
