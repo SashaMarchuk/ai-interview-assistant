@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   apiKeys: {
     elevenLabs: '',
     openRouter: '',
+    openAI: '',
   },
   models: {
     fastModel: 'google/gemini-flash-1.5',

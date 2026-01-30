@@ -40,7 +40,7 @@ export interface PromptTemplate {
 /**
  * API key providers supported by the extension
  */
-export type ApiKeyProvider = 'elevenLabs' | 'openRouter';
+export type ApiKeyProvider = 'elevenLabs' | 'openRouter' | 'openAI';
 
 /**
  * Model types for different use cases
@@ -60,6 +60,7 @@ export interface SettingsSlice {
   apiKeys: {
     elevenLabs: string;
     openRouter: string;
+    openAI: string;
   };
   /** Model selections for different processing needs */
   models: {
