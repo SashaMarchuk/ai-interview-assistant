@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-30
 **Current Phase:** 8 (OpenAI Provider Support)
-**Current Plan:** 01 complete
+**Current Plan:** 02 complete
 
 ## Project Reference
 
@@ -10,7 +10,7 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** Phase 8 OpenAI Provider Support - Plan 01 complete
+**Current focus:** Phase 8 OpenAI Provider Support - Plan 02 complete
 
 ## Progress
 
@@ -23,28 +23,28 @@ See: .planning/PROJECT.md
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
 | 7 | Integration | -- | COMPLETE | 4/4 |
-| 8 | OpenAI Provider | -- | IN PROGRESS | 1/3 |
+| 8 | OpenAI Provider | -- | IN PROGRESS | 2/3 |
 
-**Overall:** 28/30 plans complete
+**Overall:** 29/30 plans complete
 
 ```
-[███████████████████████████░░] ~93%
+[████████████████████████████░] ~97%
 ```
 
 ## Current Position
 
 - **Phase:** 8 of 8 (OpenAI Provider Support)
-- **Plan:** 01 of 3 complete
+- **Plan:** 02 of 3 complete
 - **Status:** In progress
-- **Last activity:** 2026-01-30 - Completed 08-01 Provider Abstraction Layer
+- **Last activity:** 2026-01-30 - Completed 08-02 Store & Settings UI
 - **Blocker:** None
-- **Next Plan:** 08-02 Background Integration
+- **Next Plan:** 08-03 Background Service Integration
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 28 |
+| Plans completed | 29 |
 | Requirements delivered | 44/44 (v1) |
 | Phases completed | 7/8 |
 
@@ -115,6 +115,8 @@ See: .planning/PROJECT.md
 | CaptureMode type union | Simple 'hold' | 'toggle' union for clear behavior selection | 2026-01-30 |
 | LLMProvider interface | Strategy pattern for provider abstraction | 2026-01-30 |
 | Provider priority OpenAI > OpenRouter | Direct API preferred over aggregator for latency | 2026-01-30 |
+| Dynamic model filtering via provider layer | Single source of truth for model definitions - changes in provider layer automatically reflected in UI | 2026-01-30 |
+| Optgroup-based provider grouping | Clear visual separation of OpenAI vs OpenRouter models in dropdown | 2026-01-30 |
 
 ### Technical Notes
 
@@ -180,6 +182,9 @@ See: .planning/PROJECT.md
 - Provider registry with getProvider, resolveActiveProvider, getAvailableModels
 - OpenAI models: gpt-4o, gpt-4.1, gpt-4o-mini, gpt-4.1-mini, gpt-4.1-nano
 - OpenRouter models: claude-3-haiku, claude-3-5-sonnet, gemini-flash-1.5, gemini-pro-1.5, gpt-4o, gpt-4o-mini
+- Store apiKeys includes openAI field for persistence
+- ModelSettings uses getAvailableModels from provider layer for dynamic model list
+- Optgroup labels separate OpenAI and OpenRouter models in select dropdowns
 
 ### Open Questions
 
@@ -265,12 +270,12 @@ Requirements KEY-03 complete. All 44 requirements delivered.
 ### Last Session
 
 - **Date:** 2026-01-30
-- **Activity:** Completed 08-01 Provider Abstraction Layer
-- **Outcome:** LLMProvider interface, OpenRouter/OpenAI adapters, provider registry
+- **Activity:** Completed 08-02 Store & Settings UI
+- **Outcome:** OpenAI key in store types, settings UI with provider-aware model selection
 
 ### Project Status
 
-IN PROGRESS - Phase 8 Plan 01 complete. Ready for 08-02 Background Integration.
+IN PROGRESS - Phase 8 Plan 02 complete. Ready for 08-03 Background Service Integration.
 
 ---
 
