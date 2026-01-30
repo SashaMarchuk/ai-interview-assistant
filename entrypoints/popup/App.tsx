@@ -91,10 +91,19 @@ function App() {
 
   /**
    * Start both tab and microphone capture
+   * Proceeds even without API keys (graceful degradation per CONTEXT.md)
    */
   async function handleStartCapture() {
     setCaptureStatus('Starting...');
     setCaptureError(null);
+
+    // Log warnings for missing keys but don't block capture
+    if (!apiKeys.elevenLabs) {
+      console.warn('Starting capture without ElevenLabs API key - transcription will be unavailable');
+    }
+    if (!apiKeys.openRouter) {
+      console.warn('Starting capture without OpenRouter API key - AI responses will be unavailable');
+    }
 
     try {
       // Step 1: Validate we're on a capturable page
@@ -187,9 +196,9 @@ function App() {
    * Start transcription with ElevenLabs
    */
   async function handleStartTranscription() {
-    // Check if API key is set
+    // Check if API key is set - clearer message with direction to settings
     if (!apiKeys.elevenLabs) {
-      setTranscriptionStatus('Set ElevenLabs API key in Settings tab');
+      setTranscriptionStatus('ElevenLabs API key required - configure in Settings');
       return;
     }
 
@@ -354,6 +363,40 @@ function App() {
               </div>
             </section>
 
+            {/* API Key Warnings Section - non-blocking, informational */}
+            {(!apiKeys.elevenLabs || !apiKeys.openRouter) && (
+              <section className="space-y-2">
+                {!apiKeys.elevenLabs && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
+                    <div className="text-yellow-600 text-sm">
+                      <span className="font-medium">Missing ElevenLabs API key</span>
+                      <span className="text-yellow-500"> - transcription unavailable</span>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('settings')}
+                      className="ml-auto text-xs text-yellow-700 hover:text-yellow-900 underline whitespace-nowrap"
+                    >
+                      Configure
+                    </button>
+                  </div>
+                )}
+                {!apiKeys.openRouter && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
+                    <div className="text-yellow-600 text-sm">
+                      <span className="font-medium">Missing OpenRouter API key</span>
+                      <span className="text-yellow-500"> - AI responses unavailable</span>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('settings')}
+                      className="ml-auto text-xs text-yellow-700 hover:text-yellow-900 underline whitespace-nowrap"
+                    >
+                      Configure
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Transcription Section */}
             <section className="border border-gray-200 rounded-lg p-4">
               <h2 className="text-sm font-semibold text-gray-900 mb-3">Transcription</h2>
@@ -379,7 +422,7 @@ function App() {
                   className={`mt-2 text-xs ${
                     transcriptionStatus.startsWith('Failed') || transcriptionStatus.startsWith('Error')
                       ? 'text-red-600'
-                      : transcriptionStatus === 'Set ElevenLabs API key in Settings tab'
+                      : transcriptionStatus.includes('API key required')
                       ? 'text-yellow-600'
                       : 'text-gray-500'
                   }`}
