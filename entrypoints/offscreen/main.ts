@@ -14,9 +14,29 @@ import type {
   TranscriptionErrorMessage,
   TranscriptPartialMessage,
   TranscriptFinalMessage,
+  ConnectionStateMessage,
 } from '../../src/types/messages';
 import { isMessage } from '../../src/types/messages';
 import { ElevenLabsConnection } from '../../src/services/transcription';
+
+/**
+ * Broadcast connection state to background for UI display.
+ * The background will forward this to content scripts.
+ */
+function broadcastConnectionState(
+  service: 'stt-tab' | 'stt-mic',
+  state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
+  error?: string
+): void {
+  chrome.runtime.sendMessage({
+    type: 'CONNECTION_STATE',
+    service,
+    state,
+    error,
+  } satisfies ConnectionStateMessage).catch(() => {
+    // Ignore - background might not be listening yet
+  });
+}
 
 // Module-level state for tab audio capture
 let tabAudioContext: AudioContext | null = null;
@@ -375,6 +395,12 @@ function startTabTranscription(apiKey: string): void {
         error,
         canRetry,
       } satisfies TranscriptionErrorMessage);
+      // Broadcast connection state: reconnecting if retryable, error if not
+      if (canRetry) {
+        broadcastConnectionState('stt-tab', 'reconnecting', error);
+      } else {
+        broadcastConnectionState('stt-tab', 'error', error);
+      }
     },
     // onConnect callback - notify background when WebSocket connects
     () => {
@@ -382,6 +408,8 @@ function startTabTranscription(apiKey: string): void {
       chrome.runtime.sendMessage({
         type: 'TRANSCRIPTION_STARTED',
       } satisfies TranscriptionStartedMessage);
+      // Broadcast connected state
+      broadcastConnectionState('stt-tab', 'connected');
     }
   );
 
@@ -432,10 +460,18 @@ function startMicTranscription(apiKey: string): void {
         error,
         canRetry,
       } satisfies TranscriptionErrorMessage);
+      // Broadcast connection state: reconnecting if retryable, error if not
+      if (canRetry) {
+        broadcastConnectionState('stt-mic', 'reconnecting', error);
+      } else {
+        broadcastConnectionState('stt-mic', 'error', error);
+      }
     },
     // onConnect callback - notify background when WebSocket connects
     () => {
       console.log('Mic WebSocket connected!');
+      // Broadcast connected state
+      broadcastConnectionState('stt-mic', 'connected');
     }
   );
 
@@ -450,11 +486,13 @@ function stopTranscription(): void {
   if (tabTranscription) {
     tabTranscription.disconnect();
     tabTranscription = null;
+    broadcastConnectionState('stt-tab', 'disconnected');
   }
 
   if (micTranscription) {
     micTranscription.disconnect();
     micTranscription = null;
+    broadcastConnectionState('stt-mic', 'disconnected');
   }
 
   transcriptionApiKey = null;
