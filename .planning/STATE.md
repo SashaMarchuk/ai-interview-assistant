@@ -1,8 +1,8 @@
 # Project State
 
-**Last Updated:** 2026-01-29
-**Current Phase:** Multi-track execution
-**Current Plan:** Track A COMPLETE, Track B COMPLETE, Track C COMPLETE
+**Last Updated:** 2026-01-30
+**Current Phase:** 7 (Integration)
+**Current Plan:** 07-02 complete, 07-03 next
 
 ## Project Reference
 
@@ -10,7 +10,7 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** All parallel tracks complete - ready for Phase 7 Integration
+**Current focus:** Phase 7 Integration - wiring all tracks together
 
 ## Progress
 
@@ -22,29 +22,26 @@ See: .planning/PROJECT.md
 | 4 | LLM Integration | A | COMPLETE | 4/4 |
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
-| 7 | Integration | -- | Pending | 0/0 |
+| 7 | Integration | -- | In Progress | 1/4 |
 
-**Overall:** 6/7 phases complete (Phases 1-6 complete, Phase 7 pending)
-
-**Parallel execution:** All tracks complete
+**Overall:** 24/27 plans complete
 
 ```
-[██████████████████░░] 90%
+[████████████████████░░░] 89%
 ```
 
 ## Current Position
 
-- **Phase:** Multi-track execution complete
-- **Track A:** Phase 4 (LLM Integration) COMPLETE - all 4 plans executed
-- **Track B:** Phase 5 COMPLETE - all overlay components integrated
-- **Track C:** Phase 6 COMPLETE - settings and templates fully functional
+- **Phase:** 7 of 7 (Integration)
+- **Plan:** 07-02 complete
+- **Status:** In progress
 - **Blocker:** None
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 23 |
+| Plans completed | 24 |
 | Requirements delivered | 43/44 |
 | Phases completed | 6/7 |
 
@@ -105,6 +102,9 @@ See: .planning/PROJECT.md
 | Module-level currentLLMResponse state | Maintains response state across message handler calls | 2026-01-29 |
 | StatusIndicator with pulsing animation | Visual feedback for streaming/pending/ready states in footer | 2026-01-29 |
 | useEffect for capture state dispatch | Proper React side effect handling instead of render-time dispatch | 2026-01-29 |
+| LLM retry logic: 3 retries with exponential backoff | Graceful recovery from transient LLM failures | 2026-01-30 |
+| CONNECTION_STATE message for service health | Unified way to communicate service status from offscreen -> background -> content | 2026-01-30 |
+| connection-state-update custom event | Decoupled communication for HealthIndicator component | 2026-01-30 |
 
 ### Technical Notes
 
@@ -147,7 +147,7 @@ See: .planning/PROJECT.md
 - OpenRouter streaming uses eventsource-parser for SSE parsing
 - buildPrompt() differentiates fast hint vs full answer via instruction appendage
 - LLM message types: LLM_REQUEST, LLM_STREAM, LLM_STATUS, LLM_CANCEL
-- handleLLMRequest() fires dual parallel streams via streamLLMResponse()
+- handleLLMRequest() fires dual parallel streams via streamWithRetry()
 - activeAbortControllers Map enables per-request cancellation
 - sendLLMMessageToMeet() broadcasts to all Google Meet tabs
 - Keep-alive uses chrome.runtime.getPlatformInfo() as no-op to reset idle timer
@@ -158,6 +158,9 @@ See: .planning/PROJECT.md
 - llm-response-update custom event for LLM response streaming to Overlay
 - CaptureIndicator component at src/overlay/CaptureIndicator.tsx
 - StatusIndicator shows streaming (blue pulse), pending (yellow pulse), ready (green solid)
+- streamWithRetry wrapper handles LLM retries with exponential backoff (1s * attempt)
+- broadcastConnectionState in offscreen sends STT connection states
+- connection-state-update custom event allows HealthIndicator to display service status
 
 ### Open Questions
 
@@ -225,18 +228,17 @@ Requirements UI-01 through UI-08 complete.
 
 ### Last Session
 
-- **Date:** 2026-01-29
-- **Activity:** Executed Phase 4 Plan 04 - Response Display Integration
-- **Outcome:** 04-04 COMPLETE - LLM streaming to overlay, capture indicator, end-to-end verified
+- **Date:** 2026-01-30
+- **Activity:** Executed Phase 7 Plan 02 - Connection State & Retry Logic
+- **Outcome:** 07-02 COMPLETE - CONNECTION_STATE message type, STT broadcasting, LLM retry, content events
 
 ### Next Actions
 
-1. Phase 7: Integration phase - wire all tracks together
-2. Track A: COMPLETE
-3. Track B: COMPLETE
-4. Track C: COMPLETE
+1. Execute Plan 07-03: Settings Wiring
+2. Execute Plan 07-04: Toggle Mode Integration
+3. Final integration testing
 
 ---
 
 *State initialized: 2026-01-28*
-*Last updated: 2026-01-29*
+*Last updated: 2026-01-30*
