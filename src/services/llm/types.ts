@@ -1,9 +1,12 @@
 /**
  * LLM Service Types
  *
- * TypeScript interfaces for OpenRouter streaming API integration.
+ * TypeScript interfaces for LLM streaming API integration.
  * Defines request/response shapes for dual-stream LLM requests.
  */
+
+// Re-export provider types for backward compatibility
+export type { ProviderId as LLMProviderId } from './providers/LLMProvider';
 
 /**
  * Options for streaming an LLM response
