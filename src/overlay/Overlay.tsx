@@ -13,6 +13,7 @@ import type {
   TranscriptUpdateEventDetail,
   CaptureStateEventDetail,
   LLMResponseEventDetail,
+  ConnectionStateEventDetail,
 } from '../../entrypoints/content';
 
 interface OverlayProps {
@@ -133,6 +134,58 @@ export function Overlay({ response }: OverlayProps) {
     window.addEventListener('capture-state-update', handleCaptureStateUpdate);
     return () => {
       window.removeEventListener('capture-state-update', handleCaptureStateUpdate);
+    };
+  }, []);
+
+  // Listen for connection state updates from background (for HealthIndicator)
+  useEffect(() => {
+    function handleConnectionStateUpdate(event: Event) {
+      const customEvent = event as CustomEvent<ConnectionStateEventDetail>;
+      const { service, state, error } = customEvent.detail;
+
+      setHealthIssues((prev) => {
+        // Remove existing issue for this service (keep API key warnings)
+        const filtered = prev.filter(
+          (i) => i.service !== service && i.service !== 'Tab STT' && i.service !== 'Mic STT' && i.service !== 'LLM-conn'
+        );
+
+        // Re-add API key warnings (they should persist)
+        const apiKeyIssues = prev.filter((i) => i.service === 'STT' || i.service === 'LLM');
+
+        // Only add connection issue if not connected
+        if (state !== 'connected') {
+          const statusMap: Record<string, 'warning' | 'error' | 'reconnecting'> = {
+            disconnected: 'warning',
+            reconnecting: 'reconnecting',
+            error: 'error',
+          };
+          const messageMap: Record<string, string> = {
+            disconnected: 'Disconnected',
+            reconnecting: 'Reconnecting...',
+            error: error || 'Connection error',
+          };
+
+          const serviceName =
+            service === 'stt-tab' ? 'Tab STT' : service === 'stt-mic' ? 'Mic STT' : 'LLM-conn';
+
+          return [
+            ...apiKeyIssues,
+            {
+              service: serviceName,
+              status: statusMap[state] || 'error',
+              message: messageMap[state] || state,
+            },
+          ];
+        }
+
+        // If connected, just return API key issues (connection issue removed)
+        return apiKeyIssues;
+      });
+    }
+
+    window.addEventListener('connection-state-update', handleConnectionStateUpdate);
+    return () => {
+      window.removeEventListener('connection-state-update', handleConnectionStateUpdate);
     };
   }, []);
 
