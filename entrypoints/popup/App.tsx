@@ -101,8 +101,8 @@ function App() {
     if (!apiKeys.elevenLabs) {
       console.warn('Starting capture without ElevenLabs API key - transcription will be unavailable');
     }
-    if (!apiKeys.openRouter) {
-      console.warn('Starting capture without OpenRouter API key - AI responses will be unavailable');
+    if (!apiKeys.openRouter && !apiKeys.openAI) {
+      console.warn('Starting capture without OpenRouter or OpenAI API key - AI responses will be unavailable');
     }
 
     try {
@@ -364,7 +364,7 @@ function App() {
             </section>
 
             {/* API Key Warnings Section - non-blocking, informational */}
-            {(!apiKeys.elevenLabs || !apiKeys.openRouter) && (
+            {(!apiKeys.elevenLabs || (!apiKeys.openRouter && !apiKeys.openAI)) && (
               <section className="space-y-2">
                 {!apiKeys.elevenLabs && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
@@ -380,10 +380,10 @@ function App() {
                     </button>
                   </div>
                 )}
-                {!apiKeys.openRouter && (
+                {!apiKeys.openRouter && !apiKeys.openAI && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
                     <div className="text-yellow-600 text-sm">
-                      <span className="font-medium">Missing OpenRouter API key</span>
+                      <span className="font-medium">Missing LLM API key</span>
                       <span className="text-yellow-500"> - AI responses unavailable</span>
                     </div>
                     <button
