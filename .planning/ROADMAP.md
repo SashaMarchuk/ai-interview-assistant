@@ -278,6 +278,7 @@ Plans:
 2. **Health indicators:** Visual feedback for service issues (reconnecting, errors)
 3. **LLM retry logic:** Auto-retry on failure with UI feedback
 4. **Setup prompts:** Clear guidance when both API keys missing
+5. **Toggle mode:** Alternative capture mode (press to start/stop) per KEY-03
 
 **Success Criteria:**
 1. Start recording → see real transcript in overlay (not mock)
@@ -287,17 +288,19 @@ Plans:
 5. Full end-to-end flow works on Google Meet
 6. Missing API keys show appropriate warnings/prompts
 7. Health indicator shows when services have issues
+8. Toggle mode works as alternative to hold-to-capture
 
 **Dependencies:** Phases 4, 5, 6 all complete
 
 **Research flag:** None — integration work
 
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 Plans:
 - [ ] 07-01-PLAN.md — Graceful degradation UI and health indicator
 - [ ] 07-02-PLAN.md — Connection state broadcasting and LLM retry logic
 - [ ] 07-03-PLAN.md — Wire connection state to UI and end-to-end verification
+- [ ] 07-04-PLAN.md — Toggle mode for capture hotkey (KEY-03)
 
 ---
 
@@ -311,7 +314,7 @@ Plans:
 | 4 - LLM Integration | A | ✓ Complete | 4/4 |
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
-| 7 - Integration | — | ○ In Progress | 0/3 |
+| 7 - Integration | — | ○ In Progress | 0/4 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
 
@@ -364,4 +367,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-30 — Phase 7 Integration planned (3 plans in 2 waves)*
+*Last updated: 2026-01-30 — Phase 7 Integration planned (4 plans in 2 waves)*
