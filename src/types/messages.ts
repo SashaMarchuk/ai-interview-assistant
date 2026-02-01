@@ -141,6 +141,8 @@ export interface GetCaptureStateMessage extends BaseMessage {
 export interface StartTranscriptionMessage extends BaseMessage {
   type: 'START_TRANSCRIPTION';
   apiKey: string;
+  /** ISO 639-3 language code (e.g. 'eng', 'ukr') - empty/undefined for auto-detect */
+  languageCode?: string;
 }
 
 export interface StopTranscriptionMessage extends BaseMessage {

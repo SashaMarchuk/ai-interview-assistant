@@ -75,6 +75,8 @@ export interface SettingsSlice {
   };
   /** Capture mode: hold-to-capture or toggle */
   captureMode: CaptureMode;
+  /** Transcription language code (ISO 639-3, e.g. 'eng', 'ukr') - empty for auto-detect */
+  transcriptionLanguage: string;
   /** Set an API key for a provider */
   setApiKey: (provider: ApiKeyProvider, key: string) => void;
   /** Set a model for a specific type */
@@ -85,6 +87,8 @@ export interface SettingsSlice {
   setHotkey: (action: HotkeyAction, binding: string) => void;
   /** Set capture mode */
   setCaptureMode: (mode: CaptureMode) => void;
+  /** Set transcription language (ISO 639-3 code or empty for auto-detect) */
+  setTranscriptionLanguage: (language: string) => void;
 }
 
 /**

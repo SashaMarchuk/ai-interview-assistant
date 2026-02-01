@@ -356,8 +356,8 @@ async function stopMicCapture(): Promise<void> {
  * Start tab transcription connection to ElevenLabs.
  * Creates WebSocket connection and forwards transcript results to Service Worker.
  */
-function startTabTranscription(apiKey: string): void {
-  console.log('startTabTranscription called, existing:', !!tabTranscription);
+function startTabTranscription(apiKey: string, languageCode?: string): void {
+  console.log('startTabTranscription called, existing:', !!tabTranscription, 'lang:', languageCode || 'auto');
   if (tabTranscription) {
     console.log('Tab transcription already running, disconnecting first');
     tabTranscription.disconnect();
@@ -365,7 +365,7 @@ function startTabTranscription(apiKey: string): void {
   }
 
   tabTranscription = new ElevenLabsConnection(
-    { apiKey, source: 'tab' },
+    { apiKey, source: 'tab', languageCode },
     // onTranscript callback
     (text: string, isFinal: boolean, timestamp: number) => {
       if (isFinal) {
@@ -425,8 +425,8 @@ function startTabTranscription(apiKey: string): void {
  * Start microphone transcription connection to ElevenLabs.
  * Creates WebSocket connection and forwards transcript results to Service Worker.
  */
-function startMicTranscription(apiKey: string): void {
-  console.log('startMicTranscription called, existing:', !!micTranscription);
+function startMicTranscription(apiKey: string, languageCode?: string): void {
+  console.log('startMicTranscription called, existing:', !!micTranscription, 'lang:', languageCode || 'auto');
   if (micTranscription) {
     console.log('Mic transcription already running, disconnecting first');
     micTranscription.disconnect();
@@ -434,7 +434,7 @@ function startMicTranscription(apiKey: string): void {
   }
 
   micTranscription = new ElevenLabsConnection(
-    { apiKey, source: 'mic' },
+    { apiKey, source: 'mic', languageCode },
     // onTranscript callback
     (text: string, isFinal: boolean, timestamp: number) => {
       if (isFinal) {
@@ -595,10 +595,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     transcriptionStarting = true;
     transcriptionApiKey = message.apiKey;
+    const langCode = message.languageCode || undefined;
     console.log('Starting tab transcription...');
-    startTabTranscription(message.apiKey);
+    startTabTranscription(message.apiKey, langCode);
     console.log('Starting mic transcription...');
-    startMicTranscription(message.apiKey);
+    startMicTranscription(message.apiKey, langCode);
     transcriptionStarting = false;
 
     // Note: TRANSCRIPTION_STARTED is sent when WebSocket actually connects (in onConnect callback)

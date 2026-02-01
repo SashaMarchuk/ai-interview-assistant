@@ -710,6 +710,7 @@ async function handleMessage(
         await chrome.runtime.sendMessage({
           type: 'START_TRANSCRIPTION',
           apiKey: message.apiKey,
+          languageCode: message.languageCode,
           _fromBackground: true,
         } as StartTranscriptionMessage & { _fromBackground: true });
 

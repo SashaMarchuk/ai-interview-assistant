@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
     capture: 'Ctrl+Shift+Space',
   },
   captureMode: 'hold' as CaptureMode,
+  transcriptionLanguage: '', // Empty = auto-detect
 } as const;
 
 /**
@@ -48,6 +49,7 @@ export const createSettingsSlice: StateCreator<StoreState, [], [], SettingsSlice
   blurLevel: DEFAULT_SETTINGS.blurLevel,
   hotkeys: { ...DEFAULT_SETTINGS.hotkeys },
   captureMode: DEFAULT_SETTINGS.captureMode,
+  transcriptionLanguage: DEFAULT_SETTINGS.transcriptionLanguage,
 
   // Actions
   setApiKey: (provider: ApiKeyProvider, key: string) => {
@@ -86,6 +88,12 @@ export const createSettingsSlice: StateCreator<StoreState, [], [], SettingsSlice
   setCaptureMode: (mode: CaptureMode) => {
     set(() => ({
       captureMode: mode,
+    }));
+  },
+
+  setTranscriptionLanguage: (language: string) => {
+    set(() => ({
+      transcriptionLanguage: language,
     }));
   },
 });

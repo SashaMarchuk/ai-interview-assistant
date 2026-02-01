@@ -12,6 +12,7 @@ import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
 import ModelSettings from '../../src/components/settings/ModelSettings';
 import HotkeySettings from '../../src/components/settings/HotkeySettings';
 import BlurSettings from '../../src/components/settings/BlurSettings';
+import LanguageSettings from '../../src/components/settings/LanguageSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
 type Tab = 'capture' | 'settings' | 'templates';
@@ -61,8 +62,9 @@ function App() {
     syncCaptureState();
   }, []);
 
-  // Get API keys from store
+  // Get API keys and transcription settings from store
   const apiKeys = useStore((state) => state.apiKeys);
+  const transcriptionLanguage = useStore((state) => state.transcriptionLanguage);
 
   /**
    * Open the permissions page to grant microphone access
@@ -208,6 +210,7 @@ function App() {
       const response = await chrome.runtime.sendMessage({
         type: 'START_TRANSCRIPTION',
         apiKey: apiKeys.elevenLabs,
+        languageCode: transcriptionLanguage || undefined,
       } as ExtensionMessage);
 
       if (!response?.success) {
@@ -457,6 +460,12 @@ function App() {
             <section>
               <h2 className="text-sm font-semibold text-gray-900 mb-3">API Keys</h2>
               <ApiKeySettings />
+            </section>
+
+            {/* Transcription Section */}
+            <section>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Transcription</h2>
+              <LanguageSettings />
             </section>
 
             {/* Models Section */}
