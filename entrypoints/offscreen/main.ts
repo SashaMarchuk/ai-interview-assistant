@@ -369,6 +369,8 @@ function startTabTranscription(apiKey: string): void {
     // onTranscript callback
     (text: string, isFinal: boolean, timestamp: number) => {
       if (isFinal) {
+        // Skip empty transcripts - ElevenLabs sometimes sends empty committed_transcript
+        if (!text.trim()) return;
         chrome.runtime.sendMessage({
           type: 'TRANSCRIPT_FINAL',
           source: 'tab',
@@ -378,6 +380,8 @@ function startTabTranscription(apiKey: string): void {
           speaker: 'Interviewer',
         } satisfies TranscriptFinalMessage);
       } else {
+        // Skip empty partials too
+        if (!text.trim()) return;
         chrome.runtime.sendMessage({
           type: 'TRANSCRIPT_PARTIAL',
           source: 'tab',
@@ -434,6 +438,8 @@ function startMicTranscription(apiKey: string): void {
     // onTranscript callback
     (text: string, isFinal: boolean, timestamp: number) => {
       if (isFinal) {
+        // Skip empty transcripts - ElevenLabs sometimes sends empty committed_transcript
+        if (!text.trim()) return;
         chrome.runtime.sendMessage({
           type: 'TRANSCRIPT_FINAL',
           source: 'mic',
@@ -443,6 +449,8 @@ function startMicTranscription(apiKey: string): void {
           speaker: 'You',
         } satisfies TranscriptFinalMessage);
       } else {
+        // Skip empty partials too
+        if (!text.trim()) return;
         chrome.runtime.sendMessage({
           type: 'TRANSCRIPT_PARTIAL',
           source: 'mic',

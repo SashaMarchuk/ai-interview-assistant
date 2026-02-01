@@ -456,7 +456,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Messages with _fromBackground marker were sent BY background TO offscreen
   // Background should NOT handle these to prevent race conditions and recursion
   if (message?._fromBackground === true) {
+    console.log('Ignoring _fromBackground message:', message.type);
     // Let offscreen handle and respond
+    return false;
+  }
+
+  // These message types are ONLY for offscreen - background should never handle them
+  // Even if _fromBackground check fails, don't process these
+  const offscreenOnlyTypes = ['TAB_STREAM_ID', 'START_MIC_CAPTURE', 'STOP_MIC_CAPTURE'];
+  if (offscreenOnlyTypes.includes(message?.type) && sender.id === chrome.runtime.id) {
+    console.log('Skipping offscreen-only message in background:', message.type);
     return false;
   }
 
@@ -672,9 +681,8 @@ async function handleMessage(
       return { received: true };
 
     case 'TAB_STREAM_ID':
-      // This should only go to offscreen, not back to background
-      // Return undefined to NOT send a response - let offscreen handle it
-      console.log('TAB_STREAM_ID received in background - ignoring (offscreen handles)');
+      // This should only go to offscreen - if we get here, early filter failed
+      // Don't log or respond - offscreen handles this
       return undefined;
 
     case 'INJECT_UI':
