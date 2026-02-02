@@ -1,8 +1,8 @@
 # Project State
 
-**Last Updated:** 2026-01-30
-**Current Phase:** 8 (OpenAI Provider Support)
-**Current Plan:** 02 complete
+**Last Updated:** 2026-02-02
+**Current Phase:** 8 (OpenAI Provider Support) - COMPLETE
+**Current Plan:** All complete
 
 ## Project Reference
 
@@ -10,7 +10,7 @@ See: .planning/PROJECT.md
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** Phase 8 OpenAI Provider Support - Plan 02 complete
+**Current focus:** All phases complete. Project ready for production use.
 
 ## Progress
 
@@ -23,30 +23,30 @@ See: .planning/PROJECT.md
 | 5 | Overlay UI | B | COMPLETE | 4/4 |
 | 6 | Prompts & Settings | C | COMPLETE | 4/4 |
 | 7 | Integration | -- | COMPLETE | 4/4 |
-| 8 | OpenAI Provider | -- | IN PROGRESS | 2/3 |
+| 8 | OpenAI Provider | -- | COMPLETE | 3/3 |
 
-**Overall:** 29/30 plans complete
+**Overall:** 30/30 plans complete
 
 ```
-[████████████████████████████░] ~97%
+[██████████████████████████████] 100%
 ```
 
 ## Current Position
 
-- **Phase:** 8 of 8 (OpenAI Provider Support)
-- **Plan:** 02 of 3 complete
-- **Status:** In progress
-- **Last activity:** 2026-01-30 - Completed 08-02 Store & Settings UI
+- **Phase:** 8 of 8 (OpenAI Provider Support) - COMPLETE
+- **Plan:** 3 of 3 complete
+- **Status:** Complete
+- **Last activity:** 2026-02-02 - Completed 08-03 Background Service Integration
 - **Blocker:** None
-- **Next Plan:** 08-03 Background Service Integration
+- **Next Plan:** None - all phases complete
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Plans completed | 29 |
+| Plans completed | 30 |
 | Requirements delivered | 44/44 (v1) |
-| Phases completed | 7/8 |
+| Phases completed | 8/8 |
 
 ## Accumulated Context
 
@@ -117,12 +117,14 @@ See: .planning/PROJECT.md
 | Provider priority OpenAI > OpenRouter | Direct API preferred over aggregator for latency | 2026-01-30 |
 | Dynamic model filtering via provider layer | Single source of truth for model definitions - changes in provider layer automatically reflected in UI | 2026-01-30 |
 | Optgroup-based provider grouping | Clear visual separation of OpenAI vs OpenRouter models in dropdown | 2026-01-30 |
+| Resolve providers at request time | Each model can use different provider; no global provider state | 2026-02-02 |
+| Keep OpenRouterClient functional but deprecated | Backward compatibility during transition period | 2026-02-02 |
 
 ### Technical Notes
 
 - Service Worker has 30-second idle timeout - use Offscreen Document for WebSocket
 - tabCapture mutes tab audio by default - must route back through AudioContext
-- CSP must allow wss://api.elevenlabs.io and https://openrouter.ai
+- CSP must allow wss://api.elevenlabs.io and https://openrouter.ai and https://api.openai.com
 - WXT entrypoints live in entrypoints/ directory
 - Shared CSS in src/assets/app.css with Tailwind v4
 - Message types use discriminated unions with isMessage type guard
@@ -185,6 +187,8 @@ See: .planning/PROJECT.md
 - Store apiKeys includes openAI field for persistence
 - ModelSettings uses getAvailableModels from provider layer for dynamic model list
 - Optgroup labels separate OpenAI and OpenRouter models in select dropdowns
+- resolveProviderForModel enables per-request provider selection
+- OpenRouterClient.ts deprecated but functional for backward compatibility
 
 ### Open Questions
 
@@ -225,7 +229,7 @@ None at this time.
 - Multiple defense layers: popup refs + background flag + polling skip
 - Reduced polling frequency reduces chance of state transition collision
 
-Status: Ready for testing
+Status: Fixed and verified
 
 ## Phase 1 Verification Results
 
@@ -294,23 +298,40 @@ All plans complete:
 
 Requirements KEY-03 complete. All 44 requirements delivered.
 
+## Phase 8 Verification Results
+
+All plans complete:
+
+| Plan | Name | Status |
+|------|------|--------|
+| 08-01 | Provider Abstraction Layer | COMPLETE |
+| 08-02 | Store & Settings UI | COMPLETE |
+| 08-03 | Background Service Integration | COMPLETE |
+
+Human verification confirmed:
+- OpenRouter integration works
+- OpenAI integration works
+- Mixed provider configuration works
+- Graceful degradation works
+
 ## Roadmap Evolution
 
 - Phase 8 added: OpenAI Provider Support (2026-01-30)
+- Phase 8 completed: 2026-02-02
 
 ## Session Continuity
 
 ### Last Session
 
-- **Date:** 2026-01-30
-- **Activity:** Completed 08-02 Store & Settings UI
-- **Outcome:** OpenAI key in store types, settings UI with provider-aware model selection
+- **Date:** 2026-02-02
+- **Activity:** Completed 08-03 Background Service Integration
+- **Outcome:** All 30 plans complete. Project ready for production use.
 
 ### Project Status
 
-IN PROGRESS - Phase 8 Plan 02 complete. Ready for 08-03 Background Service Integration.
+COMPLETE - All 8 phases, 30 plans complete. All 44 requirements delivered.
 
 ---
 
 *State initialized: 2026-01-28*
-*Last updated: 2026-01-30*
+*Last updated: 2026-02-02*
