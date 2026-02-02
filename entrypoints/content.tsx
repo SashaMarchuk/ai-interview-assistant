@@ -174,19 +174,13 @@ async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Pro
     templateId: state.activeTemplateId,
   };
 
-  console.log('AI Interview Assistant: Sending LLM request', {
-    mode,
-    questionLength: question.length,
-    responseId,
-  });
-
   try {
     const response = await chrome.runtime.sendMessage(message);
     if (!response?.success) {
-      console.error('AI Interview Assistant: LLM request failed', response?.error);
+      console.error('AI Interview Assistant: LLM request failed:', response?.error || 'Unknown error');
     }
   } catch (error) {
-    console.error('AI Interview Assistant: Failed to send LLM request', error);
+    console.error('AI Interview Assistant: Failed to send LLM request:', error);
   }
 }
 
@@ -270,11 +264,6 @@ export default defineContentScript({
     chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
       switch (message.type) {
         case 'TRANSCRIPT_UPDATE':
-          console.log(
-            'AI Interview Assistant: Received transcript update',
-            message.entries.length,
-            'entries'
-          );
           dispatchTranscriptUpdate(message.entries);
           return false;
 
@@ -283,7 +272,10 @@ export default defineContentScript({
           return false;
 
         case 'LLM_STATUS':
-          console.log('AI Interview Assistant: LLM status update', message.status, message.model);
+          // Only log errors
+          if (message.status === 'error') {
+            console.error('AI Interview Assistant: LLM error:', message.error);
+          }
           handleLLMStatus(message);
           return false;
 
@@ -307,11 +299,10 @@ export default defineContentScript({
 
         case 'CONNECTION_STATE':
           // Dispatch custom event for Overlay to consume (for HealthIndicator)
-          console.log(
-            'AI Interview Assistant: Connection state update',
-            message.service,
-            message.state
-          );
+          // Only log non-connected states
+          if (message.state !== 'connected') {
+            console.log('AI Interview Assistant:', message.service, message.state, message.error || '');
+          }
           window.dispatchEvent(
             new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
               detail: {

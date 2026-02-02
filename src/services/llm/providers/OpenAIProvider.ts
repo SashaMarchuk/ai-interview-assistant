@@ -76,25 +76,40 @@ export class OpenAIProvider implements LLMProvider {
     ];
 
     // Make streaming request
-    const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: maxTokens,
-        stream: true,
-      }),
-      signal: abortSignal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: maxTokens,
+          stream: true,
+        }),
+        signal: abortSignal,
+      });
+    } catch (error) {
+      // Network error (CORS, CSP, offline, etc.)
+      const message = error instanceof Error ? error.message : 'Network error';
+      throw new Error(`OpenAI connection failed: ${message}`);
+    }
 
     // Check for HTTP errors
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error ${response.status}: ${errorText}`);
+      let errorText = '';
+      try {
+        errorText = await response.text();
+        // Try to extract message from JSON error response
+        const errorJson = JSON.parse(errorText);
+        errorText = errorJson?.error?.message || errorText;
+      } catch {
+        // Keep raw text if not JSON
+      }
+      throw new Error(`OpenAI error ${response.status}: ${errorText || 'Unknown error'}`);
     }
 
     // Get response body reader
