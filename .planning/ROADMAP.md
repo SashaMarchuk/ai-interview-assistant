@@ -330,9 +330,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Provider types, interface, OpenRouter and OpenAI adapters
-- [ ] 08-02-PLAN.md — Store updates and settings UI for OpenAI key
-- [ ] 08-03-PLAN.md — Background.ts integration and end-to-end verification
+- [x] 08-01-PLAN.md — Provider types, interface, OpenRouter and OpenAI adapters ✓
+- [x] 08-02-PLAN.md — Store updates and settings UI for OpenAI key ✓
+- [x] 08-03-PLAN.md — Background.ts integration and end-to-end verification ✓
 
 ---
 
@@ -347,7 +347,7 @@ Plans:
 | 5 - Overlay UI | B | ✓ Complete | 4/4 |
 | 6 - Prompts & Settings | C | ✓ Complete | 4/4 |
 | 7 - Integration | — | ✓ Complete | 4/4 |
-| 8 - OpenAI Provider | — | Planned | 0/3 |
+| 8 - OpenAI Provider | — | ✓ Complete | 3/3 |
 
 **Parallel execution:** After Phase 1, run Tracks A/B/C in separate terminals. Phase 7 runs after all tracks complete.
 
@@ -402,4 +402,4 @@ git pull --rebase
 ---
 
 *Roadmap created: 2026-01-28*
-*Last updated: 2026-01-30 — Phase 8 planned (3 plans in 2 waves)*
+*Last updated: 2026-02-02 — Phase 8 complete, all 8 phases delivered*
