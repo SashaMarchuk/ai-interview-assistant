@@ -29,15 +29,16 @@ function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string>('');
 
-  // Query capture state on mount to sync with background
+  // LLM request state
+  const [hasActiveLLMRequest, setHasActiveLLMRequest] = useState(false);
+
+  // Query capture state on mount and periodically to sync with background
   useEffect(() => {
     async function syncCaptureState() {
       try {
         const response = await chrome.runtime.sendMessage({
           type: 'GET_CAPTURE_STATE',
         } as ExtensionMessage);
-
-        console.log('Got capture state:', response);
 
         if (response?.isCapturing) {
           setIsCapturing(true);
@@ -53,13 +54,21 @@ function App() {
         } else {
           setIsTranscribing(false);
         }
+
+        // Track LLM request state
+        setHasActiveLLMRequest(response?.hasActiveLLMRequest || false);
       } catch (error) {
         console.error('Failed to get capture state:', error);
         setCaptureStatus('Idle');
       }
     }
 
+    // Sync immediately on mount
     syncCaptureState();
+
+    // Also sync periodically to catch state changes while popup is open
+    const interval = setInterval(syncCaptureState, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Get API keys and transcription settings from store
@@ -441,6 +450,19 @@ function App() {
                 </p>
               )}
             </section>
+
+            {/* Active LLM Request Indicator */}
+            {hasActiveLLMRequest && (
+              <section className="border border-blue-200 bg-blue-50 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="text-sm font-medium text-blue-700">LLM Request Active</span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  AI is processing your request...
+                </p>
+              </section>
+            )}
 
             {/* Quick Info */}
             <section className="text-xs text-gray-500 space-y-1">

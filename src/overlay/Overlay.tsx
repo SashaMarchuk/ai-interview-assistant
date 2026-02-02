@@ -267,8 +267,6 @@ export function Overlay({ response }: OverlayProps) {
       dragHandleClassName="overlay-drag-handle"
       minWidth={280}
       minHeight={200}
-      maxWidth={700}
-      maxHeight={900}
       bounds="window"
       enableResizing={{
         top: false,

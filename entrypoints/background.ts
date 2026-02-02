@@ -442,7 +442,7 @@ async function handleLLMRequest(
 // Register message listener synchronously at top level - CRITICAL
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Ignore webext-zustand internal sync messages - let the library handle them
-  if (message?.type === 'chromex.dispatch') {
+  if (message?.type === 'chromex.dispatch' || message?.type === 'chromex.fetch_state') {
     return false; // Don't send response, let other listeners handle it
   }
 
@@ -618,10 +618,11 @@ async function handleMessage(
       return { received: true };
 
     case 'GET_CAPTURE_STATE':
-      // Return current capture/transcription state for popup sync
+      // Return current capture/transcription/LLM state for popup sync
       return {
         isCapturing: isTabCaptureActive,
         isTranscribing: isTranscriptionActive,
+        hasActiveLLMRequest: activeAbortControllers.size > 0,
       };
 
     case 'START_MIC_CAPTURE': {

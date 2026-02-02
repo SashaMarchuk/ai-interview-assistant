@@ -18,8 +18,8 @@ const DEFAULT_SETTINGS = {
     openAI: '',
   },
   models: {
-    fastModel: 'google/gemini-flash-1.5',
-    fullModel: 'anthropic/claude-3-haiku',
+    fastModel: 'gpt-4o-mini',
+    fullModel: 'gpt-4o',
   },
   blurLevel: 8,
   hotkeys: {

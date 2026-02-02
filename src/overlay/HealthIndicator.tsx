@@ -62,13 +62,13 @@ export function HealthIndicator({ issues }: HealthIndicatorProps) {
   }
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-20 flex flex-col">
+    <div className="overlay-drag-handle absolute top-0 left-0 right-0 z-20 flex flex-col cursor-move">
       {issues.map((issue, index) => {
         const styles = getStatusStyles(issue.status);
         return (
           <div
             key={`${issue.service}-${index}`}
-            className={`${styles.bg} px-3 py-1.5 flex items-center gap-2 text-xs font-medium ${styles.text}`}
+            className={`${styles.bg} px-3 py-1.5 flex items-center gap-2 text-xs font-medium ${styles.text} select-none`}
           >
             {/* Status dot with optional pulse animation */}
             <span className="relative flex h-2 w-2">
