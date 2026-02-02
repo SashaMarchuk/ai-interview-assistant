@@ -145,8 +145,9 @@ async function startTabCapture(streamId: string): Promise<void> {
 /**
  * Stop tab audio capture and clean up resources.
  * Returns a promise that resolves when cleanup is complete.
+ * @param skipBroadcast - If true, don't send CAPTURE_STOPPED (used during cleanup before restart)
  */
-async function stopTabCapture(): Promise<void> {
+async function stopTabCapture(skipBroadcast = false): Promise<void> {
   try {
     // Stop all tracks on the stream FIRST (releases Chrome's tab capture)
     if (tabStream) {
@@ -168,12 +169,14 @@ async function stopTabCapture(): Promise<void> {
       tabAudioContext = null;
     }
 
-    // Notify that capture has stopped
-    chrome.runtime.sendMessage({
-      type: 'CAPTURE_STOPPED',
-    } satisfies CaptureStoppedMessage).catch(() => {});
+    // Notify that capture has stopped (unless this is cleanup before restart)
+    if (!skipBroadcast) {
+      chrome.runtime.sendMessage({
+        type: 'CAPTURE_STOPPED',
+      } satisfies CaptureStoppedMessage).catch(() => {});
+    }
 
-    console.log('Tab capture: Stopped');
+    console.log('Tab capture: Stopped', skipBroadcast ? '(cleanup)' : '');
   } catch (error) {
     console.error('Tab capture cleanup error:', error);
   }
@@ -466,7 +469,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Handle STOP_CAPTURE - stop tab audio capture
   if (message.type === 'STOP_CAPTURE') {
-    stopTabCapture()
+    // If this is a cleanup stop (from background during START_CAPTURE), skip CAPTURE_STOPPED broadcast
+    const isCleanup = message._fromBackground === true;
+    stopTabCapture(isCleanup)
       .then(() => {
         sendResponse({ success: true });
       })
@@ -542,9 +547,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Echo back unknown messages
-  sendResponse({ received: true, originalType: message.type });
-  return true;
+  // IMPORTANT: Do NOT respond to messages not meant for offscreen
+  // Let other listeners (background) handle them
+  // If we respond here, popup gets wrong response!
+  return false;
 });
 
 // Notify background that offscreen is ready
@@ -565,7 +571,8 @@ async function notifyReady(): Promise<void> {
 function cleanupAllCapture(): void {
   try { stopTranscription(); } catch { /* ignore */ }
   if (tabStream || tabAudioContext) {
-    try { stopTabCapture(); } catch { /* ignore */ }
+    // Skip broadcast during cleanup - everything is shutting down
+    try { stopTabCapture(true); } catch { /* ignore */ }
   }
   if (micStream || micAudioContext) {
     try { stopMicCapture(); } catch { /* ignore */ }

@@ -23,11 +23,11 @@ export interface BuildPromptResult {
 
 /** Instruction appended to fast hint user prompt */
 const FAST_HINT_INSTRUCTION =
-  '\n\nProvide a brief, concise response (1-2 sentences) that gives a quick hint or starting point.';
+  '\n\nGive a 1-2 sentence answer. Use bullet points. No explanations, just the key facts.';
 
 /** Instruction appended to full answer user prompt */
 const FULL_ANSWER_INSTRUCTION =
-  '\n\nProvide a comprehensive, detailed response with examples and thorough explanation.';
+  '\n\nProvide a focused, practical response. Include key points and a brief example if helpful. Keep it concise but complete.';
 
 /**
  * Build prompts for dual-stream LLM request

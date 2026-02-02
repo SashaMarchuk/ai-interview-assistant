@@ -25,6 +25,7 @@ let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp
 // Module state for capture tracking
 let isTabCaptureActive = false;
 let isTranscriptionActive = false;
+let isCaptureStartInProgress = false; // Guard to ignore CAPTURE_STOPPED during START_CAPTURE
 
 // Track active LLM requests for cancellation
 const activeAbortControllers: Map<string, AbortController> = new Map();
@@ -512,6 +513,13 @@ async function handleMessage(
 
     case 'START_CAPTURE': {
       try {
+        // Prevent concurrent START_CAPTURE calls
+        if (isCaptureStartInProgress) {
+          console.log('START_CAPTURE already in progress, ignoring duplicate');
+          return { success: false, error: 'Capture start already in progress' };
+        }
+        isCaptureStartInProgress = true;
+
         // Always ensure clean state before starting
         // Check if offscreen thinks capture is active (regardless of our flag)
         try {
@@ -578,10 +586,12 @@ async function handleMessage(
         }
 
         console.log('Tab capture started successfully');
+        isCaptureStartInProgress = false;
         return { success: true };
       } catch (error) {
         // Reset state on failure
         isTabCaptureActive = false;
+        isCaptureStartInProgress = false;
         const errorMessage = error instanceof Error ? error.message : 'Tab capture failed - try refreshing the page';
         console.error('Tab capture error:', errorMessage);
         return { success: false, error: errorMessage };
@@ -619,10 +629,12 @@ async function handleMessage(
 
     case 'GET_CAPTURE_STATE':
       // Return current capture/transcription/LLM state for popup sync
+      // Include isCaptureStartInProgress so popup can skip updates during startup
       return {
         isCapturing: isTabCaptureActive,
         isTranscribing: isTranscriptionActive,
         hasActiveLLMRequest: activeAbortControllers.size > 0,
+        isCaptureStartInProgress: isCaptureStartInProgress,
       };
 
     case 'START_MIC_CAPTURE': {
@@ -666,6 +678,11 @@ async function handleMessage(
       return { received: true };
 
     case 'CAPTURE_STOPPED':
+      // Ignore CAPTURE_STOPPED during START_CAPTURE (it's from cleanup, not real stop)
+      if (isCaptureStartInProgress) {
+        console.log('Ignoring CAPTURE_STOPPED during START_CAPTURE (cleanup)');
+        return { received: true };
+      }
       isTabCaptureActive = false;
       return { received: true };
 
@@ -787,6 +804,15 @@ async function handleMessage(
 
     // LLM request lifecycle messages
     case 'LLM_REQUEST': {
+      // Cancel ALL existing active requests before starting new one
+      if (activeAbortControllers.size > 0) {
+        console.log('LLM: Cancelling', activeAbortControllers.size, 'previous request(s)');
+        for (const [existingId, controller] of activeAbortControllers) {
+          controller.abort();
+        }
+        activeAbortControllers.clear();
+      }
+
       // Fire dual parallel LLM requests (non-blocking)
       handleLLMRequest(
         message.responseId,

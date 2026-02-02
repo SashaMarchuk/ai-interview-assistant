@@ -192,7 +192,40 @@ None at this time.
 
 ### Blockers
 
-None at this time.
+**FIXED - UI Flickering / Capture Loop (2026-02-02)**
+
+**Root causes identified:**
+1. 1-second polling interval in popup constantly queried GET_CAPTURE_STATE, causing race conditions
+2. React state updates are async - checking `isCapturing` state wasn't sufficient to prevent duplicate operations
+3. `CAPTURE_STOPPED` from cleanup could arrive after `isTabCaptureActive = true` was set
+4. Popup could receive `isCapturing: false` during capture startup, enabling button again
+
+**Comprehensive fix applied:**
+
+1. **entrypoints/popup/App.tsx:**
+   - Added `useRef` for synchronous operation tracking (`captureOperationInFlight`, `stopOperationInFlight`)
+   - `syncCaptureState()` now skips sync if any operation is in flight
+   - `syncCaptureState()` checks `isCaptureStartInProgress` from background response
+   - `handleStartCapture()` uses ref check (synchronous) before React state check
+   - `handleStopCapture()` uses same pattern
+   - Both handlers use `finally` block to clear refs on completion
+   - Increased polling interval from 1000ms to 2000ms
+
+2. **entrypoints/background.ts:**
+   - Added `isCaptureStartInProgress` flag to prevent concurrent START_CAPTURE
+   - `GET_CAPTURE_STATE` now returns `isCaptureStartInProgress` so popup knows
+   - `CAPTURE_STOPPED` handler ignores messages during START_CAPTURE (cleanup)
+
+3. **entrypoints/offscreen/main.ts:**
+   - `stopTabCapture()` accepts `skipBroadcast` parameter
+   - Cleanup stops don't broadcast CAPTURE_STOPPED
+
+**Why this works:**
+- Refs are synchronous (unlike React state) - prevents race conditions
+- Multiple defense layers: popup refs + background flag + polling skip
+- Reduced polling frequency reduces chance of state transition collision
+
+Status: Ready for testing
 
 ## Phase 1 Verification Results
 

@@ -5,7 +5,7 @@
  * Includes audio capture controls and settings interface.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
 import { useStore } from '../../src/store';
 import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
@@ -16,6 +16,9 @@ import LanguageSettings from '../../src/components/settings/LanguageSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
 type Tab = 'capture' | 'settings' | 'templates';
+
+// Polling interval for state sync (increased to reduce flickering)
+const SYNC_INTERVAL_MS = 2000;
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('capture');
@@ -32,13 +35,35 @@ function App() {
   // LLM request state
   const [hasActiveLLMRequest, setHasActiveLLMRequest] = useState(false);
 
+  // Ref to track if a capture operation is in flight (synchronous check)
+  // This prevents race conditions where async state updates cause flickering
+  const captureOperationInFlight = useRef(false);
+  const stopOperationInFlight = useRef(false);
+
   // Query capture state on mount and periodically to sync with background
   useEffect(() => {
     async function syncCaptureState() {
+      // Skip sync if any operation is in flight to prevent race conditions
+      // This is critical: refs are synchronous, React state is async
+      if (captureOperationInFlight.current || stopOperationInFlight.current) {
+        return;
+      }
+
       try {
         const response = await chrome.runtime.sendMessage({
           type: 'GET_CAPTURE_STATE',
         } as ExtensionMessage);
+
+        // Also skip if background reports capture start in progress
+        // This handles the case where background is still processing START_CAPTURE
+        if (response?.isCaptureStartInProgress) {
+          return;
+        }
+
+        // Double-check refs again after async call (operation might have started during await)
+        if (captureOperationInFlight.current || stopOperationInFlight.current) {
+          return;
+        }
 
         if (response?.isCapturing) {
           setIsCapturing(true);
@@ -59,7 +84,10 @@ function App() {
         setHasActiveLLMRequest(response?.hasActiveLLMRequest || false);
       } catch (error) {
         console.error('Failed to get capture state:', error);
-        setCaptureStatus('Idle');
+        // Only update status if no operation is in flight
+        if (!captureOperationInFlight.current && !stopOperationInFlight.current) {
+          setCaptureStatus('Idle');
+        }
       }
     }
 
@@ -67,7 +95,8 @@ function App() {
     syncCaptureState();
 
     // Also sync periodically to catch state changes while popup is open
-    const interval = setInterval(syncCaptureState, 1000);
+    // Using longer interval to reduce flickering and race conditions
+    const interval = setInterval(syncCaptureState, SYNC_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -105,6 +134,19 @@ function App() {
    * Proceeds even without API keys (graceful degradation per CONTEXT.md)
    */
   async function handleStartCapture() {
+    // Use ref for synchronous check - React state updates are async and can race
+    if (captureOperationInFlight.current) {
+      return;
+    }
+
+    // Also check React state as secondary guard
+    if (isCapturing || captureStatus === 'Starting...') {
+      return;
+    }
+
+    // Set ref IMMEDIATELY before any async work to prevent race conditions
+    captureOperationInFlight.current = true;
+
     setCaptureStatus('Starting...');
     setCaptureError(null);
 
@@ -125,37 +167,31 @@ function App() {
 
       // Step 2: Start tab audio capture
       setCaptureStatus('Starting tab capture...');
-      console.log('Sending START_CAPTURE...');
       const tabResponse = await chrome.runtime.sendMessage({
         type: 'START_CAPTURE',
       } as ExtensionMessage);
 
-      console.log('START_CAPTURE response:', tabResponse);
       if (!tabResponse?.success) {
         const errorMsg = typeof tabResponse?.error === 'string'
           ? tabResponse.error
-          : 'Tab capture failed - unknown error';
+          : 'Tab capture failed';
         throw new Error(errorMsg);
       }
-      console.log('Tab capture started');
 
       // Step 3: Start microphone capture
       setCaptureStatus('Starting mic capture...');
-      console.log('Sending START_MIC_CAPTURE...');
       const micResponse = await chrome.runtime.sendMessage({
         type: 'START_MIC_CAPTURE',
       } as ExtensionMessage);
 
-      console.log('START_MIC_CAPTURE response:', micResponse);
       if (!micResponse?.success) {
         // Tab capture succeeded but mic failed - stop tab capture for clean state
         await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } as ExtensionMessage);
         const errorMsg = typeof micResponse?.error === 'string'
           ? micResponse.error
-          : 'Microphone capture failed - unknown error';
+          : 'Microphone capture failed';
         throw new Error(errorMsg);
       }
-      console.log('Mic capture started');
 
       setIsCapturing(true);
       setCaptureStatus('Capturing');
@@ -165,6 +201,9 @@ function App() {
       setCaptureStatus('Error');
       setCaptureError(errorMessage);
       setIsCapturing(false);
+    } finally {
+      // Always clear the in-flight flag when operation completes
+      captureOperationInFlight.current = false;
     }
   }
 
@@ -172,6 +211,14 @@ function App() {
    * Stop both tab and microphone capture
    */
   async function handleStopCapture() {
+    // Use ref for synchronous check to prevent race conditions
+    if (stopOperationInFlight.current) {
+      return;
+    }
+
+    // Set ref IMMEDIATELY before any async work
+    stopOperationInFlight.current = true;
+
     setCaptureStatus('Stopping...');
 
     try {
@@ -184,13 +231,11 @@ function App() {
       await chrome.runtime.sendMessage({
         type: 'STOP_CAPTURE',
       } as ExtensionMessage);
-      console.log('Tab capture stopped');
 
       // Stop microphone capture
       await chrome.runtime.sendMessage({
         type: 'STOP_MIC_CAPTURE',
       } as ExtensionMessage);
-      console.log('Mic capture stopped');
 
       setIsCapturing(false);
       setCaptureStatus('Idle');
@@ -200,6 +245,9 @@ function App() {
       console.error('Stop capture error:', errorMessage);
       setCaptureStatus('Error');
       setCaptureError(errorMessage);
+    } finally {
+      // Always clear the in-flight flag when operation completes
+      stopOperationInFlight.current = false;
     }
   }
 
@@ -228,7 +276,6 @@ function App() {
 
       setIsTranscribing(true);
       setTranscriptionStatus('Transcribing...');
-      console.log('Transcription started');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Transcription error:', errorMessage);
@@ -248,7 +295,6 @@ function App() {
 
       setIsTranscribing(false);
       setTranscriptionStatus('Stopped');
-      console.log('Transcription stopped');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Stop transcription error:', errorMessage);

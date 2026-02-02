@@ -44,6 +44,9 @@ let currentTranscript: TranscriptEntry[] = [];
 // Module-level LLM response state
 let currentLLMResponse: LLMResponse | null = null;
 
+// Track the currently active responseId to ignore tokens from cancelled requests
+let activeResponseId: string | null = null;
+
 /**
  * Dispatch LLM response update to the React overlay via custom event.
  * The overlay listens for this event to update its response state.
@@ -58,9 +61,14 @@ function dispatchLLMResponseUpdate(response: LLMResponse): void {
 }
 
 /**
- * Initialize a new LLM response with pending status
+ * Initialize a new LLM response with pending status.
+ * This also sets the activeResponseId to track which request is current.
  */
 function initLLMResponse(responseId: string): void {
+  // Set this as the active response - all other responses will be ignored
+  activeResponseId = responseId;
+
+  // Clear any existing response state
   const response: LLMResponse = {
     id: responseId,
     questionId: responseId, // Use same ID for now
@@ -72,9 +80,15 @@ function initLLMResponse(responseId: string): void {
 }
 
 /**
- * Handle LLM stream token message
+ * Handle LLM stream token message.
+ * Ignores tokens from cancelled/old requests.
  */
 function handleLLMStream(message: LLMStreamMessage): void {
+  // Ignore tokens from cancelled/old requests
+  if (activeResponseId && message.responseId !== activeResponseId) {
+    return;
+  }
+
   if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
     // Initialize if response doesn't exist
     initLLMResponse(message.responseId);
@@ -93,9 +107,15 @@ function handleLLMStream(message: LLMStreamMessage): void {
 }
 
 /**
- * Handle LLM status change message
+ * Handle LLM status change message.
+ * Ignores status updates from cancelled/old requests.
  */
 function handleLLMStatus(message: LLMStatusMessage): void {
+  // Ignore status updates from cancelled/old requests
+  if (activeResponseId && message.responseId !== activeResponseId) {
+    return;
+  }
+
   if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
     // Initialize if response doesn't exist
     initLLMResponse(message.responseId);
@@ -162,7 +182,9 @@ async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Pro
 
   const responseId = crypto.randomUUID();
 
-  // Initialize LLM response state before sending request
+  // Clear any existing response and initialize fresh state for new request
+  // This ensures UI shows only the new response, not mixed content
+  currentLLMResponse = null;
   initLLMResponse(responseId);
 
   const message: LLMRequestMessage = {
@@ -177,7 +199,7 @@ async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Pro
   try {
     const response = await chrome.runtime.sendMessage(message);
     if (!response?.success) {
-      console.error('AI Interview Assistant: LLM request failed:', response?.error || 'Unknown error');
+      console.error('AI Interview Assistant: LLM request failed:', response?.error || `Unknown - response: ${JSON.stringify(response)}`);
     }
   } catch (error) {
     console.error('AI Interview Assistant: Failed to send LLM request:', error);

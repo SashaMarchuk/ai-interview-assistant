@@ -20,33 +20,6 @@ import type { PromptTemplate } from './types';
  */
 export const DEFAULT_TEMPLATES: PromptTemplate[] = [
   {
-    id: 'default-system-design',
-    name: 'System Design',
-    type: 'system-design',
-    systemPrompt: `You are an expert system design interview coach. Focus on:
-- Scalability: horizontal/vertical scaling, load balancing, caching strategies
-- Reliability: fault tolerance, redundancy, disaster recovery
-- Maintainability: modular design, clear interfaces, documentation
-- Performance: latency optimization, throughput, bottleneck identification
-
-Provide structured answers using:
-1. Requirements clarification
-2. High-level design
-3. Deep dive into components
-4. Trade-offs and alternatives
-5. Scaling considerations`,
-    userPromptTemplate: `The interviewer asked about system design:
-
-**Current Question:**
-$highlighted
-
-**Recent Context:**
-$recent
-
-Provide a structured approach to answer this system design question. Include key talking points, potential follow-up questions to ask, and important trade-offs to mention.`,
-    isDefault: true,
-  },
-  {
     id: 'default-coding',
     name: 'Coding',
     type: 'coding',
@@ -72,6 +45,33 @@ $highlighted
 $recent
 
 Help me understand this problem. Suggest an approach, identify key edge cases, and outline the solution structure. Include time/space complexity expectations.`,
+    isDefault: true,
+  },
+  {
+    id: 'default-system-design',
+    name: 'System Design',
+    type: 'system-design',
+    systemPrompt: `You are an expert system design interview coach. Focus on:
+- Scalability: horizontal/vertical scaling, load balancing, caching strategies
+- Reliability: fault tolerance, redundancy, disaster recovery
+- Maintainability: modular design, clear interfaces, documentation
+- Performance: latency optimization, throughput, bottleneck identification
+
+Provide structured answers using:
+1. Requirements clarification
+2. High-level design
+3. Deep dive into components
+4. Trade-offs and alternatives
+5. Scaling considerations`,
+    userPromptTemplate: `The interviewer asked about system design:
+
+**Current Question:**
+$highlighted
+
+**Recent Context:**
+$recent
+
+Provide a structured approach to answer this system design question. Include key talking points, potential follow-up questions to ask, and important trade-offs to mention.`,
     isDefault: true,
   },
   {
