@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A Chrome extension that provides real-time transcription and AI-powered assistance during technical interviews. Captures audio from browser tabs (Google Meet primary), transcribes via ElevenLabs, and delivers dual parallel LLM responses — a fast hint to start speaking immediately and a comprehensive answer streaming alongside.
+A Chrome MV3 extension that provides real-time transcription and AI-powered assistance during technical interviews. Captures audio from browser tabs (Google Meet primary), transcribes via ElevenLabs, and delivers dual parallel LLM responses — a fast hint to start speaking immediately and a comprehensive answer streaming alongside. Supports both OpenRouter and OpenAI as LLM providers.
 
 ## Core Value
 
@@ -12,60 +12,62 @@ When a question is captured, get something useful on screen fast enough to start
 
 ### Validated
 
-(None yet — ship to validate)
+- Real-time audio capture from browser tabs via Chrome tabCapture API — v1.0
+- Live transcription via ElevenLabs WebSocket STT with speaker diarization — v1.0
+- Hotkey capture with hold mode (press and hold to capture, release to send) — v1.0
+- Toggle mode as alternative capture behavior — v1.0
+- Highlight-to-send mode (select transcript text, send to LLM) — v1.0
+- Dual parallel LLM requests via OpenRouter (fast model + full model) — v1.0
+- OpenAI direct API support with provider abstraction — v1.0
+- Streaming responses for both fast hint and full answer — v1.0
+- Floating overlay UI with drag positioning — v1.0
+- Resizable overlay with size persistence — v1.0
+- Transparent overlay with blurred background — v1.0
+- Adjustable blur level in settings — v1.0
+- Multiple saved prompt templates (System Design, Coding, Behavioral, custom) — v1.0
+- Prompt template switching before/during calls — v1.0
+- API key management (ElevenLabs, OpenRouter, OpenAI) — v1.0
+- Settings panel for configuration — v1.0
+- Health indicators for service issues — v1.0
+- Graceful degradation when API keys missing — v1.0
 
 ### Active
 
-- [ ] Real-time audio capture from browser tabs via Chrome tabCapture API
-- [ ] Live transcription via ElevenLabs WebSocket STT with auto language detection
-- [ ] Hotkey capture with hold mode (press and hold to capture, release to send)
-- [ ] Highlight-to-send mode (select transcript text, send to LLM)
-- [ ] Dual parallel LLM requests via OpenRouter (fast model + full model)
-- [ ] Streaming responses for both fast hint and full answer
-- [ ] Floating overlay UI with drag positioning
-- [ ] Resizable overlay with size persistence
-- [ ] Transparent overlay with blurred background
-- [ ] Adjustable blur level in settings
-- [ ] Multiple saved prompt templates (System Design, Coding, Behavioral, custom)
-- [ ] Prompt template switching before/during calls
-- [ ] Copy answer to clipboard
-- [ ] API key management (ElevenLabs, OpenRouter)
-- [ ] Settings panel for configuration
+(Planning next milestone)
 
 ### Out of Scope
 
-- Session history and export — deferred to v2, focus on live experience first
-- Additional STT providers (Whisper, AssemblyAI, Deepgram) — ElevenLabs only for v1
+- Session history and export — deferred to v2
+- Additional STT providers (Whisper, AssemblyAI, Deepgram) — ElevenLabs only
 - TTS audio feedback — not needed for interview use case
 - Mobile support — Chrome desktop only
 - Server-side components — fully client-side
-- Screen share invisibility mode — complex, not v1
-- Audio recording/storage — privacy concern, not needed
+- Screen share invisibility mode — complex, not planned
+- Audio recording/storage — privacy concern
 - Chrome Web Store distribution — private use only
 
 ## Context
 
-**Technical environment:**
-- Chrome Extension Manifest V3
-- Service Worker with 30-second idle timeout (requires Offscreen Document for WebSocket)
-- React 18 for UI components
-- Vite + CRXJS for build system
-- Tailwind CSS for styling
-- Zustand for state management
+**Current state (v1.0 shipped):**
+- 4,847 lines TypeScript across 148 files
+- Tech stack: WXT 0.19.x, React 18, Tailwind v4, Zustand, Chrome MV3
+- All 48 v1 requirements delivered
+- Human verified on Google Meet
 
 **Audio pipeline:**
 - tabCapture API → AudioWorklet → PCM 16-bit 16kHz → Offscreen Document → ElevenLabs WebSocket
 
 **LLM architecture:**
-- Two parallel requests on hotkey trigger
-- Fast model: quick 1-2 sentence hint (e.g., Gemini Flash)
-- Full model: comprehensive streaming answer (e.g., Claude Haiku)
+- Provider abstraction layer with LLMProvider interface
+- Supports OpenRouter (6 models) and OpenAI (12 models)
+- Fast model: quick 1-2 sentence hint (e.g., GPT-4o-mini, Gemini Flash)
+- Full model: comprehensive streaming answer (e.g., GPT-4o, Claude Haiku)
 - Both stream simultaneously to overlay
 
 **User workflow:**
 - Prepare prompt templates before interview
 - Start recording when call begins
-- Hold hotkey when interviewer asks question
+- Hold hotkey when interviewer asks question (or toggle mode)
 - Release to send captured text to LLM
 - Glance at fast hint to start speaking
 - Read full answer as it streams in
@@ -73,8 +75,8 @@ When a question is captured, get something useful on screen fast enough to start
 ## Constraints
 
 - **Platform**: Chrome Desktop only — tabCapture API not available on mobile
-- **STT Provider**: ElevenLabs only — simplifies v1, proven real-time WebSocket API
-- **LLM Provider**: OpenRouter — access to multiple models via single API
+- **STT Provider**: ElevenLabs only — simplifies codebase, proven real-time WebSocket API
+- **LLM Providers**: OpenRouter + OpenAI — covers most common models
 - **Distribution**: Private — not Chrome Web Store, load unpacked extension
 - **Latency**: < 500ms transcription delay — critical for real-time interview use
 
@@ -82,12 +84,14 @@ When a question is captured, get something useful on screen fast enough to start
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| ElevenLabs only for STT | Simplifies v1, good real-time API, auto language detection | — Pending |
-| OpenRouter for LLM | Single API key, access to Gemini/Claude/GPT models | — Pending |
-| Two parallel LLM requests | Fast hint to start speaking + comprehensive answer | — Pending |
-| Hold mode as default hotkey | Natural gesture under interview pressure | — Pending |
-| Defer session history to v2 | Focus on live experience first | — Pending |
-| Transparent blur overlay | Unobtrusive during calls, adjustable to preference | — Pending |
+| ElevenLabs only for STT | Simplifies v1, good real-time API, auto language detection | ✓ Good — worked well |
+| OpenRouter + OpenAI for LLM | Covers GPT-4, Claude, Gemini via two APIs | ✓ Good — flexible provider choice |
+| Two parallel LLM requests | Fast hint to start speaking + comprehensive answer | ✓ Good — core value delivered |
+| Hold mode as default hotkey | Natural gesture under interview pressure | ✓ Good — toggle mode added as option |
+| Provider abstraction layer | Strategy pattern enables multiple backends | ✓ Good — easy to add providers |
+| Shadow DOM for overlay | CSS isolation from Google Meet styles | ✓ Good — no style conflicts |
+| WXT 0.19.x framework | Node 18 compatibility, good MV3 support | ✓ Good — stable development |
+| webext-zustand for state | Cross-context sync with chrome.storage | ✓ Good — state persists correctly |
 
 ---
-*Last updated: 2026-01-28 after initialization*
+*Last updated: 2026-02-03 after v1.0 milestone*

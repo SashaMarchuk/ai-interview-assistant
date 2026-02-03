@@ -1,337 +1,48 @@
 # Project State
 
-**Last Updated:** 2026-02-02
-**Current Phase:** 8 (OpenAI Provider Support) - COMPLETE
-**Current Plan:** All complete
+**Last Updated:** 2026-02-03
+**Current Phase:** Milestone complete
+**Current Plan:** None — planning next milestone
 
 ## Project Reference
 
-See: .planning/PROJECT.md
+See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
 
-**Current focus:** All phases complete. Project ready for production use.
+**Current focus:** v1.0 shipped. Ready for next milestone planning.
 
 ## Progress
 
-| Phase | Name | Track | Status | Plans |
-|-------|------|-------|--------|-------|
-| 1 | Foundation | -- | COMPLETE | 4/4 |
-| 2 | Audio Pipeline | A | COMPLETE | 4/4 |
-| 3 | Transcription | A | COMPLETE | 3/3 |
-| 4 | LLM Integration | A | COMPLETE | 4/4 |
-| 5 | Overlay UI | B | COMPLETE | 4/4 |
-| 6 | Prompts & Settings | C | COMPLETE | 4/4 |
-| 7 | Integration | -- | COMPLETE | 4/4 |
-| 8 | OpenAI Provider | -- | COMPLETE | 3/3 |
-
-**Overall:** 30/30 plans complete
+| Milestone | Phases | Plans | Status |
+|-----------|--------|-------|--------|
+| v1.0 MVP | 1-8 | 30/30 | SHIPPED |
 
 ```
-[██████████████████████████████] 100%
+v1.0 [██████████████████████████████] 100% SHIPPED
 ```
 
 ## Current Position
 
-- **Phase:** 8 of 8 (OpenAI Provider Support) - COMPLETE
-- **Plan:** 3 of 3 complete
+- **Milestone:** v1.0 MVP — SHIPPED
 - **Status:** Complete
-- **Last activity:** 2026-02-02 - Completed 08-03 Background Service Integration
+- **Last activity:** 2026-02-03 — v1.0 milestone archived
 - **Blocker:** None
-- **Next Plan:** None - all phases complete
-
-## Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| Plans completed | 30 |
-| Requirements delivered | 44/44 (v1) |
-| Phases completed | 8/8 |
-
-## Accumulated Context
-
-### Key Decisions
-
-| Decision | Rationale | Date |
-|----------|-----------|------|
-| 7-phase structure with parallel tracks | Phase 1 first, then Tracks A/B/C in parallel, Phase 7 integrates | 2026-01-28 |
-| Track A (2->3->4) sequential | Tight coupling: audio required for STT, STT required for LLM context | 2026-01-28 |
-| Track B (Phase 5) parallel | Overlay UI uses mock data, doesn't need real pipeline | 2026-01-28 |
-| Track C (Phase 6) parallel | Settings/Popup independent of overlay and pipeline | 2026-01-28 |
-| Phase 7 Integration | Wire tracks together, resolve conflicts, E2E testing | 2026-01-28 |
-| WXT 0.19.x for Node 18 compatibility | Latest WXT 0.20.x requires Node 20+, current env is Node 18 | 2026-01-29 |
-| Tailwind v4 with CSS-first config | No tailwind.config.ts needed, uses @import "tailwindcss" | 2026-01-29 |
-| Relative imports for WXT entrypoints | Path aliases cause vite-node resolution issues during build | 2026-01-29 |
-| Type cast for Chrome 116+ APIs | @types/chrome incomplete for OFFSCREEN_DOCUMENT context type | 2026-01-29 |
-| Shadow DOM via createShadowRootUi | CSS isolation from Google Meet page styles | 2026-01-29 |
-| URL pattern for active meetings | Only inject on xxx-xxxx-xxx pattern, not landing/lobby pages | 2026-01-29 |
-| Split AudioChunkMessage types | TypeScript narrowing failed with union, split into TabAudioChunkMessage and MicAudioChunkMessage | 2026-01-29 |
-| Mic not connected to destination | Prevent audio feedback by not routing mic to speakers | 2026-01-29 |
-| Separate AudioContext per capture | Mic and tab use independent AudioContexts at 16kHz | 2026-01-29 |
-| PCM processor buffer size 1600 | 100ms at 16kHz sample rate for consistent chunk timing | 2026-01-29 |
-| Vanilla JS for AudioWorklet | Worklet runs in separate thread without module resolution | 2026-01-29 |
-| zustand@4 for webext-zustand | webext-zustand@0.2.0 peer dependency requires zustand@^4 | 2026-01-29 |
-| webext-zustand type declarations | Package exports don't resolve TS types, manual .d.ts required | 2026-01-29 |
-| crypto.randomUUID() for IDs | No uuid dependency needed, built-in browser API | 2026-01-29 |
-| use-chrome-storage for overlay position | React hooks for chrome.storage.local persistence | 2026-01-29 |
-| react-rnd for drag/resize | Single library combining react-draggable and react-resizable | 2026-01-29 |
-| Tailwind v4 @theme inline for Shadow DOM | @property declarations don't work in Shadow DOM, need explicit px values | 2026-01-29 |
-| Speaker colors: You=blue, Interviewer=purple | Color coding for quick speaker identification in transcript | 2026-01-29 |
-| Fast hint green, full answer purple | Visual distinction between quick guidance and detailed response | 2026-01-29 |
-| Status indicator with pulse animation | Visual feedback for pending/streaming states | 2026-01-29 |
-| 500ms debounce on template textareas | Prevents excessive chrome.storage writes while typing | 2026-01-29 |
-| Vertical stacked template layout | Popup 384px too narrow for side-by-side list/editor | 2026-01-29 |
-| Tab audio passthrough via connect(destination) | Ensures interviewer remains audible during tab capture | 2026-01-29 |
-| Switch statement for message handlers | TypeScript discriminated union narrowing works better with switch than if-chain | 2026-01-29 |
-| Transparent glassmorphism overlay | bg-black/10 with backdrop-blur-md shows page content through overlay | 2026-01-29 |
-| Small draggable AI button for minimized | 56x44 draggable button maintains position consistency | 2026-01-29 |
-| Window resize listener for overlay | Repositions overlay within viewport on window resize | 2026-01-29 |
-| btoa() for base64 encoding | Browser-native base64, no library needed for WebSocket audio | 2026-01-29 |
-| Exponential backoff for WebSocket reconnect | 500ms base, max 5000ms, with jitter to prevent thundering herd | 2026-01-29 |
-| Audio buffer max 100 chunks | ~6 seconds of audio buffered during WebSocket disconnect | 2026-01-29 |
-| Speaker labels: You/Interviewer | 'You' for mic source, 'Interviewer' for tab source | 2026-01-29 |
-| Forward audio in worklet handlers | Immediate forwarding when transcription active, no separate step | 2026-01-29 |
-| Chronological insertion with splice | Maintain sorted order by timestamp in mergedTranscript | 2026-01-29 |
-| Broadcast on each final entry | Immediate UI updates via TRANSCRIPT_UPDATE message | 2026-01-29 |
-| eventsource-parser v3 API | EventSourceMessage type instead of ParsedEvent | 2026-01-29 |
-| Four LLM message types | REQUEST/STREAM/STATUS/CANCEL for complete lifecycle | 2026-01-29 |
-| Keep-alive interval 20s | Prevents Service Worker termination during long streaming | 2026-01-29 |
-| AbortController per request | Enables individual request cancellation via responseId | 2026-01-29 |
-| Dual parallel non-blocking streams | Fast and full models fire simultaneously for responsiveness | 2026-01-29 |
-| Capture phase event listeners | Intercept hotkeys before Google Meet handlers consume them | 2026-01-29 |
-| Window blur handler for capture | Prevents stuck capture state on alt-tab | 2026-01-29 |
-| CaptureContext for visual indicator | React context exposes isHolding state to overlay | 2026-01-29 |
-| Custom events for LLM response updates | llm-response-update event for Overlay without prop drilling | 2026-01-29 |
-| Module-level currentLLMResponse state | Maintains response state across message handler calls | 2026-01-29 |
-| StatusIndicator with pulsing animation | Visual feedback for streaming/pending/ready states in footer | 2026-01-29 |
-| useEffect for capture state dispatch | Proper React side effect handling instead of render-time dispatch | 2026-01-29 |
-| HealthIndicator only when issues exist | Clean UI when everything working, only shows problems | 2026-01-30 |
-| Setup prompt only when BOTH keys missing | Partial functionality OK, only block when no features available | 2026-01-30 |
-| Non-blocking API key warnings | Informational warnings with Configure links, capture can proceed | 2026-01-30 |
-| CONNECTION_STATE message type | Unified way to broadcast service health from offscreen -> background -> content | 2026-01-30 |
-| LLM retry logic: 3 retries | Auto-recover from transient failures with UI feedback | 2026-01-30 |
-| ConnectionStateEventDetail export | Type-safe custom events for service health propagation | 2026-01-30 |
-| Toggle mode keyDown-only | All toggle logic in keyDown, keyUp does nothing in toggle mode | 2026-01-30 |
-| CaptureMode type union | Simple 'hold' | 'toggle' union for clear behavior selection | 2026-01-30 |
-| LLMProvider interface | Strategy pattern for provider abstraction | 2026-01-30 |
-| Provider priority OpenAI > OpenRouter | Direct API preferred over aggregator for latency | 2026-01-30 |
-| Dynamic model filtering via provider layer | Single source of truth for model definitions - changes in provider layer automatically reflected in UI | 2026-01-30 |
-| Optgroup-based provider grouping | Clear visual separation of OpenAI vs OpenRouter models in dropdown | 2026-01-30 |
-| Resolve providers at request time | Each model can use different provider; no global provider state | 2026-02-02 |
-| Keep OpenRouterClient functional but deprecated | Backward compatibility during transition period | 2026-02-02 |
-
-### Technical Notes
-
-- Service Worker has 30-second idle timeout - use Offscreen Document for WebSocket
-- tabCapture mutes tab audio by default - must route back through AudioContext
-- CSP must allow wss://api.elevenlabs.io and https://openrouter.ai and https://api.openai.com
-- WXT entrypoints live in entrypoints/ directory
-- Shared CSS in src/assets/app.css with Tailwind v4
-- Message types use discriminated unions with isMessage type guard
-- Service Worker event listeners must be registered synchronously at top level
-- Offscreen document creation uses Promise tracking for race condition protection
-- Content script uses /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i pattern
-- createShadowRootUi with cssInjectionMode: 'ui' handles Shadow DOM CSS injection
-- AudioWorklet processors must be vanilla JS in public/ folder
-- Transferable ArrayBuffer for zero-copy audio chunk messages
-- Zustand store uses chromeStorage adapter for chrome.storage.local persistence
-- storeReadyPromise from wrapStore enables cross-context state sync
-- useOverlayPosition hook handles -1 sentinel for default bottom-right positioning
-- @theme inline provides px-based spacing, :host provides CSS variable fallbacks
-- Mic capture uses getUserMedia with echoCancellation and noiseSuppression enabled
-- Same pcm-processor.js reused for both tab and mic capture
-- Overlay uses controlled react-rnd pattern with position/size from hook
-- dragHandleClassName links OverlayHeader to Rnd drag behavior
-- isLoaded guard prevents flash of default position on initial render
-- TranscriptPanel uses useAutoScroll hook with entries.length as dependency
-- Left border accent (border-l-2) pattern for visual section distinction
-- Interim transcript results shown at 60% opacity with "..." indicator
-- Template type badge colors: system-design=purple, coding=green, behavioral=orange, custom=gray
-- useDebouncedCallback pattern for form fields with delayed store updates
-- Overlay barrel export at src/overlay/index.ts for clean imports
-- Minimized overlay button is draggable Rnd component, not fixed position
-- Window resize event triggers boundary repositioning for overlay
-- ElevenLabs WebSocket URL: wss://api.elevenlabs.io/v1/speech-to-text/realtime with query params
-- VAD commit strategy with include_timestamps=true for ElevenLabs
-- ElevenLabsConnection class handles reconnection lifecycle automatically
-- Offscreen manages dual ElevenLabsConnection instances (tabTranscription, micTranscription)
-- Service Worker maintains mergedTranscript[] and interimEntries Map for state
-- Transcription lifecycle: START_TRANSCRIPTION -> TRANSCRIPTION_STARTED -> TRANSCRIPT_* -> STOP_TRANSCRIPTION
-- LLM service at src/services/llm/ with barrel export for clean imports
-- OpenRouter streaming uses eventsource-parser for SSE parsing
-- buildPrompt() differentiates fast hint vs full answer via instruction appendage
-- LLM message types: LLM_REQUEST, LLM_STREAM, LLM_STATUS, LLM_CANCEL
-- handleLLMRequest() fires dual parallel streams via streamLLMResponse()
-- activeAbortControllers Map enables per-request cancellation
-- sendLLMMessageToMeet() broadcasts to all Google Meet tabs
-- Keep-alive uses chrome.runtime.getPlatformInfo() as no-op to reset idle timer
-- useCaptureMode hook at src/hooks for keyboard capture handling
-- parseHotkey() converts "Ctrl+Shift+Space" to component flags
-- CaptureProvider wraps Overlay for keyboard event handling
-- capture-state-update custom event for non-React consumers
-- llm-response-update custom event for LLM response streaming to Overlay
-- CaptureIndicator component at src/overlay/CaptureIndicator.tsx
-- StatusIndicator shows streaming (blue pulse), pending (yellow pulse), ready (green solid)
-- HealthIndicator at z-20, CaptureIndicator at z-10 for proper stacking
-- HealthIssue type: { service, status: warning|error|reconnecting, message }
-- broadcastConnectionState helper in offscreen for STT state
-- streamWithRetry wrapper for LLM with exponential backoff
-- connection-state-update custom event from content.tsx to Overlay
-- MAX_LLM_RETRIES = 3, LLM_RETRY_DELAY_MS = 1000 (base)
-- CaptureMode type: 'hold' | 'toggle' for hotkey behavior
-- Toggle mode: all capture logic in keyDown, keyUp returns early
-- LLMProvider interface at src/services/llm/providers/LLMProvider.ts
-- Provider registry with getProvider, resolveActiveProvider, getAvailableModels
-- OpenAI models: gpt-4o, gpt-4.1, gpt-4o-mini, gpt-4.1-mini, gpt-4.1-nano
-- OpenRouter models: claude-3-haiku, claude-3-5-sonnet, gemini-flash-1.5, gemini-pro-1.5, gpt-4o, gpt-4o-mini
-- Store apiKeys includes openAI field for persistence
-- ModelSettings uses getAvailableModels from provider layer for dynamic model list
-- Optgroup labels separate OpenAI and OpenRouter models in select dropdowns
-- resolveProviderForModel enables per-request provider selection
-- OpenRouterClient.ts deprecated but functional for backward compatibility
-
-### Open Questions
-
-None at this time.
-
-### Blockers
-
-**FIXED - UI Flickering / Capture Loop (2026-02-02)**
-
-**Root causes identified:**
-1. 1-second polling interval in popup constantly queried GET_CAPTURE_STATE, causing race conditions
-2. React state updates are async - checking `isCapturing` state wasn't sufficient to prevent duplicate operations
-3. `CAPTURE_STOPPED` from cleanup could arrive after `isTabCaptureActive = true` was set
-4. Popup could receive `isCapturing: false` during capture startup, enabling button again
-
-**Comprehensive fix applied:**
-
-1. **entrypoints/popup/App.tsx:**
-   - Added `useRef` for synchronous operation tracking (`captureOperationInFlight`, `stopOperationInFlight`)
-   - `syncCaptureState()` now skips sync if any operation is in flight
-   - `syncCaptureState()` checks `isCaptureStartInProgress` from background response
-   - `handleStartCapture()` uses ref check (synchronous) before React state check
-   - `handleStopCapture()` uses same pattern
-   - Both handlers use `finally` block to clear refs on completion
-   - Increased polling interval from 1000ms to 2000ms
-
-2. **entrypoints/background.ts:**
-   - Added `isCaptureStartInProgress` flag to prevent concurrent START_CAPTURE
-   - `GET_CAPTURE_STATE` now returns `isCaptureStartInProgress` so popup knows
-   - `CAPTURE_STOPPED` handler ignores messages during START_CAPTURE (cleanup)
-
-3. **entrypoints/offscreen/main.ts:**
-   - `stopTabCapture()` accepts `skipBroadcast` parameter
-   - Cleanup stops don't broadcast CAPTURE_STOPPED
-
-**Why this works:**
-- Refs are synchronous (unlike React state) - prevents race conditions
-- Multiple defense layers: popup refs + background flag + polling skip
-- Reduced polling frequency reduces chance of state transition collision
-
-Status: Fixed and verified
-
-## Phase 1 Verification Results
-
-All 5 success criteria verified:
-
-| Criteria | Status |
-|----------|--------|
-| Extension loads via "Load unpacked" | PASS |
-| Popup-to-ServiceWorker messaging | PASS |
-| Content Script injects placeholder on Meet | PASS |
-| Offscreen Document creation | PASS |
-| No CSP errors | PASS |
-
-## Phase 2 Verification Results
-
-All 5 success criteria verified (human + automated):
-
-| Criteria | Status |
-|----------|--------|
-| User clicks "Start" button and tab audio capture begins | PASS |
-| User continues to hear tab audio normally (passthrough) | PASS |
-| User's microphone is captured as separate stream | PASS |
-| Console shows PCM audio chunks at 16kHz | PASS |
-| Stopping capture releases all resources cleanly | PASS |
-
-Requirements AUD-01 through AUD-05 complete.
-
-## Phase 4 Verification Results
-
-All success criteria verified (human):
-
-| Criteria | Status |
-|----------|--------|
-| Hold hotkey shows capture indicator | PASS |
-| Release triggers fast hint within 2-3 seconds | PASS |
-| Full answer streams simultaneously | PASS |
-| Highlight text + hotkey sends specific text | PASS |
-| Both responses complete with clear indication | PASS |
-
-Requirements LLM-01 through LLM-06, KEY-01, KEY-02, KEY-04, KEY-05 complete.
-
-## Phase 5 Verification Results
-
-All 5 success criteria verified:
-
-| Criteria | Status |
-|----------|--------|
-| Shadow DOM overlay on Google Meet page | PASS |
-| Drag overlay to any position and persists | PASS |
-| Resize overlay and size persists after refresh | PASS |
-| Transparent blurred background shows page beneath | PASS |
-| Minimize to draggable button and expand back | PASS |
-
-Requirements UI-01 through UI-08 complete.
-
-## Phase 7 Verification Results
-
-All plans complete:
-
-| Plan | Name | Status |
-|------|------|--------|
-| 07-01 | Graceful Degradation UI | COMPLETE |
-| 07-02 | Connection State & Retry Logic | COMPLETE |
-| 07-03 | Settings Wiring | COMPLETE |
-| 07-04 | Toggle Mode Integration | COMPLETE |
-
-Requirements KEY-03 complete. All 44 requirements delivered.
-
-## Phase 8 Verification Results
-
-All plans complete:
-
-| Plan | Name | Status |
-|------|------|--------|
-| 08-01 | Provider Abstraction Layer | COMPLETE |
-| 08-02 | Store & Settings UI | COMPLETE |
-| 08-03 | Background Service Integration | COMPLETE |
-
-Human verification confirmed:
-- OpenRouter integration works
-- OpenAI integration works
-- Mixed provider configuration works
-- Graceful degradation works
-
-## Roadmap Evolution
-
-- Phase 8 added: OpenAI Provider Support (2026-01-30)
-- Phase 8 completed: 2026-02-02
+- **Next:** `/gsd:new-milestone` for v2 planning
 
 ## Session Continuity
 
 ### Last Session
 
-- **Date:** 2026-02-02
-- **Activity:** Completed 08-03 Background Service Integration
-- **Outcome:** All 30 plans complete. Project ready for production use.
+- **Date:** 2026-02-03
+- **Activity:** Completed v1.0 milestone archival
+- **Outcome:** All artifacts archived, git tagged, ready for next milestone
 
-### Project Status
+### Milestone History
 
-COMPLETE - All 8 phases, 30 plans complete. All 44 requirements delivered.
+- **v1.0 MVP** — Shipped 2026-02-03 (8 phases, 30 plans, 48 requirements)
 
 ---
 
 *State initialized: 2026-01-28*
-*Last updated: 2026-02-02*
+*Last updated: 2026-02-03*
