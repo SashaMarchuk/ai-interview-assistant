@@ -8,5 +8,12 @@
     "research": true,
     "plan_check": true,
     "verifier": true
+  },
+  "git": {
+    "branch_per_phase": true,
+    "branch_pattern": "feature/phase-{phase_number}-{phase_name}",
+    "auto_pr": true,
+    "pr_target": "main",
+    "notes": "Each phase creates a new branch from main. PR created on phase completion. Merge to main after review."
   }
 }
