@@ -10,21 +10,10 @@
  * - Variable hints for prompt template fields
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '../../store';
 import type { TemplateType } from '../../store/types';
-
-/**
- * Model options for the model override dropdown
- */
-const MODEL_OPTIONS = [
-  { value: '', label: 'Use default model' },
-  { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-  { value: 'anthropic/claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'openai/gpt-4o', label: 'GPT-4o' },
-  { value: 'openai/gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'google/gemini-pro-1.5', label: 'Gemini Pro 1.5' },
-];
+import { OPENROUTER_MODELS, OPENAI_MODELS } from '../../services/llm';
 
 /**
  * Template type options for the type dropdown
@@ -38,6 +27,9 @@ const TYPE_OPTIONS: { value: TemplateType; label: string }[] = [
 
 /**
  * Custom hook for debounced value updates
+ *
+ * Note: delay is included in deps for correctness - if delay ever changes,
+ * the callback will use the new value. This is intentional.
  */
 function useDebouncedCallback<T>(
   callback: (value: T) => void,
@@ -65,6 +57,26 @@ export function TemplateEditor() {
 
   // Find the active template
   const template = templates.find((t) => t.id === activeTemplateId);
+
+  /**
+   * Model options for the model override dropdown.
+   * Built from provider model lists to ensure consistency.
+   */
+  const modelOptions = useMemo(() => {
+    const options = [{ value: '', label: 'Use default model' }];
+
+    // Add OpenRouter models (full category for template overrides)
+    for (const model of OPENROUTER_MODELS.filter((m) => m.category === 'full')) {
+      options.push({ value: model.id, label: model.name });
+    }
+
+    // Add OpenAI direct models (full category)
+    for (const model of OPENAI_MODELS.filter((m) => m.category === 'full')) {
+      options.push({ value: model.id, label: `${model.name} (OpenAI Direct)` });
+    }
+
+    return options;
+  }, []);
 
   // Local state for form values (enables debouncing)
   const [localName, setLocalName] = useState('');
@@ -283,7 +295,7 @@ export function TemplateEditor() {
             focus:ring-2 focus:ring-blue-500 focus:border-blue-500
           "
         >
-          {MODEL_OPTIONS.map((option) => (
+          {modelOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

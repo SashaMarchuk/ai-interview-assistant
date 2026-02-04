@@ -4,7 +4,6 @@
  * Provides a clean API surface for LLM functionality:
  * - Types for streaming and dual-request patterns
  * - Provider abstraction layer with OpenRouter and OpenAI adapters
- * - OpenRouter streaming client (legacy, for backward compatibility)
  * - Prompt building with variable substitution
  */
 
@@ -17,9 +16,6 @@ export type {
   OpenRouterStreamChunk,
   LLMProviderId,
 } from './types';
-
-// Re-export streaming client (legacy - use providers for new code)
-export { streamLLMResponse } from './OpenRouterClient';
 
 // Re-export prompt builder
 export { buildPrompt, type BuildPromptResult } from './PromptBuilder';

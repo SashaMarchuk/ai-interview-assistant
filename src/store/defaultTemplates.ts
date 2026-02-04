@@ -17,10 +17,12 @@ import type { PromptTemplate } from './types';
  * Variables:
  * - $highlighted: Currently highlighted/captured question text
  * - $recent: Recent transcript context from the conversation
+ *
+ * Note: IDs are omitted here because seedDefaultTemplates() generates fresh UUIDs.
+ * Using Omit<PromptTemplate, 'id'> ensures type safety.
  */
-export const DEFAULT_TEMPLATES: PromptTemplate[] = [
+export const DEFAULT_TEMPLATES: Omit<PromptTemplate, 'id'>[] = [
   {
-    id: 'default-coding',
     name: 'Coding',
     type: 'coding',
     systemPrompt: `You are an expert coding interview coach. Focus on:
@@ -48,7 +50,6 @@ Help me understand this problem. Suggest an approach, identify key edge cases, a
     isDefault: true,
   },
   {
-    id: 'default-system-design',
     name: 'System Design',
     type: 'system-design',
     systemPrompt: `You are an expert system design interview coach. Focus on:
@@ -75,7 +76,6 @@ Provide a structured approach to answer this system design question. Include key
     isDefault: true,
   },
   {
-    id: 'default-behavioral',
     name: 'Behavioral',
     type: 'behavioral',
     systemPrompt: `You are an expert behavioral interview coach using the STAR method:
