@@ -80,6 +80,14 @@ When a question is captured, get something useful on screen fast enough to start
 - **Distribution**: Private — not Chrome Web Store, load unpacked extension
 - **Latency**: < 500ms transcription delay — critical for real-time interview use
 
+## Skills Available
+
+See: `.planning/SKILLS.md`
+
+- **browser-extension-builder** — Extension architecture, MV3, content scripts, background workers
+- **frontend-design** — Distinctive UI design, production-grade interfaces, anti-generic aesthetics
+- **code-review** — Multi-agent PR review, bug detection, CLAUDE.md compliance
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
