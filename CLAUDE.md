@@ -6,6 +6,18 @@ AI Interview Assistant - Chrome MV3 extension with real-time transcription and L
 
 ## Critical Rules
 
+### Git Workflow
+
+**NEVER merge directly to main.** Always create a Pull Request.
+
+```bash
+# After completing work on a branch:
+git push -u origin <branch-name>
+gh pr create --title "..." --body "..."
+```
+
+User reviews and merges PRs manually.
+
 ### Polish Milestone Workflow
 
 **ALWAYS SEQUENTIAL, NEVER PARALLEL**
