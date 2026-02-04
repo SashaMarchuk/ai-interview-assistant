@@ -109,6 +109,29 @@ export interface AuthErrorMessage {
 }
 
 /**
+ * Type guard for ServerMessage types
+ * Checks if an unknown object is a valid ServerMessage
+ */
+export function isServerMessage(data: unknown): data is ServerMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'message_type' in data &&
+    typeof (data as { message_type: unknown }).message_type === 'string'
+  );
+}
+
+/**
+ * Type guard for specific ServerMessage types
+ */
+export function isServerMessageType<T extends ServerMessage>(
+  data: ServerMessage,
+  type: T['message_type']
+): data is T {
+  return data.message_type === type;
+}
+
+/**
  * WebSocket connection states
  */
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -130,4 +153,11 @@ export interface InputAudioChunk {
   commit: boolean;
   sample_rate: number;
   previous_text?: string;
+}
+
+/**
+ * Response from ElevenLabs single-use token endpoint
+ */
+export interface TokenResponse {
+  token: string;
 }

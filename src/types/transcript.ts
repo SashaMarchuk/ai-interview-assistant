@@ -3,6 +3,13 @@
  */
 
 /**
+ * Speaker identification for transcript entries
+ * - 'Interviewer': Audio from tab (the other person)
+ * - 'You': Audio from microphone (the user)
+ */
+export type TranscriptSpeaker = 'Interviewer' | 'You';
+
+/**
  * Transcript entry from STT service.
  * Represents a single utterance from either the interviewer or the user.
  */
@@ -22,6 +29,11 @@ export interface TranscriptEntry {
 }
 
 /**
+ * Status of LLM response generation
+ */
+export type LLMResponseStatus = 'pending' | 'streaming' | 'complete' | 'error';
+
+/**
  * LLM response structure.
  * Contains both fast hints and complete answers.
  */
@@ -35,7 +47,7 @@ export interface LLMResponse {
   /** Complete detailed answer */
   fullAnswer: string | null;
   /** Current status of the response generation */
-  status: 'pending' | 'streaming' | 'complete' | 'error';
+  status: LLMResponseStatus;
   /** Error message if status is 'error' */
   error?: string;
 }

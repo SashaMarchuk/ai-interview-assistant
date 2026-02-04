@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import { DEFAULT_OVERLAY_STATE, type OverlayState } from '../../types/transcript';
 
 const STORAGE_KEY = 'ai-interview-overlay-state';
@@ -7,6 +7,50 @@ const STORAGE_KEY = 'ai-interview-overlay-state';
 const MIN_BTN_WIDTH = 56;
 const MIN_BTN_HEIGHT = 44;
 const MARGIN = 20;
+
+/**
+ * Position coordinates for overlay or minimized button
+ */
+interface Position {
+  x: number;
+  y: number;
+}
+
+/**
+ * Size dimensions for overlay
+ */
+interface Size {
+  width: number;
+  height: number;
+}
+
+/**
+ * Return type for useOverlayPosition hook
+ */
+export interface UseOverlayPositionReturn {
+  /** Current calculated position of the expanded overlay */
+  position: Position;
+  /** Current calculated position of the minimized button */
+  minimizedPosition: Position;
+  /** Current size of the overlay */
+  size: Size;
+  /** Whether the overlay is minimized */
+  isMinimized: boolean;
+  /** Whether initial state has been loaded from storage */
+  isLoaded: boolean;
+  /** Update the overlay position */
+  setPosition: (pos: Position) => void;
+  /** Update the overlay size */
+  setSize: (size: Size) => void;
+  /** Set minimized state */
+  setMinimized: (isMinimized: boolean) => void;
+  /** Update the minimized button position */
+  setMinimizedPosition: (pos: Position) => void;
+  /** Raw state object for advanced use cases */
+  rawState: OverlayState;
+  /** Direct state setter for advanced use cases */
+  setRawState: Dispatch<SetStateAction<OverlayState>>;
+}
 
 /**
  * Hook for managing overlay position, size, and minimize state.
@@ -19,7 +63,7 @@ const MARGIN = 20;
  * - isLoaded prevents flash of default position on initial load
  * - Minimized button repositions on window resize to stay in bounds
  */
-export function useOverlayPosition() {
+export function useOverlayPosition(): UseOverlayPositionReturn {
   const [state, setState] = useState<OverlayState>(DEFAULT_OVERLAY_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
   const isInitialLoad = useRef(true);

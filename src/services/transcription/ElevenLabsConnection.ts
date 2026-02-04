@@ -5,6 +5,7 @@ import type {
   ConnectionState,
   TranscriptCallback,
   InputAudioChunk,
+  TokenResponse,
 } from './types';
 
 /**
@@ -116,7 +117,7 @@ export class ElevenLabsConnection {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as TokenResponse;
         console.log(`[ElevenLabs:${this.config.source}] Token response received`);
         if (data.token) {
           console.log(`[ElevenLabs:${this.config.source}] ✓ Token obtained successfully (expires in 15 min)`);

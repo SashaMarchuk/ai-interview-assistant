@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Rnd } from 'react-rnd';
+import type { DraggableEvent, DraggableData } from 'react-draggable';
 import { useOverlayPosition } from './hooks/useOverlayPosition';
 import { OverlayHeader } from './OverlayHeader';
 import { TranscriptPanel } from './TranscriptPanel';
@@ -223,14 +224,20 @@ export function Overlay({ response }: OverlayProps) {
     [blurLevel]
   );
 
-  // Stable callback references for Rnd handlers
+  // Stable callback references for Rnd handlers using react-draggable types
   const handleDragStop = useCallback(
-    (e: unknown, d: { x: number; y: number }) => setPosition({ x: d.x, y: d.y }),
+    (_e: DraggableEvent, d: DraggableData) => setPosition({ x: d.x, y: d.y }),
     [setPosition]
   );
 
   const handleResizeStop = useCallback(
-    (e: unknown, dir: unknown, ref: HTMLElement, delta: unknown, pos: { x: number; y: number }) => {
+    (
+      _e: MouseEvent | TouchEvent,
+      _dir: string,
+      ref: HTMLElement,
+      _delta: { width: number; height: number },
+      pos: { x: number; y: number }
+    ) => {
       setSize({
         width: parseInt(ref.style.width, 10),
         height: parseInt(ref.style.height, 10),
@@ -241,7 +248,7 @@ export function Overlay({ response }: OverlayProps) {
   );
 
   const handleMinimizedDragStop = useCallback(
-    (e: unknown, d: { x: number; y: number }) => setMinimizedPosition({ x: d.x, y: d.y }),
+    (_e: DraggableEvent, d: DraggableData) => setMinimizedPosition({ x: d.x, y: d.y }),
     [setMinimizedPosition]
   );
 
