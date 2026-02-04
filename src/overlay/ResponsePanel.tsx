@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { LLMResponse } from '../types/transcript';
 
 interface ResponsePanelProps {
@@ -6,8 +7,9 @@ interface ResponsePanelProps {
 
 /**
  * Status indicator showing current response state.
+ * Memoized to prevent re-renders when parent updates but status unchanged.
  */
-function StatusIndicator({ status }: { status: LLMResponse['status'] }) {
+const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMResponse['status'] }) {
   switch (status) {
     case 'pending':
       return (
@@ -38,14 +40,15 @@ function StatusIndicator({ status }: { status: LLMResponse['status'] }) {
         </span>
       );
   }
-}
+});
 
 /**
  * Response panel displaying dual AI responses: fast hint and full answer.
  * Designed for the interview assistant use case where user needs
  * quick guidance immediately, with comprehensive answer streaming in.
+ * Memoized to prevent re-renders when transcript updates but response unchanged.
  */
-export function ResponsePanel({ response }: ResponsePanelProps) {
+export const ResponsePanel = memo(function ResponsePanel({ response }: ResponsePanelProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="text-xs font-medium text-white/60 mb-1 flex items-center justify-between">
@@ -104,4 +107,4 @@ export function ResponsePanel({ response }: ResponsePanelProps) {
       </div>
     </div>
   );
-}
+});

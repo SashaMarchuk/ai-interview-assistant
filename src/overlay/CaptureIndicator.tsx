@@ -5,6 +5,7 @@
  * Displays a pulsing bar at the top of the overlay.
  */
 
+import { memo } from 'react';
 import type { CaptureState } from '../hooks';
 
 interface CaptureIndicatorProps {
@@ -14,8 +15,9 @@ interface CaptureIndicatorProps {
 /**
  * Visual indicator for active capture mode.
  * Renders a pulsing red/orange gradient bar when the user is holding the capture hotkey.
+ * Memoized to prevent re-renders when other overlay state changes.
  */
-export function CaptureIndicator({ captureState }: CaptureIndicatorProps) {
+export const CaptureIndicator = memo(function CaptureIndicator({ captureState }: CaptureIndicatorProps) {
   // Only render when holding
   if (!captureState?.isHolding) {
     return null;
@@ -37,4 +39,4 @@ export function CaptureIndicator({ captureState }: CaptureIndicatorProps) {
       <span>Capturing question... Release to send</span>
     </div>
   );
-}
+});

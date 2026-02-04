@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Rnd } from 'react-rnd';
 import { useOverlayPosition } from './hooks/useOverlayPosition';
 import { OverlayHeader } from './OverlayHeader';
@@ -26,9 +26,10 @@ const MIN_BTN_WIDTH = 56;
 const MIN_BTN_HEIGHT = 44;
 
 /**
- * Status indicator component for footer
+ * Status indicator component for footer.
+ * Memoized to prevent re-renders when other overlay state changes.
  */
-function StatusIndicator({ status }: { status: LLMResponse['status'] | null }) {
+const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMResponse['status'] | null }) {
   if (status === 'streaming') {
     return (
       <span className="flex items-center gap-1">
@@ -60,7 +61,7 @@ function StatusIndicator({ status }: { status: LLMResponse['status'] | null }) {
       Ready
     </span>
   );
-}
+});
 
 /**
  * Main overlay container with drag and resize functionality.
@@ -98,41 +99,31 @@ export function Overlay({ response }: OverlayProps) {
   // Health issues for status display
   const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
 
-  // Listen for transcript updates from content script
+  // Consolidated event listeners for transcript, LLM response, and capture state
+  // Using useCallback to create stable handler references
   useEffect(() => {
-    function handleTranscriptUpdate(event: Event) {
+    const handleTranscriptUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<TranscriptUpdateEventDetail>;
       setTranscript(customEvent.detail.entries);
-    }
-
-    window.addEventListener('transcript-update', handleTranscriptUpdate);
-    return () => {
-      window.removeEventListener('transcript-update', handleTranscriptUpdate);
     };
-  }, []);
 
-  // Listen for LLM response updates from content script
-  useEffect(() => {
-    function handleLLMResponseUpdate(event: Event) {
+    const handleLLMResponseUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<LLMResponseEventDetail>;
       setLLMResponse(customEvent.detail.response);
-    }
-
-    window.addEventListener('llm-response-update', handleLLMResponseUpdate);
-    return () => {
-      window.removeEventListener('llm-response-update', handleLLMResponseUpdate);
     };
-  }, []);
 
-  // Listen for capture state updates (for visual indicator)
-  useEffect(() => {
-    function handleCaptureStateUpdate(event: Event) {
+    const handleCaptureStateUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<CaptureStateEventDetail>;
       setCaptureState(customEvent.detail.state);
-    }
+    };
 
+    window.addEventListener('transcript-update', handleTranscriptUpdate);
+    window.addEventListener('llm-response-update', handleLLMResponseUpdate);
     window.addEventListener('capture-state-update', handleCaptureStateUpdate);
+
     return () => {
+      window.removeEventListener('transcript-update', handleTranscriptUpdate);
+      window.removeEventListener('llm-response-update', handleLLMResponseUpdate);
       window.removeEventListener('capture-state-update', handleCaptureStateUpdate);
     };
   }, []);
@@ -217,10 +208,45 @@ export function Overlay({ response }: OverlayProps) {
   }, [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI]);
 
   // Check if BOTH STT and LLM keys are missing (for setup prompt)
-  const bothKeysMissing = !apiKeys.elevenLabs && !apiKeys.openRouter && !apiKeys.openAI;
+  // Memoize to prevent recalculation on every render
+  const bothKeysMissing = useMemo(
+    () => !apiKeys.elevenLabs && !apiKeys.openRouter && !apiKeys.openAI,
+    [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI]
+  );
 
   // Use prop if provided (for testing), otherwise use event-driven state
   const displayResponse = response ?? llmResponse;
+
+  // Memoize backdrop filter style to prevent object recreation
+  const backdropStyle = useMemo(
+    () => ({ backdropFilter: `blur(${blurLevel}px)` }),
+    [blurLevel]
+  );
+
+  // Stable callback references for Rnd handlers
+  const handleDragStop = useCallback(
+    (e: unknown, d: { x: number; y: number }) => setPosition({ x: d.x, y: d.y }),
+    [setPosition]
+  );
+
+  const handleResizeStop = useCallback(
+    (e: unknown, dir: unknown, ref: HTMLElement, delta: unknown, pos: { x: number; y: number }) => {
+      setSize({
+        width: parseInt(ref.style.width, 10),
+        height: parseInt(ref.style.height, 10),
+      });
+      setPosition(pos);
+    },
+    [setSize, setPosition]
+  );
+
+  const handleMinimizedDragStop = useCallback(
+    (e: unknown, d: { x: number; y: number }) => setMinimizedPosition({ x: d.x, y: d.y }),
+    [setMinimizedPosition]
+  );
+
+  const handleExpand = useCallback(() => setMinimized(false), [setMinimized]);
+  const handleMinimize = useCallback(() => setMinimized(true), [setMinimized]);
 
   // Don't render until initial position loaded from storage
   // This prevents flash of default position
@@ -237,11 +263,11 @@ export function Overlay({ response }: OverlayProps) {
         size={{ width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT }}
         enableResizing={false}
         bounds="window"
-        onDragStop={(e, d) => setMinimizedPosition({ x: d.x, y: d.y })}
+        onDragStop={handleMinimizedDragStop}
         className="z-[999999]"
       >
         <button
-          onClick={() => setMinimized(false)}
+          onClick={handleExpand}
           className="w-full h-full bg-blue-500/80 backdrop-blur-sm text-white rounded-lg shadow-lg hover:bg-blue-600/90 text-sm font-bold flex items-center justify-center transition-colors cursor-move"
           title="Expand AI Assistant (drag to move)"
         >
@@ -256,14 +282,8 @@ export function Overlay({ response }: OverlayProps) {
     <Rnd
       position={position}
       size={size}
-      onDragStop={(e, d) => setPosition({ x: d.x, y: d.y })}
-      onResizeStop={(e, dir, ref, delta, pos) => {
-        setSize({
-          width: parseInt(ref.style.width, 10),
-          height: parseInt(ref.style.height, 10),
-        });
-        setPosition(pos);
-      }}
+      onDragStop={handleDragStop}
+      onResizeStop={handleResizeStop}
       dragHandleClassName="overlay-drag-handle"
       minWidth={280}
       minHeight={200}
@@ -287,7 +307,7 @@ export function Overlay({ response }: OverlayProps) {
     >
       <div
         className="overlay-container relative h-full flex flex-col bg-black/10 rounded-lg shadow-2xl border border-white/20 overflow-hidden"
-        style={{ backdropFilter: `blur(${blurLevel}px)` }}
+        style={backdropStyle}
       >
         {/* Health indicator at very top (absolute positioned, z-20) */}
         <HealthIndicator issues={healthIssues} />
@@ -295,7 +315,7 @@ export function Overlay({ response }: OverlayProps) {
         {/* Capture indicator below health indicator (absolute positioned, z-10) */}
         <CaptureIndicator captureState={captureState} />
 
-        <OverlayHeader onMinimize={() => setMinimized(true)} />
+        <OverlayHeader onMinimize={handleMinimize} />
 
         {/* Content area with panels */}
         <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2 relative">
