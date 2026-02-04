@@ -294,124 +294,109 @@ async function stopMicCapture(): Promise<void> {
   }
 }
 
+/** Audio source configuration for transcription */
+interface TranscriptionSource {
+  source: 'tab' | 'mic';
+  speaker: string;
+  connectionService: 'stt-tab' | 'stt-mic';
+  sendStarted: boolean;
+}
+
+const TAB_SOURCE: TranscriptionSource = {
+  source: 'tab',
+  speaker: 'Interviewer',
+  connectionService: 'stt-tab',
+  sendStarted: true,
+};
+
+const MIC_SOURCE: TranscriptionSource = {
+  source: 'mic',
+  speaker: 'You',
+  connectionService: 'stt-mic',
+  sendStarted: false,
+};
+
+/**
+ * Create a transcription connection for a given audio source.
+ * Centralizes the common connection setup logic.
+ */
+function createTranscription(
+  apiKey: string,
+  languageCode: string | undefined,
+  config: TranscriptionSource
+): ElevenLabsConnection {
+  const { source, speaker, connectionService, sendStarted } = config;
+
+  return new ElevenLabsConnection(
+    { apiKey, source, languageCode },
+    // onTranscript callback
+    (text: string, isFinal: boolean, timestamp: number) => {
+      // Skip empty transcripts
+      if (!text.trim()) return;
+
+      if (isFinal) {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPT_FINAL',
+          source,
+          text,
+          timestamp,
+          id: crypto.randomUUID(),
+          speaker,
+        } satisfies TranscriptFinalMessage);
+      } else {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPT_PARTIAL',
+          source,
+          text,
+          timestamp,
+        } satisfies TranscriptPartialMessage);
+      }
+    },
+    // onError callback
+    (error: string, canRetry: boolean) => {
+      console.error(`STT ${speaker} error:`, error);
+      chrome.runtime.sendMessage({
+        type: 'TRANSCRIPTION_ERROR',
+        source,
+        error,
+        canRetry,
+      } satisfies TranscriptionErrorMessage);
+      broadcastConnectionState(connectionService, canRetry ? 'reconnecting' : 'error', error);
+    },
+    // onConnect callback
+    () => {
+      if (sendStarted) {
+        chrome.runtime.sendMessage({
+          type: 'TRANSCRIPTION_STARTED',
+        } satisfies TranscriptionStartedMessage);
+      }
+      broadcastConnectionState(connectionService, 'connected');
+      console.log(`STT ${speaker}: Connected`);
+    }
+  );
+}
+
 /**
  * Start tab transcription connection to ElevenLabs.
- * Creates WebSocket connection and forwards transcript results to Service Worker.
  */
 function startTabTranscription(apiKey: string, languageCode?: string): void {
   if (tabTranscription) {
     tabTranscription.disconnect();
     tabTranscription = null;
   }
-
-  tabTranscription = new ElevenLabsConnection(
-    { apiKey, source: 'tab', languageCode },
-    // onTranscript callback
-    (text: string, isFinal: boolean, timestamp: number) => {
-      if (isFinal) {
-        // Skip empty transcripts - ElevenLabs sometimes sends empty committed_transcript
-        if (!text.trim()) return;
-        chrome.runtime.sendMessage({
-          type: 'TRANSCRIPT_FINAL',
-          source: 'tab',
-          text,
-          timestamp,
-          id: crypto.randomUUID(),
-          speaker: 'Interviewer',
-        } satisfies TranscriptFinalMessage);
-      } else {
-        // Skip empty partials too
-        if (!text.trim()) return;
-        chrome.runtime.sendMessage({
-          type: 'TRANSCRIPT_PARTIAL',
-          source: 'tab',
-          text,
-          timestamp,
-        } satisfies TranscriptPartialMessage);
-      }
-    },
-    // onError callback
-    (error: string, canRetry: boolean) => {
-      console.error('STT Tab error:', error);
-      chrome.runtime.sendMessage({
-        type: 'TRANSCRIPTION_ERROR',
-        source: 'tab',
-        error,
-        canRetry,
-      } satisfies TranscriptionErrorMessage);
-      // Broadcast connection state: reconnecting if retryable, error if not
-      broadcastConnectionState('stt-tab', canRetry ? 'reconnecting' : 'error', error);
-    },
-    // onConnect callback - notify background when WebSocket connects
-    () => {
-      chrome.runtime.sendMessage({
-        type: 'TRANSCRIPTION_STARTED',
-      } satisfies TranscriptionStartedMessage);
-      // Broadcast connected state
-      broadcastConnectionState('stt-tab', 'connected');
-      console.log('STT Tab: Connected');
-    }
-  );
-
+  tabTranscription = createTranscription(apiKey, languageCode, TAB_SOURCE);
   tabTranscription.connect();
 }
 
 /**
  * Start microphone transcription connection to ElevenLabs.
- * Creates WebSocket connection and forwards transcript results to Service Worker.
  */
 function startMicTranscription(apiKey: string, languageCode?: string): void {
   if (micTranscription) {
     micTranscription.disconnect();
     micTranscription = null;
   }
-
-  micTranscription = new ElevenLabsConnection(
-    { apiKey, source: 'mic', languageCode },
-    // onTranscript callback
-    (text: string, isFinal: boolean, timestamp: number) => {
-      if (isFinal) {
-        // Skip empty transcripts - ElevenLabs sometimes sends empty committed_transcript
-        if (!text.trim()) return;
-        chrome.runtime.sendMessage({
-          type: 'TRANSCRIPT_FINAL',
-          source: 'mic',
-          text,
-          timestamp,
-          id: crypto.randomUUID(),
-          speaker: 'You',
-        } satisfies TranscriptFinalMessage);
-      } else {
-        // Skip empty partials too
-        if (!text.trim()) return;
-        chrome.runtime.sendMessage({
-          type: 'TRANSCRIPT_PARTIAL',
-          source: 'mic',
-          text,
-          timestamp,
-        } satisfies TranscriptPartialMessage);
-      }
-    },
-    // onError callback
-    (error: string, canRetry: boolean) => {
-      console.error('STT Mic error:', error);
-      chrome.runtime.sendMessage({
-        type: 'TRANSCRIPTION_ERROR',
-        source: 'mic',
-        error,
-        canRetry,
-      } satisfies TranscriptionErrorMessage);
-      // Broadcast connection state: reconnecting if retryable, error if not
-      broadcastConnectionState('stt-mic', canRetry ? 'reconnecting' : 'error', error);
-    },
-    // onConnect callback - notify background when WebSocket connects
-    () => {
-      // Broadcast connected state
-      broadcastConnectionState('stt-mic', 'connected');
-      console.log('STT Mic: Connected');
-    }
-  );
-
+  micTranscription = createTranscription(apiKey, languageCode, MIC_SOURCE);
   micTranscription.connect();
 }
 

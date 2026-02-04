@@ -20,6 +20,31 @@ type Tab = 'capture' | 'settings' | 'templates';
 // Polling interval for state sync (increased to reduce flickering)
 const SYNC_INTERVAL_MS = 2000;
 
+/**
+ * Get status indicator color class based on capture status.
+ * Uses a clear switch statement instead of nested ternaries.
+ */
+function getStatusColorClass(status: string): string {
+  switch (status) {
+    case 'Capturing':
+      return 'bg-green-500 animate-pulse';
+    case 'Error':
+      return 'bg-red-500';
+    case 'Starting...':
+    case 'Stopping...':
+      return 'bg-yellow-500 animate-pulse';
+    default:
+      return 'bg-gray-400';
+  }
+}
+
+/**
+ * Status indicator dot component.
+ */
+function StatusDot({ status }: { status: string }): React.JSX.Element {
+  return <div className={`w-2 h-2 rounded-full ${getStatusColorClass(status)}`} />;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('capture');
 
@@ -353,17 +378,7 @@ function App() {
 
               {/* Status Display */}
               <div className="flex items-center gap-2 mb-4">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    captureStatus === 'Capturing'
-                      ? 'bg-green-500 animate-pulse'
-                      : captureStatus === 'Error'
-                      ? 'bg-red-500'
-                      : captureStatus === 'Starting...' || captureStatus === 'Stopping...'
-                      ? 'bg-yellow-500 animate-pulse'
-                      : 'bg-gray-400'
-                  }`}
-                />
+                <StatusDot status={captureStatus} />
                 <span className="text-sm text-gray-700">
                   Status: <span className="font-medium">{captureStatus}</span>
                 </span>
