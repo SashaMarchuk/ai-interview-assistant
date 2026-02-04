@@ -1,4 +1,9 @@
 {
+  "meta": {
+    "rule_sync": true,
+    "rule_locations": ["CLAUDE.md", ".planning/config.json"],
+    "notes": "All new rules must be recorded in BOTH CLAUDE.md and this config. Never add a rule to only one location."
+  },
   "mode": "yolo",
   "depth": "comprehensive",
   "parallelization": true,

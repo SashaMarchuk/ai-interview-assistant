@@ -6,6 +6,14 @@ AI Interview Assistant - Chrome MV3 extension with real-time transcription and L
 
 ## Critical Rules
 
+### Rule Synchronization
+
+**All new rules must be recorded in BOTH places:**
+1. `CLAUDE.md` (this file)
+2. `.planning/config.json` (GSD system)
+
+Never add a rule to only one location.
+
 ### Git Workflow
 
 **NEVER merge directly to main.** Always create a Pull Request.
