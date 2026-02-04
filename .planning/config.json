@@ -14,6 +14,13 @@
     "branch_pattern": "feature/phase-{phase_number}-{phase_name}",
     "auto_pr": true,
     "pr_target": "main",
-    "notes": "Each phase creates a new branch from main. PR created on phase completion. Merge to main after review."
+    "direct_merge_to_main": false,
+    "notes": "NEVER merge directly to main. Always create PR. User reviews and merges manually."
+  },
+  "polish": {
+    "sequential_only": true,
+    "steps": ["performance", "type-safety", "simplification", "cleanup", "code-review", "fixes"],
+    "branch_pattern": "polish/{milestone}-optimization",
+    "notes": "Run /polish-milestone after each milestone. Steps must run sequentially to avoid conflicts."
   }
 }
