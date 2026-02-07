@@ -27,5 +27,18 @@
     "steps": ["performance", "type-safety", "simplification", "cleanup", "code-review", "fixes"],
     "branch_pattern": "polish/{milestone}-optimization",
     "notes": "Run /polish-milestone after each milestone. Steps must run sequentially to avoid conflicts."
+  },
+  "todos": {
+    "support_raw_prompts": true,
+    "storage_path": ".planning/todos/",
+    "states": ["pending", "done"],
+    "areas": ["feature", "bug", "refactor", "docs", "test", "ui", "api", "config"],
+    "auto_detection": true,
+    "workflow": {
+      "add": "Detect feature/bug requests in plain language → call /gsd:add-todo → create structured markdown",
+      "list": "Raw prompt 'show todos' or /gsd:check-todos → list with areas/age → allow selection",
+      "work": "Raw prompt 'start working on X' → find matching todo → move to done/ → load context → begin implementation"
+    },
+    "notes": "Support both CLI commands and raw prompts. Future-proof by following GSD pattern: capture → store → route to action."
   }
 }
