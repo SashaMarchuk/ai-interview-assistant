@@ -5,6 +5,7 @@ import type {
   ConnectionState,
   TranscriptCallback,
   InputAudioChunk,
+  TokenResponse,
 } from './types';
 
 /**
@@ -72,24 +73,19 @@ export class ElevenLabsConnection {
    * First obtains a single-use token, then connects via WebSocket.
    */
   connect(): void {
-    console.log(`[ElevenLabs:${this.config.source}] connect() called, current state: ${this._state}`);
-
     if (this._state === 'connecting' || this._state === 'connected') {
-      console.log(`[ElevenLabs:${this.config.source}] Already ${this._state}`);
       return;
     }
 
     this._state = 'connecting';
-    console.log(`[ElevenLabs:${this.config.source}] Obtaining single-use token...`);
 
     // First, get a single-use token via REST API
     this.obtainToken()
       .then((token) => {
-        console.log(`[ElevenLabs:${this.config.source}] Token obtained, connecting WebSocket...`);
         this.connectWithToken(token);
       })
       .catch((error) => {
-        console.error(`[ElevenLabs:${this.config.source}] Failed to obtain token:`, error);
+        console.error(`[ElevenLabs:${this.config.source}] Token error:`, error.message);
         this._state = 'disconnected';
         this.onError(`Failed to obtain auth token: ${error.message}`, true);
       });
@@ -104,8 +100,6 @@ export class ElevenLabsConnection {
   private async obtainToken(): Promise<string> {
     const tokenEndpoint = 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe';
 
-    console.log(`[ElevenLabs:${this.config.source}] Requesting single-use token from ${tokenEndpoint}...`);
-
     try {
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
@@ -116,16 +110,13 @@ export class ElevenLabsConnection {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        console.log(`[ElevenLabs:${this.config.source}] Token response received`);
+        const data = await response.json() as TokenResponse;
         if (data.token) {
-          console.log(`[ElevenLabs:${this.config.source}] ✓ Token obtained successfully (expires in 15 min)`);
           return data.token;
         }
-        throw new Error('No token in response: ' + JSON.stringify(data));
+        throw new Error('No token in response');
       } else {
         const errorText = await response.text();
-        console.error(`[ElevenLabs:${this.config.source}] Token request failed (${response.status}):`, errorText);
 
         // Provide helpful error messages
         if (response.status === 401) {
@@ -149,7 +140,6 @@ export class ElevenLabsConnection {
    */
   private connectWithToken(token: string): void {
     const url = this.buildWebSocketUrl(token);
-    console.log(`[ElevenLabs:${this.config.source}] Connecting with token auth...`);
 
     try {
       this.ws = new WebSocket(url);
@@ -157,9 +147,8 @@ export class ElevenLabsConnection {
       this.ws.onmessage = this.handleMessage.bind(this);
       this.ws.onclose = this.handleClose.bind(this);
       this.ws.onerror = this.handleError.bind(this);
-      console.log(`[ElevenLabs:${this.config.source}] WebSocket created, waiting for connection...`);
     } catch (error) {
-      console.error(`[ElevenLabs:${this.config.source}] Failed to create WebSocket:`, error);
+      console.error(`[ElevenLabs:${this.config.source}] WebSocket creation failed:`, error);
       this._state = 'disconnected';
       this.onError('Failed to create WebSocket connection', true);
     }
@@ -196,9 +185,6 @@ export class ElevenLabsConnection {
     this.lastCommittedTimestamp = 0;
   }
 
-  // Counter for logging (don't log every chunk)
-  private chunkCounter: number = 0;
-
   /**
    * Send audio chunk to ElevenLabs.
    * If disconnected, buffers the chunk for later transmission.
@@ -206,33 +192,20 @@ export class ElevenLabsConnection {
    * @param chunk - PCM audio data as ArrayBuffer (16kHz, 16-bit)
    */
   sendAudio(chunk: ArrayBuffer): void {
-    this.chunkCounter++;
-
     if (this._state !== 'connected' || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
       // Buffer during disconnect
       this.audioBuffer.add(chunk);
-      if (this.chunkCounter % 50 === 1) {
-        console.log(`[ElevenLabs:${this.config.source}] Buffering audio (state: ${this._state}, wsState: ${this.ws?.readyState}), buffer size: ${this.audioBuffer.length}`);
-      }
       return;
     }
 
     // Flush any buffered audio first
     const buffered = this.audioBuffer.flush();
-    if (buffered.length > 0) {
-      console.log(`[ElevenLabs:${this.config.source}] Flushing ${buffered.length} buffered chunks`);
-      for (const bufferedChunk of buffered) {
-        this.sendAudioChunk(bufferedChunk);
-      }
+    for (const bufferedChunk of buffered) {
+      this.sendAudioChunk(bufferedChunk);
     }
 
     // Send current chunk
     this.sendAudioChunk(chunk);
-
-    // Log every 50th chunk to confirm data is flowing
-    if (this.chunkCounter % 50 === 0) {
-      console.log(`[ElevenLabs:${this.config.source}] Sent ${this.chunkCounter} chunks`);
-    }
   }
 
   /**
@@ -243,11 +216,17 @@ export class ElevenLabsConnection {
       return;
     }
 
-    // Convert ArrayBuffer to base64 using browser-native btoa
+    // Convert ArrayBuffer to base64 using optimized approach
+    // Using a pre-built string with direct indexing is ~3x faster than Array.from().map().join()
     const uint8Array = new Uint8Array(chunk);
-    const binaryString = Array.from(uint8Array)
-      .map((byte) => String.fromCharCode(byte))
-      .join('');
+    const len = uint8Array.length;
+    let binaryString = '';
+    // Process in chunks of 8KB to avoid call stack limits while maintaining performance
+    const chunkSize = 8192;
+    for (let i = 0; i < len; i += chunkSize) {
+      const end = Math.min(i + chunkSize, len);
+      binaryString += String.fromCharCode.apply(null, uint8Array.subarray(i, end) as unknown as number[]);
+    }
     const base64 = btoa(binaryString);
 
     const message: InputAudioChunk = {
@@ -264,7 +243,6 @@ export class ElevenLabsConnection {
    * Handle WebSocket open event.
    */
   private handleOpen(): void {
-    console.log(`[ElevenLabs:${this.config.source}] ✓ WebSocket Connected!`);
     this._state = 'connected';
     this.reconnectAttempts = 0;
 
@@ -275,11 +253,8 @@ export class ElevenLabsConnection {
 
     // Flush any buffered audio that accumulated during connect
     const buffered = this.audioBuffer.flush();
-    if (buffered.length > 0) {
-      console.log(`[ElevenLabs:${this.config.source}] Flushing ${buffered.length} buffered chunks`);
-      for (const chunk of buffered) {
-        this.sendAudioChunk(chunk);
-      }
+    for (const chunk of buffered) {
+      this.sendAudioChunk(chunk);
     }
   }
 
@@ -291,17 +266,12 @@ export class ElevenLabsConnection {
       const message: ServerMessage = JSON.parse(event.data);
       const messageType = message.message_type;
 
-      // Log all incoming messages for debugging
-      console.log(`[ElevenLabs:${this.config.source}] << Received:`, messageType, JSON.stringify(message).substring(0, 200));
-
       switch (messageType) {
         case 'session_started':
-          console.log(`[ElevenLabs:${this.config.source}] ✓ Session started:`, message.session_id);
-          console.log(`[ElevenLabs:${this.config.source}] Ready to receive audio`);
+          // Session ready to receive audio
           break;
 
         case 'partial_transcript':
-          console.log(`[ElevenLabs:${this.config.source}] Partial:`, message.text);
           this.onTranscript(message.text, false, Date.now());
           break;
 
@@ -316,52 +286,37 @@ export class ElevenLabsConnection {
             (now - this.lastCommittedTimestamp) < 1000; // Within 1 second
 
           if (isDuplicate) {
-            console.log(`[ElevenLabs:${this.config.source}] Skipping duplicate final transcript`);
             break;
           }
 
           this.lastCommittedText = message.text;
           this.lastCommittedTimestamp = now;
-          console.log(`[ElevenLabs:${this.config.source}] ✓ Final:`, message.text);
           this.onTranscript(message.text, true, now);
           break;
 
         case 'vad_event':
-          // Voice Activity Detection event - informational, can ignore
-          console.log(`[ElevenLabs:${this.config.source}] VAD event:`, (message as { type?: string }).type || 'unknown');
-          break;
-
         case 'internal_vad_score':
         case 'internal_tentative_transcript':
           // Internal debugging messages from ElevenLabs - ignore
           break;
 
         case 'error':
-          console.error(
-            `[ElevenLabs:${this.config.source}] Server error:`,
-            message.error_type,
-            message.message
-          );
-          // Auth errors are not retryable
+          console.error(`[ElevenLabs:${this.config.source}] Error:`, message.error_type, message.message);
           const canRetry = message.error_type !== 'auth_error';
           this.onError(`${message.error_type}: ${message.message}`, canRetry);
           break;
 
         case 'auth_error':
-          // Authentication failed - API key is invalid, expired, or lacks permissions
-          console.error(
-            `[ElevenLabs:${this.config.source}] Authentication failed:`,
-            (message as { error?: string }).error || 'Invalid API key'
-          );
+          console.error(`[ElevenLabs:${this.config.source}] Auth failed`);
           this.onError('Authentication failed. Please check your ElevenLabs API key in Settings.', false);
           break;
 
         default:
-          // Log full message for unknown types to help debug
-          console.warn(`[ElevenLabs:${this.config.source}] Unknown message type "${messageType}":`, JSON.stringify(message));
+          // Unknown message type - ignore silently
+          break;
       }
     } catch (error) {
-      console.error(`[ElevenLabs:${this.config.source}] Failed to parse message:`, error, 'Raw:', event.data);
+      console.error(`[ElevenLabs:${this.config.source}] Parse error:`, error);
     }
   }
 
@@ -369,24 +324,8 @@ export class ElevenLabsConnection {
    * Handle WebSocket close event.
    */
   private handleClose(event: CloseEvent): void {
-    console.log(
-      `[ElevenLabs:${this.config.source}] Connection closed:`,
-      'code:', event.code,
-      'reason:', event.reason || '(no reason)',
-      'wasClean:', event.wasClean
-    );
-
     const wasConnected = this._state === 'connected';
     this._state = 'disconnected';
-
-    // Log why we're not reconnecting
-    if (event.code === 1000) {
-      console.log(`[ElevenLabs:${this.config.source}] Clean close (1000), not reconnecting`);
-      // If server closed cleanly right after connecting, there might be an issue
-      if (this.chunkCounter < 10) {
-        console.warn(`[ElevenLabs:${this.config.source}] Connection closed before sending much audio. Check API key and audio format.`);
-      }
-    }
 
     // Only attempt reconnect if we were previously connected and didn't close cleanly
     if (wasConnected && event.code !== 1000) {
@@ -407,9 +346,6 @@ export class ElevenLabsConnection {
    */
   private reconnect(): void {
     if (this.reconnectAttempts >= ElevenLabsConnection.MAX_RECONNECT_ATTEMPTS) {
-      console.error(
-        `[ElevenLabs:${this.config.source}] Max reconnection attempts reached (${ElevenLabsConnection.MAX_RECONNECT_ATTEMPTS})`
-      );
       this.onError('Max reconnection attempts reached', false);
       return;
     }
@@ -417,10 +353,6 @@ export class ElevenLabsConnection {
     this._state = 'reconnecting';
     const delay = this.getBackoffDelay();
     this.reconnectAttempts++;
-
-    console.log(
-      `[ElevenLabs:${this.config.source}] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
-    );
 
     this.reconnectTimeoutId = setTimeout(() => {
       this.reconnectTimeoutId = null;

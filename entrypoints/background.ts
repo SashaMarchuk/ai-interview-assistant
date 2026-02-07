@@ -52,33 +52,12 @@ function stopKeepAlive(): void {
 }
 
 /**
- * Broadcast transcript to all Google Meet content scripts.
- * Includes both final entries and current interim (partial) entries.
+ * Broadcast a message to all Google Meet content scripts.
+ * Silently ignores tabs where content script is not loaded.
  */
-async function broadcastTranscript(): Promise<void> {
+async function broadcastToMeetTabs(message: ExtensionMessage): Promise<void> {
   try {
     const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-
-    // Build entries array: final entries + current interim entries
-    const interimAsEntries: TranscriptEntry[] = [];
-    for (const [source, interim] of interimEntries) {
-      interimAsEntries.push({
-        id: `interim-${source}`,
-        speaker: source === 'mic' ? 'You' : 'Interviewer',
-        text: interim.text,
-        timestamp: interim.timestamp,
-        isFinal: false,
-      });
-    }
-
-    // Sort interim by timestamp and append after final entries
-    interimAsEntries.sort((a, b) => a.timestamp - b.timestamp);
-
-    const message: TranscriptUpdateMessage = {
-      type: 'TRANSCRIPT_UPDATE',
-      entries: [...mergedTranscript, ...interimAsEntries],
-    };
-
     for (const tab of tabs) {
       if (tab.id) {
         chrome.tabs.sendMessage(tab.id, message).catch(() => {
@@ -87,8 +66,34 @@ async function broadcastTranscript(): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Failed to broadcast transcript:', error);
+    console.error('Failed to broadcast to Meet tabs:', error);
   }
+}
+
+/**
+ * Broadcast transcript to all Google Meet content scripts.
+ * Includes both final entries and current interim (partial) entries.
+ */
+async function broadcastTranscript(): Promise<void> {
+  // Build entries array: final entries + current interim entries
+  const interimAsEntries: TranscriptEntry[] = [];
+  for (const [source, interim] of interimEntries) {
+    interimAsEntries.push({
+      id: `interim-${source}`,
+      speaker: source === 'mic' ? 'You' : 'Interviewer',
+      text: interim.text,
+      timestamp: interim.timestamp,
+      isFinal: false,
+    });
+  }
+
+  // Sort interim by timestamp and append after final entries
+  interimAsEntries.sort((a, b) => a.timestamp - b.timestamp);
+
+  await broadcastToMeetTabs({
+    type: 'TRANSCRIPT_UPDATE',
+    entries: [...mergedTranscript, ...interimAsEntries],
+  });
 }
 
 /**
@@ -125,14 +130,7 @@ storeReadyPromise.then(() => {
  * Send LLM message to all Google Meet content scripts
  */
 async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage): Promise<void> {
-  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-  for (const tab of tabs) {
-    if (tab.id) {
-      chrome.tabs.sendMessage(tab.id, message).catch(() => {
-        // Ignore - content script might not be loaded on this tab
-      });
-    }
-  }
+  await broadcastToMeetTabs(message);
 }
 
 /**
@@ -143,18 +141,12 @@ async function sendConnectionState(
   state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
   error?: string
 ): Promise<void> {
-  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-  const message: ConnectionStateMessage = {
+  await broadcastToMeetTabs({
     type: 'CONNECTION_STATE',
     service,
     state,
     error,
-  };
-  for (const tab of tabs) {
-    if (tab.id) {
-      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
-    }
-  }
+  });
 }
 
 /**
@@ -850,12 +842,7 @@ async function handleMessage(
 
     case 'CONNECTION_STATE': {
       // Forward connection state to content scripts for UI display
-      const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-      for (const tab of tabs) {
-        if (tab.id) {
-          chrome.tabs.sendMessage(tab.id, message).catch(() => {});
-        }
-      }
+      await broadcastToMeetTabs(message);
       // Only log non-connected states
       if (message.state !== 'connected') {
         console.log('Connection:', message.service, message.state);

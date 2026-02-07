@@ -3,6 +3,13 @@
  */
 
 /**
+ * Speaker identification for transcript entries
+ * - 'Interviewer': Audio from tab (the other person)
+ * - 'You': Audio from microphone (the user)
+ */
+export type TranscriptSpeaker = 'Interviewer' | 'You';
+
+/**
  * Transcript entry from STT service.
  * Represents a single utterance from either the interviewer or the user.
  */
@@ -22,6 +29,11 @@ export interface TranscriptEntry {
 }
 
 /**
+ * Status of LLM response generation
+ */
+export type LLMResponseStatus = 'pending' | 'streaming' | 'complete' | 'error';
+
+/**
  * LLM response structure.
  * Contains both fast hints and complete answers.
  */
@@ -35,7 +47,7 @@ export interface LLMResponse {
   /** Complete detailed answer */
   fullAnswer: string | null;
   /** Current status of the response generation */
-  status: 'pending' | 'streaming' | 'complete' | 'error';
+  status: LLMResponseStatus;
   /** Error message if status is 'error' */
   error?: string;
 }
@@ -74,44 +86,4 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   isMinimized: false,
   minBtnX: -1,
   minBtnY: -1,
-};
-
-/**
- * Mock transcript data for development.
- * Simulates a real interview conversation.
- */
-export const MOCK_TRANSCRIPT: TranscriptEntry[] = [
-  {
-    id: 'mock-1',
-    speaker: 'Interviewer',
-    text: 'Can you explain the difference between var, let, and const in JavaScript?',
-    timestamp: Date.now() - 30000,
-    isFinal: true,
-  },
-  {
-    id: 'mock-2',
-    speaker: 'You',
-    text: "Sure, I'd be happy to explain the differences...",
-    timestamp: Date.now() - 25000,
-    isFinal: true,
-  },
-  {
-    id: 'mock-3',
-    speaker: 'Interviewer',
-    text: 'Great, and how does hoisting work with each of these?',
-    timestamp: Date.now() - 10000,
-    isFinal: true,
-  },
-];
-
-/**
- * Mock LLM response for development.
- * Shows the expected response structure.
- */
-export const MOCK_RESPONSE: LLMResponse = {
-  id: 'mock-resp-1',
-  questionId: 'mock-3',
-  fastHint: 'var is hoisted and initialized to undefined. let/const are hoisted but not initialized (TDZ).',
-  fullAnswer: 'All three declarations are hoisted, but they behave differently. var is hoisted and initialized to undefined, so you can reference it before declaration. let and const are hoisted but remain in the "Temporal Dead Zone" (TDZ) until their declaration line, throwing ReferenceError if accessed early. This is why let/const are considered safer - they catch bugs where you accidentally use a variable before it\'s defined.',
-  status: 'complete',
 };

@@ -118,9 +118,9 @@ export default function LanguageSettings() {
           </svg>
         </div>
 
-        {/* Dropdown */}
+        {/* Dropdown - z-[100] to ensure it's above other UI elements */}
         {isOpen && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+          <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
             {/* Search input */}
             <div className="p-2 border-b border-gray-200">
               <input
@@ -158,10 +158,10 @@ export default function LanguageSettings() {
         )}
       </div>
 
-      {/* Close dropdown when clicking outside */}
+      {/* Backdrop to close dropdown when clicking outside - z-[99] is below dropdown z-[100] */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-[99]"
           onClick={() => {
             setIsOpen(false);
             setSearchTerm('');

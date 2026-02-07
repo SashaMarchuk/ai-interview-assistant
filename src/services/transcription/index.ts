@@ -14,9 +14,17 @@ export type {
   TranscriptCallback,
   Word,
   InputAudioChunk,
+  TokenResponse,
   SessionStartedMessage,
   PartialTranscriptMessage,
   CommittedTranscriptMessage,
   CommittedTranscriptWithTimestampsMessage,
+  FinalTranscriptMessage,
+  VadEventMessage,
+  InternalVadScoreMessage,
+  InternalTentativeTranscriptMessage,
   ErrorMessage,
+  AuthErrorMessage,
 } from './types';
+
+export { isServerMessage, isServerMessageType } from './types';

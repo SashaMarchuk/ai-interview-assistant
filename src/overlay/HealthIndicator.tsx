@@ -6,6 +6,8 @@
  * "Health indicator: Only visible when there are issues").
  */
 
+import { memo } from 'react';
+
 export type HealthIssue = {
   service: string;
   status: 'warning' | 'error' | 'reconnecting';
@@ -54,8 +56,9 @@ function getStatusStyles(status: HealthIssue['status']): {
  * Health indicator component for displaying service status issues.
  * Renders a stacked list of issues at the top of the overlay.
  * Returns null when no issues (clean UI when everything works).
+ * Memoized to prevent re-renders when other overlay state changes.
  */
-export function HealthIndicator({ issues }: HealthIndicatorProps) {
+export const HealthIndicator = memo(function HealthIndicator({ issues }: HealthIndicatorProps) {
   // Don't render when no issues - keeps UI clean
   if (!issues.length) {
     return null;
@@ -91,4 +94,4 @@ export function HealthIndicator({ issues }: HealthIndicatorProps) {
       })}
     </div>
   );
-}
+});

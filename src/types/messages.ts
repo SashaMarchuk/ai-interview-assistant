@@ -1,5 +1,35 @@
 import type { TranscriptEntry } from './transcript';
 
+/**
+ * Services that report connection state
+ */
+export type ConnectionService = 'stt-tab' | 'stt-mic' | 'llm';
+
+/**
+ * Possible connection states
+ */
+export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting' | 'error';
+
+/**
+ * Audio source types for transcription
+ */
+export type AudioSource = 'tab' | 'mic';
+
+/**
+ * LLM model types for streaming responses
+ */
+export type LLMModelType = 'fast' | 'full';
+
+/**
+ * Combined LLM model target (both models)
+ */
+export type LLMModelTarget = LLMModelType | 'both';
+
+/**
+ * LLM request status types
+ */
+export type LLMRequestStatus = 'pending' | 'streaming' | 'complete' | 'error';
+
 // Message types as discriminated union
 export type MessageType =
   | 'PING'
@@ -159,7 +189,7 @@ export interface TranscriptionStoppedMessage extends BaseMessage {
 
 export interface TranscriptionErrorMessage extends BaseMessage {
   type: 'TRANSCRIPTION_ERROR';
-  source: 'tab' | 'mic';
+  source: AudioSource;
   error: string;
   canRetry: boolean;
 }
@@ -167,14 +197,14 @@ export interface TranscriptionErrorMessage extends BaseMessage {
 // Transcript update message interfaces
 export interface TranscriptPartialMessage extends BaseMessage {
   type: 'TRANSCRIPT_PARTIAL';
-  source: 'tab' | 'mic';
+  source: AudioSource;
   text: string;
   timestamp: number;
 }
 
 export interface TranscriptFinalMessage extends BaseMessage {
   type: 'TRANSCRIPT_FINAL';
-  source: 'tab' | 'mic';
+  source: AudioSource;
   text: string;
   timestamp: number;
   id: string;
@@ -200,7 +230,7 @@ export interface LLMRequestMessage extends BaseMessage {
 export interface LLMStreamMessage extends BaseMessage {
   type: 'LLM_STREAM';
   responseId: string;
-  model: 'fast' | 'full';
+  model: LLMModelType;
   token: string;
 }
 
@@ -208,8 +238,8 @@ export interface LLMStreamMessage extends BaseMessage {
 export interface LLMStatusMessage extends BaseMessage {
   type: 'LLM_STATUS';
   responseId: string;
-  model: 'fast' | 'full' | 'both';
-  status: 'pending' | 'streaming' | 'complete' | 'error';
+  model: LLMModelTarget;
+  status: LLMRequestStatus;
   error?: string;
 }
 
@@ -222,9 +252,20 @@ export interface LLMCancelMessage extends BaseMessage {
 // Connection state updates from offscreen to background to content
 export interface ConnectionStateMessage extends BaseMessage {
   type: 'CONNECTION_STATE';
-  service: 'stt-tab' | 'stt-mic' | 'llm';
-  state: 'connected' | 'disconnected' | 'reconnecting' | 'error';
+  service: ConnectionService;
+  state: ConnectionStatus;
   error?: string;
+}
+
+/**
+ * Response from GET_CAPTURE_STATE message
+ * Returns current capture, transcription, and LLM state
+ */
+export interface CaptureStateResponse {
+  isCapturing: boolean;
+  isTranscribing: boolean;
+  hasActiveLLMRequest: boolean;
+  isCaptureStartInProgress: boolean;
 }
 
 // Union type for all messages

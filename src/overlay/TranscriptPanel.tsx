@@ -1,51 +1,112 @@
+import { memo, useMemo } from 'react';
 import { useAutoScroll } from './hooks/useAutoScroll';
-import type { TranscriptEntry } from '../types/transcript';
+import type { TranscriptEntry as TranscriptEntryType } from '../types/transcript';
 
 interface TranscriptPanelProps {
-  entries: TranscriptEntry[];
+  entries: TranscriptEntryType[];
 }
+
+/**
+ * Speaker color map - using object lookup is faster than switch for hot paths
+ */
+const SPEAKER_COLORS: Record<string, string> = {
+  you: 'text-blue-300',
+  me: 'text-blue-300',
+  interviewer: 'text-purple-300',
+};
+const DEFAULT_SPEAKER_COLOR = 'text-gray-300';
 
 /**
  * Returns color classes based on speaker name.
  * Uses light colors for transparent dark background.
  */
 function getSpeakerColor(speaker: string): string {
-  switch (speaker.toLowerCase()) {
-    case 'you':
-    case 'me':
-      return 'text-blue-300';
-    case 'interviewer':
-      return 'text-purple-300';
-    default:
-      return 'text-gray-300';
-  }
+  return SPEAKER_COLORS[speaker.toLowerCase()] || DEFAULT_SPEAKER_COLOR;
 }
 
 /**
- * Format timestamp to HH:MM format.
+ * Cache for formatted timestamps to avoid creating Date objects repeatedly.
+ * Uses a simple LRU-style cache with max 100 entries.
+ */
+const timestampCache = new Map<number, string>();
+const MAX_CACHE_SIZE = 100;
+
+/**
+ * Format timestamp to HH:MM format with caching.
  */
 function formatTimestamp(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
+  const cached = timestampCache.get(timestamp);
+  if (cached) return cached;
+
+  const formatted = new Date(timestamp).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  // Simple cache eviction when full
+  if (timestampCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = timestampCache.keys().next().value;
+    if (firstKey !== undefined) {
+      timestampCache.delete(firstKey);
+    }
+  }
+  timestampCache.set(timestamp, formatted);
+  return formatted;
 }
+
+/**
+ * Memoized transcript entry component to prevent re-renders of unchanged entries.
+ */
+const TranscriptEntryRow = memo(function TranscriptEntryRow({
+  entry,
+}: {
+  entry: TranscriptEntryType;
+}) {
+  const speakerColor = useMemo(() => getSpeakerColor(entry.speaker), [entry.speaker]);
+  const formattedTime = useMemo(() => formatTimestamp(entry.timestamp), [entry.timestamp]);
+
+  return (
+    <div
+      className={`text-sm mb-1.5 last:mb-0 ${
+        !entry.isFinal ? 'opacity-60 italic' : ''
+      }`}
+    >
+      <span className={`font-medium ${speakerColor}`}>
+        {entry.speaker}
+      </span>
+      <span className="text-white/40 ml-1 text-xs">
+        ({formattedTime})
+      </span>
+      <span className="text-white/90 ml-1">
+        {entry.text}
+        {!entry.isFinal && (
+          <span className="text-white/40">...</span>
+        )}
+      </span>
+    </div>
+  );
+});
 
 /**
  * Transcript panel displaying live transcript with speaker labels.
  * Auto-scrolls to bottom when new entries are added.
+ * Uses memoized entry components to prevent unnecessary re-renders.
  */
-export function TranscriptPanel({ entries }: TranscriptPanelProps) {
+export const TranscriptPanel = memo(function TranscriptPanel({ entries }: TranscriptPanelProps) {
   const bottomRef = useAutoScroll(entries.length);
+
+  // Memoize the entry count display
+  const entryCountText = useMemo(() => {
+    if (entries.length === 0) return null;
+    return `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+  }, [entries.length]);
 
   return (
     <div className="flex-shrink-0">
       <div className="text-xs font-medium text-white/60 mb-1 flex items-center justify-between">
         <span>Transcript</span>
-        {entries.length > 0 && (
-          <span className="text-white/40">
-            {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-          </span>
+        {entryCountText && (
+          <span className="text-white/40">{entryCountText}</span>
         )}
       </div>
 
@@ -59,25 +120,7 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps) {
         ) : (
           <>
             {entries.map((entry) => (
-              <div
-                key={entry.id}
-                className={`text-sm mb-1.5 last:mb-0 ${
-                  !entry.isFinal ? 'opacity-60 italic' : ''
-                }`}
-              >
-                <span className={`font-medium ${getSpeakerColor(entry.speaker)}`}>
-                  {entry.speaker}
-                </span>
-                <span className="text-white/40 ml-1 text-xs">
-                  ({formatTimestamp(entry.timestamp)})
-                </span>
-                <span className="text-white/90 ml-1">
-                  {entry.text}
-                  {!entry.isFinal && (
-                    <span className="text-white/40">...</span>
-                  )}
-                </span>
-              </div>
+              <TranscriptEntryRow key={entry.id} entry={entry} />
             ))}
             <div ref={bottomRef} />
           </>
@@ -85,4 +128,4 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps) {
       </div>
     </div>
   );
-}
+});
