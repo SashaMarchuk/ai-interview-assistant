@@ -95,10 +95,11 @@ Plans:
   3. Before each recording session, a dismissable recording consent warning appears reminding the user about audio capture
   4. A user who previously dismissed the per-session warning with "don't show again" does not see it on subsequent sessions
   5. A settings option exists to reset all consent acknowledgments (re-trigger first-time and per-session flows)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md -- Consent state slice + privacy policy content component
+- [ ] 13-02-PLAN.md -- Consent UI gates + settings integration in popup
 
 ## Progress
 
@@ -113,4 +114,4 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
 | 12. Circuit Breaker | v1.1 | 0/TBD | Not started | - |
-| 13. Compliance UI | v1.1 | 0/TBD | Not started | - |
+| 13. Compliance UI | v1.1 | 0/2 | Not started | - |
