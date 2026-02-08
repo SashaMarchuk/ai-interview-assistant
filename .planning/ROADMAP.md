@@ -27,7 +27,7 @@ See MILESTONES.md for details.
 - [x] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM (completed 2026-02-08)
 - [x] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts (completed 2026-02-08)
 - [x] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling (completed 2026-02-08)
-- [ ] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings
+- [x] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings (completed 2026-02-08)
 
 ## Phase Details
 
@@ -98,8 +98,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 13-01-PLAN.md -- Consent state slice + privacy policy content component
-- [ ] 13-02-PLAN.md -- Consent UI gates + settings integration in popup
+- [x] 13-01-PLAN.md -- Consent state slice + privacy policy content component
+- [x] 13-02-PLAN.md -- Consent UI gates + settings integration in popup
 
 ## Progress
 
@@ -114,4 +114,4 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 11. Transcript Resilience | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 12. Circuit Breaker | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 13. Compliance UI | v1.1 | 0/2 | Not started | - |
+| 13. Compliance UI | v1.1 | 2/2 | ✓ Complete | 2026-02-08 |
