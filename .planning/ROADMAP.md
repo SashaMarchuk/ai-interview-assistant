@@ -26,7 +26,7 @@ See MILESTONES.md for details.
 - [x] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition (completed 2026-02-08)
 - [x] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM (completed 2026-02-08)
 - [x] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts (completed 2026-02-08)
-- [ ] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling
+- [x] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling (completed 2026-02-08)
 - [ ] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings
 
 ## Phase Details
@@ -69,7 +69,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [x] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
+- [ ] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
 
 ### Phase 12: Circuit Breaker
 **Goal**: API calls fail gracefully with automatic recovery instead of hammering unresponsive services
@@ -83,7 +83,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 12-01-PLAN.md -- Circuit breaker service with per-provider instances, persistent state, and background.ts integration
+- [x] 12-01-PLAN.md -- Circuit breaker service with per-provider instances, persistent state, and background.ts integration
 
 ### Phase 13: Compliance UI
 **Goal**: Users are informed about privacy implications and consent to recording before audio capture begins
@@ -113,5 +113,5 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 11. Transcript Resilience | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 12. Circuit Breaker | v1.1 | 0/1 | Not started | - |
+| 12. Circuit Breaker | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 13. Compliance UI | v1.1 | 0/2 | Not started | - |
