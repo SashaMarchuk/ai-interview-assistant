@@ -66,10 +66,10 @@ Plans:
   1. During active transcription, killing the service worker (via chrome://serviceworker-internals) and letting it restart preserves all transcript segments captured before termination
   2. Stopping transcription normally flushes the complete transcript to persistent storage with no missing segments
   3. A transcript that was being actively captured survives Chrome's 30-second idle timeout for service workers without data loss
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
 
 ### Phase 12: Circuit Breaker
 **Goal**: API calls fail gracefully with automatic recovery instead of hammering unresponsive services
@@ -112,6 +112,6 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 |-------|-----------|----------------|--------|-----------|
 | 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
+| 11. Transcript Resilience | v1.1 | 0/1 | Not started | - |
 | 12. Circuit Breaker | v1.1 | 0/1 | Not started | - |
 | 13. Compliance UI | v1.1 | 0/2 | Not started | - |
