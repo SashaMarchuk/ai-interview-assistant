@@ -16,9 +16,25 @@ import type {
 import { buildPrompt, resolveProviderForModel, type LLMProvider } from '../src/services/llm';
 import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
+import { TranscriptBuffer, setTranscriptionActive, wasTranscriptionActive } from '../src/services/transcription/transcriptBuffer';
+import { circuitBreakerManager, setStateChangeCallback } from '../src/services/circuitBreaker/circuitBreakerManager';
+import { CircuitState } from '../src/services/circuitBreaker/types';
+
+// Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
+setStateChangeCallback((serviceId, state) => {
+  const service = serviceId === 'elevenlabs' ? 'stt-tab' as const : 'llm' as const;
+
+  if (state === CircuitState.OPEN) {
+    sendConnectionState(service, 'error', 'Service temporarily unavailable');
+  } else if (state === CircuitState.HALF_OPEN) {
+    sendConnectionState(service, 'reconnecting', 'Testing service recovery...');
+  } else if (state === CircuitState.CLOSED) {
+    sendConnectionState(service, 'connected');
+  }
+});
 
 // Module state for transcript management
-let mergedTranscript: TranscriptEntry[] = [];
+const transcriptBuffer = new TranscriptBuffer();
 let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
   new Map();
 
@@ -92,31 +108,17 @@ async function broadcastTranscript(): Promise<void> {
 
   await broadcastToMeetTabs({
     type: 'TRANSCRIPT_UPDATE',
-    entries: [...mergedTranscript, ...interimAsEntries],
+    entries: [...transcriptBuffer.getEntries(), ...interimAsEntries],
   });
 }
 
 /**
  * Add a transcript entry maintaining chronological order.
+ * Delegates insertion to TranscriptBuffer which handles persistence.
  * Broadcasts TRANSCRIPT_UPDATE to content scripts on Google Meet tabs.
  */
 async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
-  // Find correct insertion index to maintain chronological order by timestamp
-  let insertIndex = mergedTranscript.length;
-  for (let i = mergedTranscript.length - 1; i >= 0; i--) {
-    if (mergedTranscript[i].timestamp <= entry.timestamp) {
-      insertIndex = i + 1;
-      break;
-    }
-    if (i === 0) {
-      insertIndex = 0;
-    }
-  }
-
-  // Insert entry at the correct position
-  mergedTranscript.splice(insertIndex, 0, entry);
-
-  // Broadcast updated transcript (logging moved to TRANSCRIPT_FINAL handler)
+  transcriptBuffer.add(entry);
   await broadcastTranscript();
 }
 
@@ -125,8 +127,18 @@ import { encryptionService } from '../src/services/crypto/encryption';
 import { storeReadyPromise } from '../src/store';
 
 encryptionService.initialize()
+  .then(() => circuitBreakerManager.rehydrate())
   .then(() => storeReadyPromise)
-  .then(() => {
+  .then(async () => {
+    // Check if recovering from SW termination during active transcription
+    const wasActive = await wasTranscriptionActive();
+    if (wasActive) {
+      await transcriptBuffer.load();
+      isTranscriptionActive = true;
+      startKeepAlive();
+      console.log('TranscriptBuffer: Recovered', transcriptBuffer.length, 'entries after SW restart');
+    }
+
     storeReady = true;
     console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
     for (const { message, sender, sendResponse } of messageQueue) {
@@ -332,50 +344,68 @@ async function handleLLMRequest(
   // Fire fast model request (if provider available)
   let fastPromise: Promise<void> = Promise.resolve();
   if (fastResolution) {
-    fastPromise = streamWithRetry(
-      {
-        provider: fastResolution.provider,
-        model: fastResolution.model,
-        systemPrompt: prompts.system,
-        userPrompt: prompts.user,
-        maxTokens: 300, // Short response for fast hint
-        apiKey: fastResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
-        onToken: (token) => {
-          sendLLMMessageToMeet({
-            type: 'LLM_STREAM',
-            responseId,
-            model: 'fast',
-            token,
-          });
+    const fastBreaker = circuitBreakerManager.getBreaker(fastResolution.provider.id);
+    if (!fastBreaker.allowRequest()) {
+      // Circuit is OPEN -- reject immediately without network request
+      fastComplete = true;
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'fast',
+        status: 'error',
+        error: `${fastResolution.provider.id} service temporarily unavailable`,
+      });
+    } else {
+      fastPromise = streamWithRetry(
+        {
+          provider: fastResolution.provider,
+          model: fastResolution.model,
+          systemPrompt: prompts.system,
+          userPrompt: prompts.user,
+          maxTokens: 300, // Short response for fast hint
+          apiKey: fastResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
+          onToken: (token) => {
+            sendLLMMessageToMeet({
+              type: 'LLM_STREAM',
+              responseId,
+              model: 'fast',
+              token,
+            });
+          },
+          onComplete: () => {
+            fastComplete = true;
+            console.log('LLM: Fast model complete');
+            sendLLMMessageToMeet({
+              type: 'LLM_STATUS',
+              responseId,
+              model: 'fast',
+              status: 'complete',
+            });
+            checkAllComplete();
+          },
+          onError: (error) => {
+            fastComplete = true;
+            console.error('LLM: Fast model error:', error.message);
+            sendLLMMessageToMeet({
+              type: 'LLM_STATUS',
+              responseId,
+              model: 'fast',
+              status: 'error',
+              error: error.message || 'Unknown error',
+            });
+            checkAllComplete();
+          },
+          abortSignal: abortController.signal,
         },
-        onComplete: () => {
-          fastComplete = true;
-          console.log('LLM: Fast model complete');
-          sendLLMMessageToMeet({
-            type: 'LLM_STATUS',
-            responseId,
-            model: 'fast',
-            status: 'complete',
-          });
-          checkAllComplete();
-        },
-        onError: (error) => {
-          fastComplete = true;
-          console.error('LLM: Fast model error:', error.message);
-          sendLLMMessageToMeet({
-            type: 'LLM_STATUS',
-            responseId,
-            model: 'fast',
-            status: 'error',
-            error: error.message || 'Unknown error',
-          });
-          checkAllComplete();
-        },
-        abortSignal: abortController.signal,
-      },
-      'fast',
-      responseId
-    );
+        'fast',
+        responseId
+      ).then(() => {
+        fastBreaker.recordSuccess();
+      }).catch((error) => {
+        fastBreaker.recordFailure();
+        throw error;
+      });
+    }
   } else {
     fastComplete = true;
     await sendLLMMessageToMeet({
@@ -747,8 +777,9 @@ async function handleMessage(
         await ensureOffscreenDocument();
 
         // Clear transcript state for new session
-        mergedTranscript = [];
+        await transcriptBuffer.clear();
         interimEntries.clear();
+        await setTranscriptionActive(true);
 
         // Read API key from store (SEC-01: never from message)
         const state = useStore.getState();
@@ -767,6 +798,7 @@ async function handleMessage(
         } as InternalStartTranscriptionMessage);
 
         isTranscriptionActive = true;
+        startKeepAlive();
         console.log('Transcription: Starting...');
         return { success: true };
       } catch (error) {
@@ -779,6 +811,9 @@ async function handleMessage(
 
     case 'STOP_TRANSCRIPTION': {
       try {
+        // Flush transcript buffer to storage before stopping
+        await transcriptBuffer.flush();
+
         // Forward to offscreen document to close WebSocket connections
         await chrome.runtime.sendMessage({
           type: 'STOP_TRANSCRIPTION',
@@ -786,6 +821,13 @@ async function handleMessage(
         } as StopTranscriptionMessage & { _fromBackground: true });
 
         isTranscriptionActive = false;
+        await setTranscriptionActive(false);
+
+        // Stop keep-alive only if no active LLM requests
+        if (activeAbortControllers.size === 0) {
+          stopKeepAlive();
+        }
+
         console.log('Transcription: Stopped');
         return { success: true };
       } catch (error) {
