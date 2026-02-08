@@ -110,7 +110,7 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 10. Encryption Layer | v1.1 | 1/1 | Complete | 2026-02-08 |
+| 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
 | 12. Circuit Breaker | v1.1 | 0/TBD | Not started | - |
 | 13. Compliance UI | v1.1 | 0/TBD | Not started | - |
