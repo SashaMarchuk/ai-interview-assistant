@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phases 12 complete, 13 may still be running in parallel
+**Current focus:** Phase 13 Compliance UI in progress (plan 1 of 2 complete)
 
 ## Current Position
 
-Phase: 12 of 13 (Circuit Breaker)
-Plan: 1 of 1 in current phase
-Status: Phase complete
-Last activity: 2026-02-08 -- Completed 12-01-PLAN.md
+Phase: 13 of 13 (Compliance UI)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-08 -- Completed 13-01-PLAN.md
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (30 v1.0 + 4 v1.1)
+- Total plans completed: 35 (30 v1.0 + 5 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -31,13 +31,14 @@ Progress: [████████░░] 80%
 | 10. Encryption Layer | 1/1 | 3min | 3min |
 | 11. Transcript Resilience | 1/1 | 2min | 2min |
 | 12. Circuit Breaker | 1/1 | 4min | 4min |
-| 13. Compliance UI | - | - | - |
+| 13. Compliance UI | 1/2 | 3min | 3min |
 
 **Recent Trend:**
 - 09-01: 4min (message security + queue guard)
 - 10-01: 3min (AES-GCM encryption + storage adapter)
 - 11-01: 2min (transcript buffer + SW recovery)
 - 12-01: 4min (circuit breaker + alarm recovery + background integration)
+- 13-01: 3min (consent state slice + privacy policy component)
 - Trend: Fast execution
 
 *Updated after each plan completion*
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [12-01]: Circuit breaker wraps AROUND streamWithRetry -- retries exhaust before circuit trips
 - [12-01]: State change callback pattern avoids circular imports between manager and background.ts
 - [12-01]: Init chain order: encryption -> circuit breaker rehydrate -> store hydration
+- [13-01]: Plain Tailwind over prose classes -- project lacks @tailwindcss/typography plugin
+- [13-01]: Consent fields NOT reset in onRehydrateStorage to prevent accidental consent loss on popup reopen
 
 ### Pending Todos
 
@@ -74,10 +77,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- None currently -- phase 13 (Compliance UI) remaining
+- None currently -- phase 13-02 (consent UI gates) ready to execute
 
 ## Session Continuity
 
 Last session: 2026-02-08
-Stopped at: Phase 12 complete, Phase 13 may still be running in parallel
-Resume file: .planning/phases/12-circuit-breaker/12-01-SUMMARY.md
+Stopped at: Phase 13 plan 01 complete, plan 02 ready to execute
+Resume file: .planning/phases/13-compliance-ui/13-01-SUMMARY.md
