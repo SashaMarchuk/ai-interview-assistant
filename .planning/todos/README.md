@@ -26,6 +26,23 @@ This directory contains structured todo files for all planned features from v2.0
 
 ## Version Overview
 
+### v1.1: Critical Fixes (6 todos) - Priority: CRITICAL
+**Timeline:** ~3-5 days
+**Status:** MUST FIX BEFORE v2.0
+
+| Todo | Priority | Complexity | Days | Description |
+|------|----------|------------|------|-------------|
+| API Keys in Messages | P0 | Low | 0.5 | Remove API keys from runtime messages |
+| Encrypt API Keys | P0 | Medium | 1-2 | Encrypt API keys in chrome.storage |
+| Privacy Policy | P0 | Low | 0.5-1 | Create privacy policy and compliance docs |
+| Recording Consent | P0 | Low | 0.5-1 | Add consent warnings and legal disclaimers |
+| Store Race Condition | P0 | Low | 0.5 | Fix race condition in background store sync |
+| Transcript Persistence | P0 | Low | 0.5-1 | Save transcript to storage (prevent data loss) |
+
+**CRITICAL:** These are security, privacy, and compliance issues that MUST be fixed before public release.
+
+**Start with:** All 6 todos in parallel (independent fixes) or sequentially in any order.
+
 ### v2.0: Core Features (4 todos) - Priority: HIGH
 **Timeline:** ~12-14 days
 **Status:** Ready to start
@@ -83,6 +100,16 @@ This directory contains structured todo files for all planned features from v2.0
 ### Sequential Order (Recommended)
 
 ```
+v1.1 CRITICAL FIXES (MUST DO FIRST):
+v1.1.1 → API Keys in Messages (0.5 days)
+v1.1.2 → Store Race Condition (0.5 days)
+v1.1.3 → Transcript Persistence (0.5-1 day)
+v1.1.4 → Encrypt API Keys (1-2 days)
+v1.1.5 → Privacy Policy (0.5-1 day)
+v1.1.6 → Recording Consent (0.5-1 day)
+         ↓
+      /polish-milestone (v1.1 complete, ready for public use)
+         ↓
 v2.0.1 → File Personalization (2-3 days)
 v2.0.2 → Cost Tracking (2-3 days)
 v2.0.3 → Reasoning Models (1-2 days)
@@ -158,20 +185,31 @@ v1.0 (DONE ✓)
 .planning/todos/
 ├── README.md (this file)
 ├── pending/
+│   # v1.1 Critical Fixes
+│   ├── 20260208-security-api-keys-messages.md
+│   ├── 20260208-security-encrypt-api-keys.md
+│   ├── 20260208-privacy-policy.md
+│   ├── 20260208-recording-consent.md
+│   ├── 20260208-fix-store-race-condition.md
+│   ├── 20260208-fix-transcript-persistence.md
+│   # v2.0 Core Features
 │   ├── 20260208-file-personalization.md
 │   ├── 20260208-cost-tracking.md
 │   ├── 20260208-reasoning-models.md
 │   ├── 20260208-text-selection-llm.md
 │   ├── 20260208-transcript-editing.md
+│   # v2.1 Polish & Cleanup
 │   ├── 20260208-hotkeys-configuration.md
 │   ├── 20260208-circuit-breaker.md
 │   ├── 20260208-openrouter-removal.md
 │   ├── 20260208-persistent-transcripts.md
 │   ├── 20260208-speaker-merging.md
 │   ├── 20260208-language-autodetect.md
+│   # v3.0 Advanced Features
 │   ├── 20260208-usage-templates.md
 │   ├── 20260208-local-whisper-stt.md
 │   ├── 20260208-openai-whisper-api.md
+│   # v4.0+ Future
 │   └── 20260208-assemblyai-deepgram.md
 └── done/
     └── (completed todos moved here)
@@ -213,14 +251,39 @@ files:
 
 ## Cost Summary (Total Development Time)
 
+- **v1.1:** 3-5 days (critical fixes) = ~5 days
 - **v2.0:** 9-12 days + testing/polish = ~14 days
 - **v2.1:** 7.5-10 days + testing/polish = ~12 days
 - **v3.0:** 14-19 days + testing/polish = ~22 days
 - **v4.0+:** 4-6 days (if needed)
 
-**Total through v3.0:** ~48 days of development
+**Total through v3.0:** ~53 days of development
 
 ## When to Use Each Todo
+
+### v1.1 Critical Fixes (DO FIRST)
+
+#### API Keys in Messages
+**Why critical:** Security vulnerability exposing API keys to interception. MUST fix before public release.
+
+#### Encrypt API Keys
+**Why critical:** API keys stored in plaintext can be stolen by malicious extensions. MUST fix before public release.
+
+#### Privacy Policy
+**Why critical:** Required for Chrome Web Store submission. Legal requirement (GDPR/CCPA).
+
+#### Recording Consent
+**Why critical:** Recording without consent is illegal in many jurisdictions. Potential criminal liability.
+
+#### Store Race Condition
+**Why critical:** Extension fails on first use after install due to race condition. Poor user experience.
+
+#### Transcript Persistence
+**Why critical:** Users lose entire interview transcript if service worker terminates. Data loss bug.
+
+---
+
+### v2.0 Core Features
 
 ### File Personalization
 **Use when:** User wants context-aware LLM responses based on their resume, job descriptions, or project docs.
