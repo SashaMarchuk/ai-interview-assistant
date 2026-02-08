@@ -1,349 +1,331 @@
-# Stack Research: Chrome Extension with Real-Time Audio & LLM Integration
+# Stack Research: v1.1 Security & Reliability Additions
 
-> Research Date: January 2025
-> Target: Chrome MV3 Extension with real-time transcription and LLM assistance
+**Domain:** Chrome MV3 Extension -- Security Hardening, Persistent Storage, Reliability
+**Researched:** 2026-02-08
+**Confidence:** HIGH
 
-## Executive Summary
+## Context
 
-For a Chrome MV3 extension with real-time audio capture, WebSocket-based STT, and streaming LLM integration, the recommended 2025 stack centers on **WXT** as the build framework, **React 19** for UI, **Zustand** for state management, and direct WebSocket connections to ElevenLabs for STT and OpenRouter for LLM streaming.
+This research covers **only the new stack additions** needed for v1.1. The existing stack (WXT 0.19.x, React 18, Tailwind v4, Zustand 4, webext-zustand, Chrome MV3) is validated and unchanged.
 
----
-
-## Recommended Stack
-
-### Core Framework
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `wxt` | ^0.20.11 | Chrome extension framework (Vite-based) |
-| `@wxt-dev/module-react` | latest | WXT React integration module |
-
-**Why WXT over alternatives:**
-- **5x smaller builds** than Plasmo (400KB vs 700KB+ typical)
-- **Superior HMR** that works even for Service Workers
-- **Framework agnostic** but excellent React support
-- **Active maintenance** with v1.0 release imminent
-- **Vite-powered** for modern DX and performance
-
-### UI Layer
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `react` | ^19.2.3 | UI framework |
-| `react-dom` | ^19.2.3 | React DOM bindings |
-| `tailwindcss` | ^4.1.18 | Utility-first CSS |
-| `@tailwindcss/vite` | ^4.1.18 | Vite plugin for Tailwind v4 |
-
-**Why React 19:**
-- Stable release (December 2024, patches through Dec 2025)
-- Native `useSyncExternalStore` for extension state
-- Server Components not needed, but Actions useful for async operations
-- Best ecosystem support for component libraries
-
-**Why Tailwind v4:**
-- 5x faster builds with new engine
-- Zero-config with Vite plugin
-- CSS-in-JS alternative without runtime overhead
-- Native cascade layers prevent style conflicts in content scripts
-
-### State Management
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `zustand` | ^5.0.10 | Lightweight state management |
-| `@webext-pegasus/store-zustand` | latest | Cross-context state sync for extensions |
-
-**Why Zustand v5:**
-- **14M+ weekly downloads** - battle-tested
-- **2KB gzipped** - minimal bundle impact
-- Native React 18+ support via `useSyncExternalStore`
-- No boilerplate - crucial for rapid development
-- Excellent Chrome extension ecosystem support via `@webext-pegasus/store-zustand`
-
-### Audio Processing
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| Native Web Audio API | - | Audio context and routing |
-| Native AudioWorklet | - | Low-latency audio processing |
-| Native MediaRecorder | - | Audio encoding for WebSocket |
-
-**No external packages needed.** Chrome's built-in APIs are sufficient and optimal:
-- `AudioWorklet` for zero-latency processing (replaces deprecated `ScriptProcessorNode`)
-- `MediaRecorder` with `audio/webm; codecs=opus` for ElevenLabs compatibility
-- `AudioContext` for routing captured audio back to speakers
-
-### STT Integration (ElevenLabs)
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| Native WebSocket | - | Direct WebSocket connection to ElevenLabs |
-| `@elevenlabs/elevenlabs-js` | ^2.31.0 | Optional: Node SDK for server-side operations |
-
-**Why native WebSocket over SDK:**
-- **Browser-only requirement** - SDK is Node-focused
-- **Direct control** over connection lifecycle
-- **Lower latency** without SDK abstraction layer
-- **Smaller bundle** - no unnecessary dependencies
-
-ElevenLabs Scribe WebSocket endpoint: `wss://api.elevenlabs.io/v1/speech-to-text/realtime`
-
-### LLM Integration (OpenRouter)
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@openrouter/ai-sdk-provider` | ^1.5.4 | Vercel AI SDK provider for OpenRouter |
-| `ai` | ^6.x | Vercel AI SDK (if using AI SDK approach) |
-
-**Alternative: Direct fetch with streaming:**
-```typescript
-// Native approach - smaller bundle, full control
-const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${apiKey}` },
-  body: JSON.stringify({ model, messages, stream: true })
-});
-const reader = response.body.getReader();
-// Process SSE stream
-```
-
-**Recommendation:** Use native `fetch` with ReadableStream for minimal bundle size unless you need AI SDK's abstractions.
-
-### Build & Development
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `vite` | ^7.3.1 | Build tool (via WXT) |
-| `typescript` | ^5.7.3 | Type safety |
-| `@types/chrome` | latest | Chrome extension type definitions |
+v1.1 adds five capabilities:
+1. WebCrypto API encryption for API keys at rest
+2. IndexedDB for persistent transcript storage
+3. Circuit breaker pattern for API reliability
+4. Privacy/consent UI components
+5. Service worker lifecycle management
 
 ---
 
-## Build System
+## Recommended Stack Additions
 
-### WXT Configuration
+### Core Technologies (All Built-In -- Zero New Dependencies)
+
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| WebCrypto API (`crypto.subtle`) | Built-in (Chrome 37+) | AES-GCM encryption of API keys | Native browser API, available in service workers (without `window.` prefix), zero bundle cost, non-extractable keys for security |
+| IndexedDB API | Built-in (Chrome 24+) | Persistent transcript/session storage | Available in service workers, ~100MB-1GB+ capacity vs chrome.storage.local's 10MB, indexed queries, survives SW termination |
+| `chrome.storage.local` | MV3 built-in | Transcript buffer persistence, session state tracking | Already used; 10MB quota (Chrome 114+), expandable with `unlimitedStorage` permission, survives SW termination |
+| `chrome.storage.session` | MV3 built-in (Chrome 102+) | In-memory ephemeral state (circuit breaker counters) | 10MB quota (Chrome 112+), in-memory only, cleared on browser restart, perfect for transient reliability state |
+| `chrome.alarms` | MV3 built-in | Reliable timers that survive SW termination | Replaces `setTimeout`/`setInterval` which die with the service worker; official Chrome recommendation |
+
+### Supporting Libraries
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `idb` | ^8.0.3 | Promise-based IndexedDB wrapper | Use for all IndexedDB operations -- eliminates callback hell, adds TypeScript generics for type-safe DB schema, ~1.2KB brotli'd |
+
+**Why `idb` is the only new dependency:** The raw IndexedDB API uses IDBRequest callbacks and is error-prone. `idb` wraps every IDBRequest in a Promise, enabling async/await. At 1.2KB brotli'd, the DX improvement far outweighs the bundle cost. Jake Archibald (Chrome team) maintains it; 12M+ weekly downloads; confirmed working in service workers.
+
+### No Other New Dependencies Needed
+
+Everything else uses native browser APIs or custom implementations:
+
+| Capability | Approach | Why No Library |
+|------------|----------|----------------|
+| Circuit breaker | Custom ~100-line TypeScript class | Opossum (9.0.0) is 15KB+ and Node.js-focused; our needs are simple (3 states, counters, timer). Custom implementation is smaller, fully typed, and avoids Node.js compatibility concerns in service worker |
+| Encryption | WebCrypto API directly | Zero-dependency, browser-native, available in SW context. No wrapper needed for our AES-GCM + PBKDF2 pattern |
+| Retry with backoff | Custom ~50-line utility | Trivial to implement; no library justified for exponential backoff + jitter |
+| Consent UI | React components with existing Tailwind | Standard form components; no UI library addition warranted for checkboxes and modals |
+| Keep-alive | `chrome.alarms` + `chrome.runtime.getPlatformInfo` | Built-in APIs; existing pattern already in codebase |
+
+---
+
+## Detailed Technology Decisions
+
+### 1. WebCrypto API for Encryption
+
+**Pattern:** PBKDF2 key derivation + AES-GCM symmetric encryption
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| Key derivation | PBKDF2 with SHA-256 | Standard for deriving keys from non-secret material; OWASP recommended |
+| Symmetric cipher | AES-GCM 256-bit | Authenticated encryption (integrity + confidentiality); Chrome-optimized |
+| IV generation | `crypto.getRandomValues(new Uint8Array(12))` | 96-bit IV per spec; unique per encryption operation |
+| Salt storage | IndexedDB (separate from chrome.storage) | Isolates salt from encrypted data; defense in depth |
+| Key material | `chrome.runtime.id` + browser entropy | Extension ID is stable per installation; combined with salt for uniqueness |
+| Iterations | 100,000 | OWASP minimum; acceptable performance (~50ms init) |
+| Key extractable | `false` | Prevents accidental key exposure via logs or XSS |
+
+**Service Worker Availability:** `crypto.subtle` is available in service workers. Use `crypto.subtle` (NOT `window.crypto.subtle`). Confirmed available since Chrome 37; our minimum is Chrome 116.
+
+**Security Boundaries (honest assessment):**
+- MITIGATES: Plaintext storage exposure, malicious extension reads, debug dumps, backup exports
+- DOES NOT MITIGATE: Memory dumps (keys decrypted in RAM), Chrome DevTools access, code injection by attacker with extension context access
+- This is a significant improvement, not perfect security. Perfect security is impossible in browser extension context.
+
+### 2. IndexedDB for Persistent Transcripts
+
+**Two-tier storage strategy:**
+
+| Tier | Storage | Purpose | Capacity |
+|------|---------|---------|----------|
+| Hot (active session) | `chrome.storage.local` | Debounced transcript buffer during recording | 10MB (plenty for single session) |
+| Cold (history) | IndexedDB via `idb` | Persistent session archive, search, export | ~100MB-1GB+ |
+
+**Why not IndexedDB for hot storage too?** During active recording, `chrome.storage.local` writes are simpler, reset the SW idle timer (keeping it alive), and are atomic. IndexedDB transactions in service workers can be interrupted by SW termination. After session ends, data migrates to IndexedDB for long-term storage.
+
+**IndexedDB Schema Design:**
 
 ```typescript
-// wxt.config.ts
-import { defineConfig } from 'wxt';
-
-export default defineConfig({
-  modules: ['@wxt-dev/module-react'],
-  manifest: {
-    permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage'],
-    host_permissions: ['<all_urls>'],
-  },
-});
-```
-
-### Why WXT over CRXJS
-
-| Aspect | WXT | CRXJS |
-|--------|-----|-------|
-| Maintenance | Active, v1.0 imminent | Seeking maintainers, may archive June 2025 |
-| HMR for Service Workers | Yes | Limited |
-| Build size | ~400KB typical | ~500KB typical |
-| Framework support | React, Vue, Svelte, Solid | React-focused |
-| MV3 support | Full | Full |
-
----
-
-## Chrome Extension Specifics (MV3)
-
-### Offscreen Document Pattern (Critical)
-
-For audio capture in MV3, you **must** use the Offscreen Document pattern:
-
-```
-┌─────────────────────┐     ┌──────────────────────┐
-│   Service Worker    │     │  Offscreen Document  │
-│   (background.ts)   │────▶│   (offscreen.ts)     │
-│                     │     │                      │
-│ - Coordinates state │     │ - tabCapture stream  │
-│ - Manages lifecycle │     │ - AudioWorklet       │
-│ - Message routing   │     │ - WebSocket to STT   │
-└─────────────────────┘     └──────────────────────┘
-          │
-          ▼
-┌─────────────────────┐
-│   Content Script    │
-│   (content.tsx)     │
-│                     │
-│ - Floating overlay  │
-│ - React UI          │
-│ - Shadow DOM        │
-└─────────────────────┘
-```
-
-**Why Offscreen Document:**
-- Service Workers cannot access DOM/Web Audio API
-- Service Workers may be suspended by Chrome
-- All audio processing must happen in DOM-enabled context
-- `chrome.offscreen.createDocument({ reasons: ['USER_MEDIA'], ... })`
-
-### Manifest Permissions Required
-
-```json
-{
-  "permissions": [
-    "tabCapture",
-    "activeTab",
-    "offscreen",
-    "storage"
-  ],
-  "host_permissions": ["<all_urls>"]
+// Typed with idb's DBSchema interface
+interface InterviewDB extends DBSchema {
+  sessions: {
+    key: string;  // UUID
+    value: {
+      id: string;
+      startTime: number;
+      endTime?: number;
+      title: string;
+      platform: string;
+      tags: string[];
+    };
+    indexes: {
+      'by-start': number;
+      'by-tags': string;
+    };
+  };
+  transcripts: {
+    key: string;  // UUID
+    value: {
+      id: string;
+      sessionId: string;
+      speaker: string;
+      text: string;
+      timestamp: number;
+      isFinal: boolean;
+    };
+    indexes: {
+      'by-session': string;
+      'by-timestamp': number;
+    };
+  };
+  responses: {
+    key: string;
+    value: {
+      id: string;
+      sessionId: string;
+      type: 'fast' | 'full';
+      prompt: string;
+      response: string;
+      model: string;
+      timestamp: number;
+    };
+    indexes: {
+      'by-session': string;
+    };
+  };
 }
 ```
 
-### User Gesture Requirement
+**`idb` provides full TypeScript inference** from this schema -- `db.get('sessions', id)` returns correctly typed `Session | undefined`.
 
-`tabCapture` requires explicit user gesture:
-- Extension action click (toolbar button)
-- Popup interaction
-- Cannot be triggered programmatically without user action
+### 3. Circuit Breaker (Custom Implementation)
 
----
+**Why custom over Opossum:**
 
-## Audio Processing Architecture
+| Factor | Custom | Opossum 9.0.0 |
+|--------|--------|----------------|
+| Bundle size | ~1KB | ~15KB+ |
+| Node.js dependencies | None | Has Node.js-specific code |
+| Service Worker safety | Guaranteed | Uncertain (uses timers internally) |
+| TypeScript | First-class | Decent but generic |
+| Complexity needed | 3 states, basic counters | Full event emitter, metrics, fallbacks |
+| Maintenance burden | Low (simple code) | External dependency risk |
 
-### AudioWorklet for Low Latency
-
-```typescript
-// audio-processor.worklet.ts
-class AudioProcessor extends AudioWorkletProcessor {
-  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>) {
-    const input = inputs[0];
-    if (input.length > 0) {
-      // Send audio data to main thread
-      this.port.postMessage({ audioData: input[0] });
-    }
-    return true; // Keep processor alive (required for Chrome)
-  }
-}
-registerProcessor('audio-processor', AudioProcessor);
-```
-
-**Critical:** Always `return true` from `process()` in Chrome, or the processor will be garbage collected.
-
-### Audio Routing for Speaker Playback
-
-When capturing tab audio, sound stops playing to the user. Re-route it:
+**Implementation pattern:**
 
 ```typescript
-const audioContext = new AudioContext();
-const source = audioContext.createMediaStreamSource(mediaStream);
-source.connect(audioContext.destination); // Play to speakers
-// Also connect to AudioWorklet for processing
-```
+// ~100 lines total
+enum CircuitState { CLOSED, OPEN, HALF_OPEN }
 
----
-
-## UI Framework Details
-
-### Shadow DOM for Content Scripts
-
-Isolate extension styles from host page:
-
-```typescript
-// content.tsx
-const host = document.createElement('div');
-const shadow = host.attachShadow({ mode: 'closed' });
-document.body.appendChild(host);
-
-// Inject Tailwind styles into shadow root
-const styles = document.createElement('style');
-styles.textContent = tailwindCSS; // Bundled CSS
-shadow.appendChild(styles);
-
-// Render React into shadow DOM
-createRoot(shadow).render(<App />);
-```
-
-### Floating Overlay with Blur
-
-```css
-.overlay {
-  backdrop-filter: blur(12px);
-  background: rgba(0, 0, 0, 0.7);
-  border-radius: 12px;
-  position: fixed;
-  z-index: 2147483647; /* Max z-index */
+class CircuitBreaker {
+  // State persisted to chrome.storage.session (survives SW restart)
+  // Uses chrome.alarms for OPEN->HALF_OPEN timeout (survives SW termination)
+  // Integrates with existing retry in streamWithRetry()
 }
 ```
 
+**Key design decision:** Use `chrome.alarms` for the OPEN-to-HALF_OPEN timeout instead of `setTimeout`. Service workers can terminate, killing timers. Alarms survive termination and wake the worker.
+
+**Per-service instances:**
+
+| Service | Failure Threshold | Recovery Timeout | Rationale |
+|---------|-------------------|------------------|-----------|
+| OpenAI API | 5 failures | 60 seconds | Higher threshold -- transient errors common |
+| OpenRouter API | 5 failures | 60 seconds | Same pattern as OpenAI |
+| ElevenLabs STT | 3 failures | 30 seconds | Lower threshold -- WebSocket failures are more serious |
+
+### 4. Service Worker Lifecycle Management
+
+**Existing keep-alive (lines 38-52 of background.ts):** Uses `setInterval` + `chrome.runtime.getPlatformInfo()` every 20 seconds. This works but has a gap: if the SW terminates between intervals, the interval is lost.
+
+**Improved pattern for v1.1:**
+
+| Mechanism | Purpose | When Active |
+|-----------|---------|-------------|
+| `chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 })` | Persistent keep-alive that survives SW termination | During active recording/transcription |
+| `chrome.storage.local` writes on each transcript segment | Resets 30-second idle timer + persists data | During active transcription |
+| Active WebSocket connection (ElevenLabs) | Keeps SW alive automatically (Chrome 116+) | During active transcription |
+| Session state in `chrome.storage.local` | Recovery flag for SW restart | Always when session active |
+
+**Recovery flow after unexpected SW termination:**
+
+```
+SW restarts -> check chrome.storage.local for active_session_id
+  -> if found: reload TranscriptBuffer from storage
+  -> resume keep-alive alarm
+  -> notify content script of recovery
+  -> user sees "Session recovered" indicator
+```
+
+### 5. Privacy/Consent Components
+
+**No new UI libraries.** Use existing React 18 + Tailwind v4:
+
+| Component | Approach | Notes |
+|-----------|----------|-------|
+| RecordingWarning modal | React component + `chrome.storage.local` for acknowledgment tracking | Shows once on first use; cannot be bypassed |
+| ConsentDialog | React component with checkbox state | Per-session consent with "don't show again" option |
+| PrivacyNotice | React component + static HTML page | In-app notice + hosted privacy policy page |
+| Data export/deletion | Direct IndexedDB + chrome.storage operations | Settings page with export JSON / delete all |
+
 ---
+
+## Installation
+
+```bash
+# Single new dependency
+npm install idb@^8.0.3
+```
+
+No dev dependency changes. No config changes needed.
+
+### Manifest Permission Addition
+
+```typescript
+// wxt.config.ts - add 'alarms' permission
+permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage', 'scripting', 'alarms'],
+```
+
+The `alarms` permission is the only new manifest permission needed. No new `host_permissions` required.
+
+---
+
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| `idb` (1.2KB) | Raw IndexedDB API | If you have zero tolerance for dependencies; expect 3-4x more code and callback complexity |
+| `idb` (1.2KB) | Dexie.js (~20KB) | If you need reactive queries, live query subscriptions, or offline-first sync. Overkill for our append-and-query pattern |
+| Custom circuit breaker | Opossum 9.0.0 | If you need event emission, Hystrix-compatible metrics, or fallback function orchestration. Our use case is too simple |
+| PBKDF2 + browser fingerprint | User passphrase | If you want stronger key derivation (user knows a secret). Trade-off: user must enter passphrase on every browser launch -- bad UX for interview tool |
+| `chrome.storage.local` buffer | IndexedDB-only | If you want to skip the two-tier approach. Risk: IndexedDB transactions in SW can be interrupted by termination |
+| `chrome.alarms` | `setTimeout`/`setInterval` | Never in service workers for anything that must survive termination |
 
 ## What NOT to Use
 
-### Plasmo Framework
-**Reason:** Maintenance concerns - appears to be in maintenance mode with little active development. Uses outdated Parcel bundler causing compatibility issues. WXT is the clear 2025 choice.
-
-### ScriptProcessorNode
-**Reason:** Deprecated. Runs on main thread causing latency and audio glitches. Use `AudioWorklet` instead.
-
-### Redux / Redux Toolkit
-**Reason:** Overkill for this use case. 15KB+ bundle size vs Zustand's 2KB. Excessive boilerplate for simple state needs.
-
-### Full ElevenLabs Node SDK in browser
-**Reason:** SDK is Node-focused, adds unnecessary bundle size. Use native WebSocket for browser STT.
-
-### CRXJS Vite Plugin
-**Reason:** Project seeking maintainers, may be archived June 2025. WXT has superior HMR and active development.
-
-### React Query / TanStack Query
-**Reason:** Overkill - designed for REST API caching, not real-time WebSocket streams. Native WebSocket + Zustand is simpler and more appropriate.
-
-### Jotai / Recoil
-**Reason:** While valid, Zustand has better Chrome extension ecosystem support via `@webext-pegasus/store-zustand` for cross-context state sync.
-
-### Tailwind v3 CDN
-**Reason:** MV3 forbids external scripts. Use Vite plugin with proper build or local CDN bundle. v4 with Vite plugin is the correct approach.
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Dexie.js for IndexedDB | 20KB+ bundle for features we don't need (reactive queries, sync). Our pattern is simple writes during recording + reads for history | `idb` at 1.2KB -- thin Promise wrapper is sufficient |
+| Opossum circuit breaker | Node.js-focused, 15KB+, uncertain SW compatibility, overkill features | Custom ~100-line TypeScript class |
+| `window.crypto` in service worker | `window` is undefined in service workers; will throw ReferenceError | `crypto.subtle` (global scope) |
+| `localStorage` / `sessionStorage` | Not available in service workers. Will throw errors | `chrome.storage.local`, `chrome.storage.session`, or IndexedDB |
+| `setTimeout` for circuit breaker recovery | Timer dies when service worker terminates | `chrome.alarms` API |
+| Third-party encryption libraries (CryptoJS, tweetnacl) | WebCrypto is built-in, faster (hardware-accelerated), and zero bundle cost | `crypto.subtle` directly |
+| User passphrase for encryption | Bad UX -- users must re-enter every time browser opens. For an interview tool, this friction is unacceptable | Browser fingerprint (extension ID + entropy) with PBKDF2 |
 
 ---
 
-## Confidence Levels
+## Version Compatibility
 
-| Decision | Confidence | Rationale |
-|----------|------------|-----------|
-| **WXT** | **HIGH** | Clear 2025 consensus, active maintenance, superior DX |
-| **React 19** | **HIGH** | Stable, best ecosystem, team familiarity likely |
-| **Zustand 5** | **HIGH** | Perfect fit for extension state, excellent ecosystem |
-| **Tailwind 4** | **HIGH** | Modern CSS, Vite integration, isolation-friendly |
-| **Native WebSocket for STT** | **HIGH** | Smaller bundle, better control for browser use |
-| **Offscreen Document pattern** | **HIGH** | Required by MV3 for audio processing |
-| **AudioWorklet** | **HIGH** | Only viable option for low-latency audio |
-| **OpenRouter direct fetch** | **MEDIUM** | AI SDK adds convenience but bundle size; evaluate tradeoff |
-| **TypeScript 5.7** | **HIGH** | Standard, stable, required for type safety |
-| **Vite 7** | **HIGH** | Powers WXT, modern standard |
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| `idb@^8.0.3` | Chrome 116+ | Uses modern JS features; our `minimum_chrome_version` is already 116 |
+| `idb@^8.0.3` | TypeScript 5.4+ | Full generic type inference for DB schemas |
+| `idb@^8.0.3` | WXT/Vite | ES module, tree-shakeable, no special config needed |
+| WebCrypto AES-GCM | Chrome 37+ | Well within our Chrome 116 minimum |
+| `chrome.storage.session` | Chrome 102+ | 10MB quota available from Chrome 112+ |
+| `chrome.alarms` | Chrome MV3 | Standard MV3 API; no version concerns |
 
 ---
 
-## Version Summary
+## Integration Points with Existing Codebase
 
-```json
-{
-  "wxt": "^0.20.11",
-  "react": "^19.2.3",
-  "react-dom": "^19.2.3",
-  "zustand": "^5.0.10",
-  "tailwindcss": "^4.1.18",
-  "@tailwindcss/vite": "^4.1.18",
-  "typescript": "^5.7.3",
-  "@elevenlabs/elevenlabs-js": "^2.31.0",
-  "@openrouter/ai-sdk-provider": "^1.5.4"
-}
-```
+### Files That Change
+
+| Existing File | Change | Why |
+|---------------|--------|-----|
+| `entrypoints/background.ts` | Add encryption init, transcript buffer, circuit breaker integration, alarm-based keep-alive, session recovery | Central orchestration point |
+| `src/store/chromeStorage.ts` | Encrypt/decrypt API key fields transparently | Storage adapter layer |
+| `src/store/settingsSlice.ts` | Handle encrypted API key read/write | Settings actions |
+| `src/store/types.ts` | Add consent state, session state types | Type definitions |
+| `src/types/messages.ts` | Remove `apiKey` from `StartTranscriptionMessage` | Security: no keys in messages |
+| `wxt.config.ts` | Add `alarms` permission | For reliable timers |
+
+### New Files
+
+| New File | Purpose |
+|----------|---------|
+| `src/services/crypto/encryption.ts` | EncryptionService class (WebCrypto wrapper) |
+| `src/services/storage/transcriptDB.ts` | IndexedDB service using `idb` |
+| `src/services/storage/transcriptBuffer.ts` | Debounced chrome.storage.local buffer |
+| `src/services/api/circuitBreaker.ts` | CircuitBreaker class |
+| `src/services/api/retry.ts` | Retry with exponential backoff utility |
+| `entrypoints/popup/components/RecordingWarning.tsx` | First-time legal warning |
+| `entrypoints/popup/components/ConsentDialog.tsx` | Per-session consent dialog |
+| `entrypoints/popup/components/PrivacyNotice.tsx` | Privacy notice component |
 
 ---
 
-## References
+## Bundle Impact Assessment
 
-- [WXT Framework](https://wxt.dev/) - Next-gen Web Extension Framework
-- [Chrome tabCapture API](https://developer.chrome.com/docs/extensions/reference/api/tabCapture)
-- [Chrome Offscreen Documents](https://developer.chrome.com/docs/extensions/reference/api/offscreen)
-- [ElevenLabs Realtime STT](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime)
-- [OpenRouter Streaming API](https://openrouter.ai/docs/api/reference/streaming)
-- [AudioWorklet MDN](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet)
-- [Chrome Audio Recording Guide](https://developer.chrome.com/docs/extensions/mv3/screen_capture)
-- [Zustand Chrome Extension Integration](https://github.com/nicholasgriffintn/webext-pegasus)
-- [2025 Browser Extension Framework Comparison](https://redreamality.com/blog/the-2025-state-of-browser-extension-frameworks-a-comparative-analysis-of-plasmo-wxt-and-crxjs/)
+| Addition | Size (brotli) | Runtime Cost |
+|----------|--------------|--------------|
+| `idb` library | ~1.2KB | Negligible -- thin wrapper |
+| Custom circuit breaker | ~0.5KB | Negligible -- simple state machine |
+| Custom retry utility | ~0.3KB | Negligible |
+| Encryption service | ~1KB | ~50ms init, ~5-10ms per encrypt/decrypt |
+| Transcript buffer | ~0.5KB | ~1 chrome.storage write per second (debounced) |
+| Privacy/consent components | ~2KB | One-time render |
+| **Total new code** | **~5.5KB** | **Minimal runtime overhead** |
+
+No existing dependencies removed. Net addition: 1 npm package (`idb`), ~5.5KB of custom code.
+
+---
+
+## Sources
+
+- [Chrome MV3 Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- termination rules, keep-alive, state persistence (HIGH confidence)
+- [Chrome Storage API Reference](https://developer.chrome.com/docs/extensions/reference/api/storage) -- quota limits 10MB local/session, unlimitedStorage (HIGH confidence)
+- [Longer Extension SW Lifetimes](https://developer.chrome.com/blog/longer-esw-lifetimes) -- Chrome 110+ improvements, idle timer resets (HIGH confidence)
+- [Chrome Storage and Cookies Guide](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies) -- IndexedDB available in SW, shared across contexts (HIGH confidence)
+- [WebCrypto API MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) -- availability in workers, AES-GCM, PBKDF2 specs (HIGH confidence)
+- [idb GitHub](https://github.com/jakearchibald/idb) -- v8.0.3, 1.2KB brotli'd, 12M+ weekly downloads (HIGH confidence)
+- [Chromium Extensions Group: WebCrypto in MV3 SW](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/VCXF9rZXr5Y) -- confirmed available, use without `window.` prefix (HIGH confidence)
+- [Microsoft Accessibility Insights MV3 Migration](https://devblogs.microsoft.com/engineering-at-microsoft/learnings-from-migrating-accessibility-insights-for-web-to-chromes-manifest-v3/) -- IndexedDB persistence patterns in MV3 (MEDIUM confidence)
+- [Circuit Breaker Pattern (Martin Fowler)](https://martinfowler.com/bliki/CircuitBreaker.html) -- canonical pattern description (HIGH confidence)
+
+---
+*Stack research for: AI Interview Assistant v1.1 Security & Reliability*
+*Researched: 2026-02-08*
