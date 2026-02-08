@@ -23,7 +23,7 @@ See MILESTONES.md for details.
 - Integer phases (9, 10, 11, 12, 13): Planned milestone work
 - Decimal phases (e.g., 10.1): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition
+- [x] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition (completed 2026-02-08)
 - [ ] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM
 - [ ] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts
 - [ ] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling
@@ -42,7 +42,7 @@ See MILESTONES.md for details.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 09-01-PLAN.md -- Remove API keys from messages + queue guard for store hydration
+- [x] 09-01-PLAN.md -- Remove API keys from messages + queue guard for store hydration
 
 ### Phase 10: Encryption Layer
 **Goal**: API keys stored in chrome.storage.local are encrypted at rest, unreadable without the derived decryption key, with safe migration from plaintext
@@ -109,7 +109,7 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 9. Security Foundation | v1.1 | 0/TBD | Not started | - |
+| 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 10. Encryption Layer | v1.1 | 0/TBD | Not started | - |
 | 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
 | 12. Circuit Breaker | v1.1 | 0/TBD | Not started | - |
