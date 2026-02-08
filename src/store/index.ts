@@ -3,6 +3,7 @@
  *
  * Main store combining settings and templates slices with:
  * - Chrome storage persistence via persist middleware
+ * - Transparent encryption of API keys at rest (AES-GCM-256)
  * - Cross-context synchronization via webext-zustand
  * - Automatic default template seeding on first install
  */
@@ -12,7 +13,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { wrapStore } from 'webext-zustand';
 
 import type { StoreState } from './types';
-import { chromeStorage } from './chromeStorage';
+import { encryptedChromeStorage } from '../services/crypto/encryptedStorage';
 import { createSettingsSlice } from './settingsSlice';
 import { createTemplatesSlice } from './templatesSlice';
 
@@ -20,7 +21,7 @@ import { createTemplatesSlice } from './templatesSlice';
  * Combined Zustand store with persistence
  *
  * Features:
- * - Persists to chrome.storage.local
+ * - Persists to chrome.storage.local with encrypted API keys (AES-GCM-256)
  * - Syncs across popup, content script, and service worker
  * - Seeds default templates on first install
  */
@@ -32,7 +33,7 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'ai-interview-settings',
-      storage: createJSONStorage(() => chromeStorage),
+      storage: createJSONStorage(() => encryptedChromeStorage),
       // Only persist data, not actions
       partialize: (state) => ({
         apiKeys: state.apiKeys,

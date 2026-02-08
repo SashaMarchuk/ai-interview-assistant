@@ -12,7 +12,7 @@
  */
 
 import type { StateStorage } from 'zustand/middleware';
-import { chromeStorage } from '@/store/chromeStorage';
+import { chromeStorage } from '../../store/chromeStorage';
 import { encryptionService } from './encryption';
 
 /** API key field names that should be encrypted */

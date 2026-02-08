@@ -120,21 +120,28 @@ async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
   await broadcastTranscript();
 }
 
-// Initialize store in service worker - required for webext-zustand cross-context sync
+// Initialize encryption before store rehydration, then initialize store
+import { encryptionService } from '../src/services/crypto/encryption';
 import { storeReadyPromise } from '../src/store';
-storeReadyPromise.then(() => {
-  storeReady = true;
-  console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
-  for (const { message, sender, sendResponse } of messageQueue) {
-    handleMessage(message, sender)
-      .then(sendResponse)
-      .catch((error) => {
-        console.error('Queued message handling error:', error);
-        sendResponse({ error: error.message });
-      });
-  }
-  messageQueue.length = 0;
-});
+
+encryptionService.initialize()
+  .then(() => storeReadyPromise)
+  .then(() => {
+    storeReady = true;
+    console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
+    for (const { message, sender, sendResponse } of messageQueue) {
+      handleMessage(message, sender)
+        .then(sendResponse)
+        .catch((error) => {
+          console.error('Queued message handling error:', error);
+          sendResponse({ error: error.message });
+        });
+    }
+    messageQueue.length = 0;
+  })
+  .catch((error) => {
+    console.error('Initialization failed:', error);
+  });
 
 // Safety net: if store fails to hydrate within 10 seconds, drain queue with errors
 setTimeout(() => {
