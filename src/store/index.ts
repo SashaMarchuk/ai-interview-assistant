@@ -1,7 +1,7 @@
 /**
  * Combined Zustand Store
  *
- * Main store combining settings and templates slices with:
+ * Main store combining settings, templates, and consent slices with:
  * - Chrome storage persistence via persist middleware
  * - Transparent encryption of API keys at rest (AES-GCM-256)
  * - Cross-context synchronization via webext-zustand
@@ -16,6 +16,7 @@ import type { StoreState } from './types';
 import { encryptedChromeStorage } from '../services/crypto/encryptedStorage';
 import { createSettingsSlice } from './settingsSlice';
 import { createTemplatesSlice } from './templatesSlice';
+import { createConsentSlice } from './consentSlice';
 
 /**
  * Combined Zustand store with persistence
@@ -30,6 +31,7 @@ export const useStore = create<StoreState>()(
     (...a) => ({
       ...createSettingsSlice(...a),
       ...createTemplatesSlice(...a),
+      ...createConsentSlice(...a),
     }),
     {
       name: 'ai-interview-settings',
@@ -43,6 +45,9 @@ export const useStore = create<StoreState>()(
         captureMode: state.captureMode,
         templates: state.templates,
         activeTemplateId: state.activeTemplateId,
+        privacyPolicyAccepted: state.privacyPolicyAccepted,
+        privacyPolicyAcceptedAt: state.privacyPolicyAcceptedAt,
+        recordingConsentDismissedPermanently: state.recordingConsentDismissedPermanently,
       }),
       // Seed default templates after rehydration if none exist
       onRehydrateStorage: () => (state) => {
@@ -107,6 +112,7 @@ export type {
   HotkeyAction,
   SettingsSlice,
   TemplatesSlice,
+  ConsentSlice,
   TemplateUpdate,
   NewTemplate,
 } from './types';
