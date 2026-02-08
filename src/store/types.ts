@@ -122,6 +122,28 @@ export interface TemplatesSlice {
 }
 
 /**
+ * Consent slice state and actions
+ *
+ * Manages privacy policy acceptance, per-session recording consent,
+ * and consent reset functionality. Fields are persisted via partialize
+ * so consent survives popup close/reopen.
+ */
+export interface ConsentSlice {
+  /** Whether user has accepted the privacy policy (first-time gate) */
+  privacyPolicyAccepted: boolean;
+  /** ISO timestamp when privacy policy was accepted */
+  privacyPolicyAcceptedAt: string | null;
+  /** Whether user permanently dismissed per-session recording consent */
+  recordingConsentDismissedPermanently: boolean;
+  /** Accept the privacy policy (sets accepted=true with timestamp) */
+  acceptPrivacyPolicy: () => void;
+  /** Permanently dismiss the per-session recording consent */
+  dismissRecordingConsentPermanently: () => void;
+  /** Reset all consent acknowledgments (re-trigger all flows) */
+  resetAllConsents: () => void;
+}
+
+/**
  * Combined store state with all slices
  */
-export type StoreState = SettingsSlice & TemplatesSlice;
+export type StoreState = SettingsSlice & TemplatesSlice & ConsentSlice;
