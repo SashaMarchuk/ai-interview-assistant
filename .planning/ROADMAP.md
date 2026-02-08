@@ -80,10 +80,10 @@ Plans:
   2. After the recovery timeout elapses, the circuit automatically transitions to HALF_OPEN and allows a test request through
   3. Circuit breaker state persists across service worker restarts -- killing the service worker while circuit is OPEN does not reset it to CLOSED
   4. When the failing service recovers, the circuit transitions back to CLOSED and normal operation resumes automatically
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md -- Circuit breaker service with per-provider instances, persistent state, and background.ts integration
 
 ### Phase 13: Compliance UI
 **Goal**: Users are informed about privacy implications and consent to recording before audio capture begins
@@ -113,5 +113,5 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
-| 12. Circuit Breaker | v1.1 | 0/TBD | Not started | - |
+| 12. Circuit Breaker | v1.1 | 0/1 | Not started | - |
 | 13. Compliance UI | v1.1 | 0/2 | Not started | - |
