@@ -39,18 +39,20 @@ This directory contains structured todo files for all planned features from v2.0
 
 **Start with:** File Personalization or Cost Tracking (can be parallel)
 
-### v2.1: Polish & Cleanup (4 todos) - Priority: MEDIUM
-**Timeline:** ~5-7 days
+### v2.1: Polish & Cleanup (6 todos) - Priority: MEDIUM
+**Timeline:** ~8-11 days
 **Status:** After v2.0
 
 | Todo | Priority | Complexity | Days | Description |
 |------|----------|------------|------|-------------|
 | Hotkeys Configuration | P1 | Medium | 2 | Full hotkey customization with chords |
+| Circuit Breaker | P1 | Medium | 1-2 | API retry logic with exponential backoff |
 | OpenRouter Removal | P1 | Low | 1 | Remove unused LLM provider |
+| Persistent Transcripts | P2 | Medium | 2-3 | IndexedDB storage for session history |
 | Speaker Merging | P2 | Low | 0.5-1 | Verify/fix automatic speaker merging |
 | Language Auto-detect | P2 | Low | 1 | Auto-detect language from transcription |
 
-**Start with:** Hotkeys Configuration (enables better v2.0 UX)
+**Start with:** Hotkeys Configuration (enables better v2.0 UX) or Circuit Breaker (reliability)
 
 ### v3.0: Advanced Features (3 todos) - Priority: MEDIUM
 **Timeline:** ~15-20 days
@@ -89,9 +91,11 @@ v2.0.4 → Text Selection + Editing (4 days)
       /polish-milestone (v2.0 complete)
          ↓
 v2.1.1 → Hotkeys Configuration (2 days)
-v2.1.2 → OpenRouter Removal (1 day)
-v2.1.3 → Speaker Merging (0.5-1 day)
-v2.1.4 → Language Auto-detect (1 day)
+v2.1.2 → Circuit Breaker (1-2 days)
+v2.1.3 → OpenRouter Removal (1 day)
+v2.1.4 → Persistent Transcripts (2-3 days)
+v2.1.5 → Speaker Merging (0.5-1 day)
+v2.1.6 → Language Auto-detect (1 day)
          ↓
       /polish-milestone (v2.1 complete)
          ↓
@@ -160,7 +164,9 @@ v1.0 (DONE ✓)
 │   ├── 20260208-text-selection-llm.md
 │   ├── 20260208-transcript-editing.md
 │   ├── 20260208-hotkeys-configuration.md
+│   ├── 20260208-circuit-breaker.md
 │   ├── 20260208-openrouter-removal.md
+│   ├── 20260208-persistent-transcripts.md
 │   ├── 20260208-speaker-merging.md
 │   ├── 20260208-language-autodetect.md
 │   ├── 20260208-usage-templates.md
@@ -208,11 +214,11 @@ files:
 ## Cost Summary (Total Development Time)
 
 - **v2.0:** 9-12 days + testing/polish = ~14 days
-- **v2.1:** 4.5-5 days + testing/polish = ~7 days
+- **v2.1:** 7.5-10 days + testing/polish = ~12 days
 - **v3.0:** 14-19 days + testing/polish = ~22 days
 - **v4.0+:** 4-6 days (if needed)
 
-**Total through v3.0:** ~43 days of development
+**Total through v3.0:** ~48 days of development
 
 ## When to Use Each Todo
 
@@ -231,8 +237,14 @@ files:
 ### Hotkeys Configuration
 **Use when:** User is a power user who wants full control over keyboard shortcuts.
 
+### Circuit Breaker
+**Use when:** Need reliable API handling with automatic retry logic and failure recovery for all external services.
+
 ### OpenRouter Removal
 **Use when:** Ready to simplify codebase and remove unused provider.
+
+### Persistent Transcripts
+**Use when:** User wants to keep session history, search past interviews, and export transcripts for review.
 
 ### Speaker Merging
 **Use when:** Verifying transcript readability improvements.
