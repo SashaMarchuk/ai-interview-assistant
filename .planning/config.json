@@ -7,6 +7,11 @@
   "mode": "yolo",
   "depth": "comprehensive",
   "parallelization": true,
+  "parallel_phases": {
+    "enabled": true,
+    "method": "separate_terminals",
+    "notes": "User prefers running independent phases in parallel via separate Claude Code terminals on separate branches. Only parallelize phases with no shared file dependencies."
+  },
   "commit_docs": true,
   "model_profile": "quality",
   "workflow": {

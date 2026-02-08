@@ -57,19 +57,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | — | Pending |
-| SEC-02 | — | Pending |
-| REL-01 | — | Pending |
-| REL-02 | — | Pending |
-| REL-03 | — | Pending |
-| COMP-01 | — | Pending |
-| COMP-02 | — | Pending |
+| SEC-01 | Phase 9: Security Foundation | Pending |
+| SEC-02 | Phase 10: Encryption Layer | Pending |
+| REL-01 | Phase 9: Security Foundation | Pending |
+| REL-02 | Phase 11: Transcript Resilience | Pending |
+| REL-03 | Phase 12: Circuit Breaker | Pending |
+| COMP-01 | Phase 13: Compliance UI | Pending |
+| COMP-02 | Phase 13: Compliance UI | Pending |
 
 **Coverage:**
 - v1.1 requirements: 7 total
-- Mapped to phases: 0
-- Unmapped: 7 (pending roadmap creation)
+- Mapped to phases: 7
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-08*
-*Last updated: 2026-02-08 after initial definition*
+*Last updated: 2026-02-08 after roadmap creation*

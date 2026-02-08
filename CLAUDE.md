@@ -43,6 +43,14 @@ Each step must:
 2. Commit changes
 3. Only then proceed to next step
 
+### Phase Parallelization
+
+**Prefer parallel execution** of independent phases via separate Claude Code terminals on separate branches. When phases have no shared file dependencies, run them simultaneously.
+
+Example for v1.1: After Phase 10 (Encryption) completes, Phases 11, 12, 13 can run in parallel — each in its own terminal and branch.
+
+**Exception:** `/polish-milestone` steps are always sequential (shared files).
+
 ### GSD Workflow Integration
 
 ```
