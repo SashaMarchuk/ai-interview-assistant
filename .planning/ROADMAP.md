@@ -53,10 +53,10 @@ Plans:
   2. The extension continues to function normally after encryption migration -- all previously saved API keys still work for API calls
   3. Restarting Chrome (full browser restart) does not break decryption -- keys remain accessible to the extension
   4. Encryption uses WebCrypto AES-GCM with PBKDF2 key derivation from chrome.runtime.id + stored salt (not browser fingerprints or user agent)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md -- Encrypt API keys at rest with AES-GCM + PBKDF2 and wire init chain
 
 ### Phase 11: Transcript Resilience
 **Goal**: Active transcript data survives service worker termination -- no data loss during interviews
