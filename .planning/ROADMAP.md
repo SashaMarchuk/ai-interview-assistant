@@ -39,10 +39,10 @@ See MILESTONES.md for details.
   1. Opening DevTools and inspecting chrome.runtime messages shows zero API key values in any message payload
   2. Sending a message to the background script immediately after service worker wakes up (cold start) results in correct handling -- no dropped or failed messages
   3. The background script reads API keys directly from the Zustand store, never from incoming message data
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md -- Remove API keys from messages + queue guard for store hydration
 
 ### Phase 10: Encryption Layer
 **Goal**: API keys stored in chrome.storage.local are encrypted at rest, unreadable without the derived decryption key, with safe migration from plaintext
