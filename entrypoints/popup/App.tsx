@@ -291,7 +291,6 @@ function App() {
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'START_TRANSCRIPTION',
-        apiKey: apiKeys.elevenLabs,
         languageCode: transcriptionLanguage || undefined,
       } as ExtensionMessage);
 

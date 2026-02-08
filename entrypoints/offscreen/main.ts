@@ -7,7 +7,7 @@ import type {
   TabStreamIdMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
-  StartTranscriptionMessage,
+  InternalStartTranscriptionMessage,
   StopTranscriptionMessage,
   TranscriptionStartedMessage,
   TranscriptionStoppedMessage,
@@ -497,7 +497,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Handle START_TRANSCRIPTION
-  if (isMessage<StartTranscriptionMessage>(message, 'START_TRANSCRIPTION')) {
+  if (isMessage<InternalStartTranscriptionMessage>(message, 'START_TRANSCRIPTION')) {
     // Guard against duplicate messages (popup and background both send this)
     if (transcriptionStarting || transcriptionApiKey) {
       sendResponse({ success: true, alreadyStarting: true });
