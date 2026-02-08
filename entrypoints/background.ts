@@ -5,7 +5,7 @@ import type {
   StopCaptureMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
-  StartTranscriptionMessage,
+  InternalStartTranscriptionMessage,
   StopTranscriptionMessage,
   TranscriptUpdateMessage,
   GetCaptureStateMessage,
@@ -743,13 +743,21 @@ async function handleMessage(
         mergedTranscript = [];
         interimEntries.clear();
 
-        // Forward to offscreen document to initiate WebSocket connections
+        // Read API key from store (SEC-01: never from message)
+        const state = useStore.getState();
+        const elevenLabsKey = state.apiKeys.elevenLabs;
+
+        if (!elevenLabsKey) {
+          return { success: false, error: 'ElevenLabs API key not configured' };
+        }
+
+        // Forward to offscreen document with API key from store (internal message)
         await chrome.runtime.sendMessage({
           type: 'START_TRANSCRIPTION',
-          apiKey: message.apiKey,
+          apiKey: elevenLabsKey,
           languageCode: message.languageCode,
           _fromBackground: true,
-        } as StartTranscriptionMessage & { _fromBackground: true });
+        } as InternalStartTranscriptionMessage);
 
         isTranscriptionActive = true;
         console.log('Transcription: Starting...');
