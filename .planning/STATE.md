@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-08)
 ## Current Position
 
 Phase: 9 of 13 (Security Foundation)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-08 -- Roadmap created for v1.1 Security & Reliability milestone
+Plan: 1 of 1 in current phase
+Status: Phase complete
+Last activity: 2026-02-08 -- Completed 09-01-PLAN.md
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30 (v1.0)
+- Total plans completed: 31 (30 v1.0 + 1 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -27,15 +27,15 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 9. Security Foundation | - | - | - |
+| 9. Security Foundation | 1/1 | 4min | 4min |
 | 10. Encryption Layer | - | - | - |
 | 11. Transcript Resilience | - | - | - |
 | 12. Circuit Breaker | - | - | - |
 | 13. Compliance UI | - | - | - |
 
 **Recent Trend:**
-- v1.1 not yet started
-- Trend: N/A
+- 09-01: 4min (message security + queue guard)
+- Trend: Fast start
 
 *Updated after each plan completion*
 
@@ -50,6 +50,9 @@ Recent decisions affecting current work:
 - [v1.1 init]: Message listener must register synchronously -- queue guard pattern for race condition (NOT delayed registration)
 - [v1.1 init]: Only new dependency: idb@^8.0.3 (1.2KB) -- everything else uses native Chrome APIs
 - [v1.1 init]: Salt stored in chrome.storage.local (simpler than IndexedDB for single value)
+- [09-01]: Widened isMessage type guard constraint to { type: string } to support internal message types without union pollution
+- [09-01]: InternalStartTranscriptionMessage kept out of ExtensionMessage union -- internal-only type
+- [09-01]: webext-zustand filter must be first check in onMessage listener to prevent hydration deadlock
 
 ### Pending Todos
 
@@ -63,5 +66,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-08
-Stopped at: Roadmap created, ready to plan Phase 9
-Resume file: None
+Stopped at: Phase 9 complete, ready for Phase 10 (Encryption Layer)
+Resume file: .planning/phases/09-security-foundation/09-01-SUMMARY.md
