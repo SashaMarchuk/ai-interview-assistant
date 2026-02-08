@@ -8,11 +8,14 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
 import { useStore } from '../../src/store';
+import { PrivacyConsentModal } from '../../src/components/consent/PrivacyConsentModal';
+import { RecordingConsentWarning } from '../../src/components/consent/RecordingConsentWarning';
 import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
 import ModelSettings from '../../src/components/settings/ModelSettings';
 import HotkeySettings from '../../src/components/settings/HotkeySettings';
 import BlurSettings from '../../src/components/settings/BlurSettings';
 import LanguageSettings from '../../src/components/settings/LanguageSettings';
+import ConsentSettings from '../../src/components/settings/ConsentSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
 type Tab = 'capture' | 'settings' | 'templates';
@@ -129,6 +132,15 @@ function App() {
   const apiKeys = useStore((state) => state.apiKeys);
   const transcriptionLanguage = useStore((state) => state.transcriptionLanguage);
 
+  // Consent state from store
+  const privacyPolicyAccepted = useStore((state) => state.privacyPolicyAccepted);
+  const acceptPrivacyPolicy = useStore((state) => state.acceptPrivacyPolicy);
+  const recordingConsentDismissed = useStore((state) => state.recordingConsentDismissedPermanently);
+  const dismissRecordingConsentPermanently = useStore((state) => state.dismissRecordingConsentPermanently);
+
+  // Recording consent warning local state
+  const [showRecordingConsent, setShowRecordingConsent] = useState(false);
+
   /**
    * Open the permissions page to grant microphone access
    */
@@ -155,10 +167,10 @@ function App() {
   }
 
   /**
-   * Start both tab and microphone capture
+   * Start both tab and microphone capture (internal implementation).
    * Proceeds even without API keys (graceful degradation per CONTEXT.md)
    */
-  async function handleStartCapture() {
+  async function doStartCapture() {
     // Use ref for synchronous check - React state updates are async and can race
     if (captureOperationInFlight.current) {
       return;
@@ -230,6 +242,36 @@ function App() {
       // Always clear the in-flight flag when operation completes
       captureOperationInFlight.current = false;
     }
+  }
+
+  /**
+   * Start capture with recording consent gate.
+   * Shows recording consent warning if not permanently dismissed.
+   */
+  async function handleStartCapture() {
+    if (!recordingConsentDismissed) {
+      setShowRecordingConsent(true);
+      return;
+    }
+    await doStartCapture();
+  }
+
+  /**
+   * Handle user proceeding from recording consent warning.
+   */
+  function handleRecordingConsentProceed(dontShowAgain: boolean) {
+    if (dontShowAgain) {
+      dismissRecordingConsentPermanently();
+    }
+    setShowRecordingConsent(false);
+    doStartCapture();
+  }
+
+  /**
+   * Handle user canceling the recording consent warning.
+   */
+  function handleRecordingConsentCancel() {
+    setShowRecordingConsent(false);
   }
 
   /**
@@ -324,6 +366,11 @@ function App() {
       console.error('Stop transcription error:', errorMessage);
       setTranscriptionStatus('Error: ' + errorMessage);
     }
+  }
+
+  // Blocking privacy consent gate - replaces all popup content until accepted
+  if (!privacyPolicyAccepted) {
+    return <PrivacyConsentModal onAccept={acceptPrivacyPolicy} />;
   }
 
   return (
@@ -434,6 +481,14 @@ function App() {
                 </button>
               </div>
             </section>
+
+            {/* Recording Consent Warning - shown when user clicks Start without prior dismissal */}
+            {showRecordingConsent && (
+              <RecordingConsentWarning
+                onProceed={handleRecordingConsentProceed}
+                onCancel={handleRecordingConsentCancel}
+              />
+            )}
 
             {/* API Key Warnings Section - non-blocking, informational */}
             {(!apiKeys.elevenLabs || (!apiKeys.openRouter && !apiKeys.openAI)) && (
@@ -566,6 +621,12 @@ function App() {
             <section>
               <h2 className="text-sm font-semibold text-gray-900 mb-3">Appearance</h2>
               <BlurSettings />
+            </section>
+
+            {/* Privacy & Consent Section */}
+            <section>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Privacy & Consent</h2>
+              <ConsentSettings />
             </section>
           </div>
         )}
