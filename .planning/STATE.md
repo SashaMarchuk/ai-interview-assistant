@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phases 11/12/13 running in parallel
+**Current focus:** Phases 12 complete, 13 may still be running in parallel
 
 ## Current Position
 
-Phase: 11 of 13 (Transcript Resilience)
+Phase: 12 of 13 (Circuit Breaker)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-08 -- Completed 11-01-PLAN.md
+Last activity: 2026-02-08 -- Completed 12-01-PLAN.md
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 33 (30 v1.0 + 3 v1.1)
+- Total plans completed: 34 (30 v1.0 + 4 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -30,13 +30,14 @@ Progress: [██████░░░░] 60%
 | 9. Security Foundation | 1/1 | 4min | 4min |
 | 10. Encryption Layer | 1/1 | 3min | 3min |
 | 11. Transcript Resilience | 1/1 | 2min | 2min |
-| 12. Circuit Breaker | - | - | - |
+| 12. Circuit Breaker | 1/1 | 4min | 4min |
 | 13. Compliance UI | - | - | - |
 
 **Recent Trend:**
 - 09-01: 4min (message security + queue guard)
 - 10-01: 3min (AES-GCM encryption + storage adapter)
 - 11-01: 2min (transcript buffer + SW recovery)
+- 12-01: 4min (circuit breaker + alarm recovery + background integration)
 - Trend: Fast execution
 
 *Updated after each plan completion*
@@ -61,6 +62,11 @@ Recent decisions affecting current work:
 - [11-01]: Direct chrome.storage.local writes for transcript buffer (not through encryption adapter -- ephemeral session data)
 - [11-01]: 2-second debounce window for transcript persistence balances write frequency vs data loss risk
 - [11-01]: Recovery flag (_transcription_active) checked during init chain after store hydration
+- [12-01]: chrome.alarms for circuit recovery timeout (not setTimeout) -- survives SW restarts
+- [12-01]: chrome.storage.session for circuit state persistence -- cleared on browser close
+- [12-01]: Circuit breaker wraps AROUND streamWithRetry -- retries exhaust before circuit trips
+- [12-01]: State change callback pattern avoids circular imports between manager and background.ts
+- [12-01]: Init chain order: encryption -> circuit breaker rehydrate -> store hydration
 
 ### Pending Todos
 
@@ -68,10 +74,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- None currently -- phases 11/12/13 executing in parallel
+- None currently -- phase 13 (Compliance UI) remaining
 
 ## Session Continuity
 
 Last session: 2026-02-08
-Stopped at: Phase 11 complete, Phases 12/13 may still be running in parallel
-Resume file: .planning/phases/11-transcript-resilience/11-01-SUMMARY.md
+Stopped at: Phase 12 complete, Phase 13 may still be running in parallel
+Resume file: .planning/phases/12-circuit-breaker/12-01-SUMMARY.md
