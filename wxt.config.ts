@@ -19,7 +19,7 @@ export default defineConfig({
     name: 'AI Interview Assistant',
     version: '0.1.0',
     description: 'Real-time AI assistance for technical interviews',
-    permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage', 'scripting'],
+    permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage', 'scripting', 'alarms'],
     host_permissions: ['https://meet.google.com/*'],
     content_security_policy: {
       extension_pages:
