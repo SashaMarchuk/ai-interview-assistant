@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phase 10 - Encryption Layer (complete)
+**Current focus:** Phases 11/12/13 running in parallel
 
 ## Current Position
 
-Phase: 10 of 13 (Encryption Layer)
+Phase: 11 of 13 (Transcript Resilience)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-08 -- Completed 10-01-PLAN.md
+Last activity: 2026-02-08 -- Completed 11-01-PLAN.md
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32 (30 v1.0 + 2 v1.1)
+- Total plans completed: 33 (30 v1.0 + 3 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -29,13 +29,14 @@ Progress: [██░░░░░░░░] 20%
 |-------|-------|-------|----------|
 | 9. Security Foundation | 1/1 | 4min | 4min |
 | 10. Encryption Layer | 1/1 | 3min | 3min |
-| 11. Transcript Resilience | - | - | - |
+| 11. Transcript Resilience | 1/1 | 2min | 2min |
 | 12. Circuit Breaker | - | - | - |
 | 13. Compliance UI | - | - | - |
 
 **Recent Trend:**
 - 09-01: 4min (message security + queue guard)
 - 10-01: 3min (AES-GCM encryption + storage adapter)
+- 11-01: 2min (transcript buffer + SW recovery)
 - Trend: Fast execution
 
 *Updated after each plan completion*
@@ -57,6 +58,9 @@ Recent decisions affecting current work:
 - [10-01]: Relative imports (not @/ alias) for src/services files -- WXT build fails to resolve @/ in that context
 - [10-01]: Plaintext fallback on decryption failure enables seamless migration without explicit migration step
 - [10-01]: Encryption init before store rehydration: encryptionService.initialize().then(() => storeReadyPromise)
+- [11-01]: Direct chrome.storage.local writes for transcript buffer (not through encryption adapter -- ephemeral session data)
+- [11-01]: 2-second debounce window for transcript persistence balances write frequency vs data loss risk
+- [11-01]: Recovery flag (_transcription_active) checked during init chain after store hydration
 
 ### Pending Todos
 
@@ -64,10 +68,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- None currently -- encryption layer complete, ready for parallel phase execution
+- None currently -- phases 11/12/13 executing in parallel
 
 ## Session Continuity
 
 Last session: 2026-02-08
-Stopped at: Phase 10 complete, Phases 11/12/13 can run in parallel
-Resume file: .planning/phases/10-encryption-layer/10-01-SUMMARY.md
+Stopped at: Phase 11 complete, Phases 12/13 may still be running in parallel
+Resume file: .planning/phases/11-transcript-resilience/11-01-SUMMARY.md
