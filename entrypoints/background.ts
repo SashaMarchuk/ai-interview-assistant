@@ -420,50 +420,68 @@ async function handleLLMRequest(
   // Fire full model request (if provider available)
   let fullPromise: Promise<void> = Promise.resolve();
   if (fullResolution) {
-    fullPromise = streamWithRetry(
-      {
-        provider: fullResolution.provider,
-        model: fullResolution.model,
-        systemPrompt: prompts.system,
-        userPrompt: prompts.userFull,
-        maxTokens: 2000, // Comprehensive response
-        apiKey: fullResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
-        onToken: (token) => {
-          sendLLMMessageToMeet({
-            type: 'LLM_STREAM',
-            responseId,
-            model: 'full',
-            token,
-          });
+    const fullBreaker = circuitBreakerManager.getBreaker(fullResolution.provider.id);
+    if (!fullBreaker.allowRequest()) {
+      // Circuit is OPEN -- reject immediately without network request
+      fullComplete = true;
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'full',
+        status: 'error',
+        error: `${fullResolution.provider.id} service temporarily unavailable`,
+      });
+    } else {
+      fullPromise = streamWithRetry(
+        {
+          provider: fullResolution.provider,
+          model: fullResolution.model,
+          systemPrompt: prompts.system,
+          userPrompt: prompts.userFull,
+          maxTokens: 2000, // Comprehensive response
+          apiKey: fullResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
+          onToken: (token) => {
+            sendLLMMessageToMeet({
+              type: 'LLM_STREAM',
+              responseId,
+              model: 'full',
+              token,
+            });
+          },
+          onComplete: () => {
+            fullComplete = true;
+            console.log('LLM: Full model complete');
+            sendLLMMessageToMeet({
+              type: 'LLM_STATUS',
+              responseId,
+              model: 'full',
+              status: 'complete',
+            });
+            checkAllComplete();
+          },
+          onError: (error) => {
+            fullComplete = true;
+            console.error('LLM: Full model error:', error.message);
+            sendLLMMessageToMeet({
+              type: 'LLM_STATUS',
+              responseId,
+              model: 'full',
+              status: 'error',
+              error: error.message || 'Unknown error',
+            });
+            checkAllComplete();
+          },
+          abortSignal: abortController.signal,
         },
-        onComplete: () => {
-          fullComplete = true;
-          console.log('LLM: Full model complete');
-          sendLLMMessageToMeet({
-            type: 'LLM_STATUS',
-            responseId,
-            model: 'full',
-            status: 'complete',
-          });
-          checkAllComplete();
-        },
-        onError: (error) => {
-          fullComplete = true;
-          console.error('LLM: Full model error:', error.message);
-          sendLLMMessageToMeet({
-            type: 'LLM_STATUS',
-            responseId,
-            model: 'full',
-            status: 'error',
-            error: error.message || 'Unknown error',
-          });
-          checkAllComplete();
-        },
-        abortSignal: abortController.signal,
-      },
-      'full',
-      responseId
-    );
+        'full',
+        responseId
+      ).then(() => {
+        fullBreaker.recordSuccess();
+      }).catch((error) => {
+        fullBreaker.recordFailure();
+        throw error;
+      });
+    }
   } else {
     fullComplete = true;
     await sendLLMMessageToMeet({
@@ -789,6 +807,12 @@ async function handleMessage(
           return { success: false, error: 'ElevenLabs API key not configured' };
         }
 
+        // Check ElevenLabs circuit breaker before attempting connection
+        const elevenLabsBreaker = circuitBreakerManager.getBreaker('elevenlabs');
+        if (!elevenLabsBreaker.allowRequest()) {
+          return { success: false, error: 'ElevenLabs service temporarily unavailable. Will retry automatically.' };
+        }
+
         // Forward to offscreen document with API key from store (internal message)
         await chrome.runtime.sendMessage({
           type: 'START_TRANSCRIPTION',
@@ -840,6 +864,7 @@ async function handleMessage(
 
     case 'TRANSCRIPTION_STARTED':
       isTranscriptionActive = true;
+      circuitBreakerManager.getBreaker('elevenlabs').recordSuccess();
       console.log('Transcription: Connected');
       return { received: true };
 
@@ -848,6 +873,7 @@ async function handleMessage(
       return { received: true };
 
     case 'TRANSCRIPTION_ERROR':
+      circuitBreakerManager.getBreaker('elevenlabs').recordFailure();
       console.error('Transcription error:', message.source, message.error);
       return { received: true };
 
