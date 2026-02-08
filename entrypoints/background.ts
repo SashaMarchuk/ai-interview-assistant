@@ -123,8 +123,30 @@ async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
 // Initialize store in service worker - required for webext-zustand cross-context sync
 import { storeReadyPromise } from '../src/store';
 storeReadyPromise.then(() => {
-  console.log('Store ready in service worker');
+  storeReady = true;
+  console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
+  for (const { message, sender, sendResponse } of messageQueue) {
+    handleMessage(message, sender)
+      .then(sendResponse)
+      .catch((error) => {
+        console.error('Queued message handling error:', error);
+        sendResponse({ error: error.message });
+      });
+  }
+  messageQueue.length = 0;
 });
+
+// Safety net: if store fails to hydrate within 10 seconds, drain queue with errors
+setTimeout(() => {
+  if (!storeReady) {
+    console.error('Store hydration timeout after 10 seconds -- draining queue with errors');
+    storeReady = true; // Prevent further queuing
+    for (const { sendResponse } of messageQueue) {
+      sendResponse({ error: 'Store initialization timeout' });
+    }
+    messageQueue.length = 0;
+  }
+}, 10_000);
 
 /**
  * Send LLM message to all Google Meet content scripts
@@ -432,6 +454,15 @@ async function handleLLMRequest(
   });
 }
 
+// Queue guard for store hydration -- messages arriving before store is ready are queued
+interface QueuedMessage {
+  message: ExtensionMessage;
+  sender: chrome.runtime.MessageSender;
+  sendResponse: (response: unknown) => void;
+}
+const messageQueue: QueuedMessage[] = [];
+let storeReady = false;
+
 // Register message listener synchronously at top level - CRITICAL
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Ignore webext-zustand internal sync messages - let the library handle them
@@ -453,6 +484,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (offscreenOnlyTypes.includes(message?.type) && sender.id === chrome.runtime.id) {
     console.log('Skipping offscreen-only message in background:', message.type);
     return false;
+  }
+
+  // Queue guard: if store not ready, queue message for processing after hydration
+  if (!storeReady) {
+    console.log('Store not ready, queuing message:', message?.type);
+    messageQueue.push({ message, sender, sendResponse });
+    return true; // Keep channel open for async response
   }
 
   handleMessage(message, sender)
