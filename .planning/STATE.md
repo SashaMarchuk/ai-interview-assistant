@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phase 13 Compliance UI in progress (plan 1 of 2 complete)
+**Current focus:** v1.1 milestone complete -- all phases (9-13) executed. Ready for /polish-milestone.
 
 ## Current Position
 
 Phase: 13 of 13 (Compliance UI)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-08 -- Completed 13-01-PLAN.md
+Plan: 2 of 2 in current phase
+Status: Phase complete -- v1.1 milestone complete
+Last activity: 2026-02-08 -- Completed 13-02-PLAN.md
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35 (30 v1.0 + 5 v1.1)
+- Total plans completed: 36 (30 v1.0 + 6 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -31,7 +31,7 @@ Progress: [█████████░] 90%
 | 10. Encryption Layer | 1/1 | 3min | 3min |
 | 11. Transcript Resilience | 1/1 | 2min | 2min |
 | 12. Circuit Breaker | 1/1 | 4min | 4min |
-| 13. Compliance UI | 1/2 | 3min | 3min |
+| 13. Compliance UI | 2/2 | 6min | 3min |
 
 **Recent Trend:**
 - 09-01: 4min (message security + queue guard)
@@ -39,6 +39,7 @@ Progress: [█████████░] 90%
 - 11-01: 2min (transcript buffer + SW recovery)
 - 12-01: 4min (circuit breaker + alarm recovery + background integration)
 - 13-01: 3min (consent state slice + privacy policy component)
+- 13-02: 3min (consent UI gates + privacy modal + recording warning + settings reset)
 - Trend: Fast execution
 
 *Updated after each plan completion*
@@ -70,6 +71,10 @@ Recent decisions affecting current work:
 - [12-01]: Init chain order: encryption -> circuit breaker rehydrate -> store hydration
 - [13-01]: Plain Tailwind over prose classes -- project lacks @tailwindcss/typography plugin
 - [13-01]: Consent fields NOT reset in onRehydrateStorage to prevent accidental consent loss on popup reopen
+- [13-02]: PrivacyConsentModal replaces popup content via early return (not overlay/portal) for simplicity
+- [13-02]: doStartCapture/handleStartCapture split keeps consent logic separate from capture implementation
+- [13-02]: Inline PrivacyPolicyContent toggle in ConsentSettings satisfies always-accessible policy requirement
+- [13-02]: RecordingConsentWarning placed after Audio Capture section for visual proximity to Start button
 
 ### Pending Todos
 
@@ -77,10 +82,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- None currently -- phase 13-02 (consent UI gates) ready to execute
+- None -- v1.1 milestone complete. Next step: /polish-milestone
 
 ## Session Continuity
 
 Last session: 2026-02-08
-Stopped at: Phase 13 plan 01 complete, plan 02 ready to execute
-Resume file: .planning/phases/13-compliance-ui/13-01-SUMMARY.md
+Stopped at: v1.1 milestone complete -- all 6 plans across 5 phases executed
+Resume file: .planning/phases/13-compliance-ui/13-02-SUMMARY.md
