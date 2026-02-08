@@ -24,7 +24,7 @@ See MILESTONES.md for details.
 - Decimal phases (e.g., 10.1): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition (completed 2026-02-08)
-- [ ] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM
+- [x] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM (completed 2026-02-08)
 - [ ] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts
 - [ ] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling
 - [ ] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings
@@ -56,7 +56,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md -- Encrypt API keys at rest with AES-GCM + PBKDF2 and wire init chain
+- [x] 10-01-PLAN.md -- Encrypt API keys at rest with AES-GCM + PBKDF2 and wire init chain
 
 ### Phase 11: Transcript Resilience
 **Goal**: Active transcript data survives service worker termination -- no data loss during interviews
@@ -110,7 +110,7 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 10. Encryption Layer | v1.1 | 0/TBD | Not started | - |
+| 10. Encryption Layer | v1.1 | 1/1 | Complete | 2026-02-08 |
 | 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
 | 12. Circuit Breaker | v1.1 | 0/TBD | Not started | - |
 | 13. Compliance UI | v1.1 | 0/TBD | Not started | - |

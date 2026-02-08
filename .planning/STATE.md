@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phase 9 - Security Foundation
+**Current focus:** Phase 10 - Encryption Layer (complete)
 
 ## Current Position
 
-Phase: 9 of 13 (Security Foundation)
+Phase: 10 of 13 (Encryption Layer)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-08 -- Completed 09-01-PLAN.md
+Last activity: 2026-02-08 -- Completed 10-01-PLAN.md
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 31 (30 v1.0 + 1 v1.1)
+- Total plans completed: 32 (30 v1.0 + 2 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -28,14 +28,15 @@ Progress: [█░░░░░░░░░] 10%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 9. Security Foundation | 1/1 | 4min | 4min |
-| 10. Encryption Layer | - | - | - |
+| 10. Encryption Layer | 1/1 | 3min | 3min |
 | 11. Transcript Resilience | - | - | - |
 | 12. Circuit Breaker | - | - | - |
 | 13. Compliance UI | - | - | - |
 
 **Recent Trend:**
 - 09-01: 4min (message security + queue guard)
-- Trend: Fast start
+- 10-01: 3min (AES-GCM encryption + storage adapter)
+- Trend: Fast execution
 
 *Updated after each plan completion*
 
@@ -53,6 +54,9 @@ Recent decisions affecting current work:
 - [09-01]: Widened isMessage type guard constraint to { type: string } to support internal message types without union pollution
 - [09-01]: InternalStartTranscriptionMessage kept out of ExtensionMessage union -- internal-only type
 - [09-01]: webext-zustand filter must be first check in onMessage listener to prevent hydration deadlock
+- [10-01]: Relative imports (not @/ alias) for src/services files -- WXT build fails to resolve @/ in that context
+- [10-01]: Plaintext fallback on decryption failure enables seamless migration without explicit migration step
+- [10-01]: Encryption init before store rehydration: encryptionService.initialize().then(() => storeReadyPromise)
 
 ### Pending Todos
 
@@ -60,11 +64,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- Encryption migration must be atomic -- verify all encrypted keys decrypt correctly before removing plaintext
-- Encryption must initialize BEFORE store rehydration (critical init order)
+- None currently -- encryption layer complete, ready for parallel phase execution
 
 ## Session Continuity
 
 Last session: 2026-02-08
-Stopped at: Phase 9 complete, ready for Phase 10 (Encryption Layer)
-Resume file: .planning/phases/09-security-foundation/09-01-SUMMARY.md
+Stopped at: Phase 10 complete, Phases 11/12/13 can run in parallel
+Resume file: .planning/phases/10-encryption-layer/10-01-SUMMARY.md
