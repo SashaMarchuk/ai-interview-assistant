@@ -37,6 +37,7 @@ import { encryptionService } from '../src/services/crypto/encryption';
 import { storeReadyPromise } from '../src/store';
 import { saveCostRecord } from '../src/services/costHistory/costDb';
 import type { CostRecord } from '../src/services/costHistory/types';
+import { getFileContent } from '../src/services/fileStorage';
 
 // Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
 setStateChangeCallback((serviceId, state) => {
@@ -364,8 +365,22 @@ async function handleLLMRequest(
     }
   }
 
+  // Read file context from IndexedDB for prompt personalization (Phase 19)
+  const [resumeRecord, jdRecord] = await Promise.all([
+    getFileContent('resume'),
+    getFileContent('jobDescription'),
+  ]);
+  const fileContext =
+    resumeRecord?.text || jdRecord?.text
+      ? { resume: resumeRecord?.text, jobDescription: jdRecord?.text }
+      : undefined;
+
   // Build prompts using the template
-  const prompts = buildPrompt({ question, recentContext, fullTranscript, templateId }, template);
+  const prompts = buildPrompt(
+    { question, recentContext, fullTranscript, templateId },
+    template,
+    fileContext,
+  );
 
   // Create abort controller for cancellation
   const abortController = new AbortController();

@@ -137,8 +137,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 19-01-PLAN.md -- Storage + extraction foundation (IndexedDB with idb, PDF extraction with pdfjs-dist)
-- [ ] 19-02-PLAN.md -- UI + prompt integration (FileUploadSettings component, PromptBuilder file context injection, background IndexedDB read)
+- [x] 19-01-PLAN.md -- Storage + extraction foundation (IndexedDB with idb, PDF extraction with pdfjs-dist)
+- [x] 19-02-PLAN.md -- UI + prompt integration (FileUploadSettings component, PromptBuilder file context injection, background IndexedDB read)
 
 ### Phase 20: Transcript Editing
 **Goal**: Users can correct transcription errors inline, hide irrelevant entries, and undo changes -- with edits flowing into subsequent LLM context

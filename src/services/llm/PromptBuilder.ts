@@ -10,6 +10,14 @@ import type { PromptTemplate } from '../../store/types';
 import type { DualLLMRequest } from './types';
 
 /**
+ * Optional file context for prompt personalization (Phase 19: File Personalization)
+ */
+export interface FileContext {
+  resume?: string;
+  jobDescription?: string;
+}
+
+/**
  * Result of building prompts for dual-stream request
  */
 export interface BuildPromptResult {
@@ -58,7 +66,11 @@ const FULL_ANSWER_INSTRUCTION =
  * // result.userFull: "Question: How would you design Twitter?\nContext: ...\n\nProvide comprehensive..."
  * ```
  */
-export function buildPrompt(request: DualLLMRequest, template: PromptTemplate): BuildPromptResult {
+export function buildPrompt(
+  request: DualLLMRequest,
+  template: PromptTemplate,
+  fileContext?: FileContext,
+): BuildPromptResult {
   // Build variables for substitution
   const variables: PromptVariables = {
     highlighted: request.question,
@@ -67,7 +79,25 @@ export function buildPrompt(request: DualLLMRequest, template: PromptTemplate): 
   };
 
   // Substitute variables in system prompt (same for both)
-  const system = substituteVariables(template.systemPrompt, variables);
+  let system = substituteVariables(template.systemPrompt, variables);
+
+  // Append file context to system prompt if available (Phase 19: File Personalization)
+  if (fileContext?.resume || fileContext?.jobDescription) {
+    const contextParts: string[] = [];
+    if (fileContext.resume) {
+      contextParts.push(
+        '\n\n## Candidate Background\nThe candidate has the following resume/background:\n' +
+          fileContext.resume,
+      );
+    }
+    if (fileContext.jobDescription) {
+      contextParts.push(
+        '\n\n## Target Role\nThe candidate is interviewing for this position:\n' +
+          fileContext.jobDescription,
+      );
+    }
+    system += contextParts.join('');
+  }
 
   // Substitute variables in user prompt template
   const baseUserPrompt = substituteVariables(template.userPromptTemplate, variables);

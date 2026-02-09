@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 18 complete, phases 19 and 20 in parallel
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phases 18+19+20 integrated, Phase 21 next
 
 ## Current Position
 
-Phase: 18 of 21 (Cost Dashboard) -- COMPLETE
-Plan: 2 of 2 complete
-Status: Phase 18 complete. Cost dashboard with recharts charts (daily bar, provider pie, session list) and Cost tab in popup. Ready for integration.
-Last activity: 2026-02-09 -- Phase 18 Plan 02 complete
+Phase: 20 of 21 (Transcript Editing) -- COMPLETE (awaiting phase 20 merge)
+Plan: All parallel phases (18, 19, 20) complete
+Status: Phases 18+19 integrated into milestone branch. Phase 20 merge pending. Phase 21 (Text Selection) is next.
+Last activity: 2026-02-09 -- Integrating phases 18+19+20
 
-Progress: [█████░░░░░] 40% (v2.0)
+Progress: [████████░░] 80% (v2.0)
 
 ## Performance Metrics
 
@@ -34,6 +34,8 @@ Progress: [█████░░░░░] 40% (v2.0)
 | 17-02 | Cost Display UI | 2min | 2 | 3 |
 | 18-01 | Cost History Data Layer | 8min | 2 | 4 |
 | 18-02 | Cost Dashboard UI | 13min | 2 | 6 |
+| 19-01 | File Storage & PDF Extraction | 10min | 2 | 5 |
+| 19-02 | File Upload UI & Prompt Injection | 7min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -75,6 +77,13 @@ Recent decisions affecting current work:
 - [18-02]: React.lazy() for CostDashboard -- keeps popup initial bundle lean, recharts only loads on Cost tab
 - [18-02]: Explicit height wrapper divs around ResponsiveContainer to prevent recharts zero-height collapse
 - [18-02]: Fire-and-forget auto-pruning with useRef guard -- single execution per mount
+- [19-01]: idb library for IndexedDB Promise wrapper (1.19KB gzipped, TypeScript-first) -- separate DB from phase 18's cost DB
+- [19-01]: pdfjs-dist worker configured via Vite ?url import -- no custom type declarations needed (vite/client declares *?url)
+- [19-01]: Lazy singleton DB connection pattern for file-personalization database
+- [19-02]: FileContext optional parameter to buildPrompt -- backward compatible, no impact on existing callers
+- [19-02]: Resume 8K chars, JD 4K chars -- fits within typical context windows
+- [19-02]: File context appended as system prompt sections (## Candidate Background, ## Target Role) -- persistent context
+- [19-02]: Parallel IndexedDB reads (Promise.all) for resume + JD in background -- non-blocking
 
 ### Pending Todos
 
@@ -89,5 +98,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Completed 18-02-PLAN.md (Cost Dashboard UI)
-Resume file: Phase 18 complete. Await integration of phases 18+19+20 into milestone branch.
+Stopped at: Integrating phases 18+19+20 into milestone/v2.0-phase-18-19-20
+Resume file: Phases 18+19 merged. Phase 20 merge next. Then Phase 21 planning.

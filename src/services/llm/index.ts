@@ -11,7 +11,7 @@
 export type { DualLLMRequest, TokenUsage } from './types';
 
 // Re-export prompt builder
-export { buildPrompt, type BuildPromptResult } from './PromptBuilder';
+export { buildPrompt, type BuildPromptResult, type FileContext } from './PromptBuilder';
 
 // Re-export provider types and interfaces
 export type {
