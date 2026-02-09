@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phase 14 added -- Linter & Prettier. Then /polish-milestone before closing v1.1.
+**Current focus:** Phase 14 complete. Ready for /polish-milestone then /gsd:complete-milestone to close v1.1.
 
 ## Current Position
 
 Phase: 14 of 14 (Linter & Prettier)
-Plan: 0 of 0 in current phase
-Status: Phase added -- needs planning
-Last activity: 2026-02-09 -- Added Phase 14
+Plan: 1 of 1 in current phase
+Status: Phase complete
+Last activity: 2026-02-09 -- Completed 14-01-PLAN.md
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 36 (30 v1.0 + 6 v1.1)
+- Total plans completed: 37 (30 v1.0 + 7 v1.1)
 - Average duration: see v1.0 metrics
 - Total execution time: v1.0 shipped in 6 days
 
@@ -32,6 +32,7 @@ Progress: [█████████░] 90%
 | 11. Transcript Resilience | 1/1 | 2min | 2min |
 | 12. Circuit Breaker | 1/1 | 4min | 4min |
 | 13. Compliance UI | 2/2 | 6min | 3min |
+| 14. Linter & Prettier | 1/1 | 9min | 9min |
 
 **Recent Trend:**
 - 09-01: 4min (message security + queue guard)
@@ -40,6 +41,7 @@ Progress: [█████████░] 90%
 - 12-01: 4min (circuit breaker + alarm recovery + background integration)
 - 13-01: 3min (consent state slice + privacy policy component)
 - 13-02: 3min (consent UI gates + privacy modal + recording warning + settings reset)
+- 14-01: 9min (ESLint 9 + Prettier + format codebase + Claude Code hook)
 - Trend: Fast execution
 
 *Updated after each plan completion*
@@ -75,6 +77,9 @@ Recent decisions affecting current work:
 - [13-02]: doStartCapture/handleStartCapture split keeps consent logic separate from capture implementation
 - [13-02]: Inline PrivacyPolicyContent toggle in ConsentSettings satisfies always-accessible policy requirement
 - [13-02]: RecordingConsentWarning placed after Audio Capture section for visual proximity to Start button
+- [14-01]: ESLint 9 instead of 10 -- eslint-plugin-react-hooks only supports ^9
+- [14-01]: Underscore prefix pattern for intentionally unused params (argsIgnorePattern: ^_)
+- [14-01]: Overlay health issues refactored from useEffect+setState to useMemo (proper derived state)
 
 ### Pending Todos
 
@@ -82,10 +87,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- None -- Phase 14 added. Plan → Execute → /polish-milestone → /gsd:complete-milestone
+- None -- All phases complete. Ready for /polish-milestone -> /gsd:complete-milestone
 
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Phase 14 added -- needs /gsd:plan-phase 14
+Stopped at: Phase 14 complete -- all v1.1 phases done
 Resume file: .planning/ROADMAP.md

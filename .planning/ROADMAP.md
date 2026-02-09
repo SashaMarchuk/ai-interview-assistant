@@ -28,7 +28,7 @@ See MILESTONES.md for details.
 - [x] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts (completed 2026-02-08)
 - [x] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling (completed 2026-02-08)
 - [x] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings (completed 2026-02-08)
-- [ ] **Phase 14: Linter & Prettier** - ESLint + Prettier setup, format entire codebase, Claude Code auto-lint hook
+- [x] **Phase 14: Linter & Prettier** - ESLint + Prettier setup, format entire codebase, Claude Code auto-lint hook (completed 2026-02-09)
 
 ## Phase Details
 
@@ -114,7 +114,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 14-01-PLAN.md -- Install ESLint 10 + Prettier, format codebase, fix all lint errors, create Claude Code auto-format hook
+- [x] 14-01-PLAN.md -- Install ESLint 9 + Prettier, format codebase, fix all lint errors, create Claude Code auto-format hook
 
 ## Progress
 
@@ -130,4 +130,4 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | 11. Transcript Resilience | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 12. Circuit Breaker | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 13. Compliance UI | v1.1 | 2/2 | ✓ Complete | 2026-02-08 |
-| 14. Linter & Prettier | v1.1 | 0/0 | Not started | - |
+| 14. Linter & Prettier | v1.1 | 1/1 | ✓ Complete | 2026-02-09 |
