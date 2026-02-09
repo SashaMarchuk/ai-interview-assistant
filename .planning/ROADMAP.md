@@ -118,11 +118,11 @@ Plans:
   1. Cost records persist across browser restarts in IndexedDB with per-provider breakdown (OpenRouter vs OpenAI, per-model)
   2. Opening the popup settings shows a cost dashboard tab with charts showing usage over time, per-provider breakdown, and per-session costs
   3. Charts render correctly using recharts (SVG-based, no CSP issues) and load only in the popup context (not in the overlay)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 18-01: TBD
-- [ ] 18-02: TBD
+- [ ] 18-01-PLAN.md -- IndexedDB persistence layer, CostRecord types, aggregation helpers, background.ts write integration
+- [ ] 18-02-PLAN.md -- recharts chart components, CostDashboard, Cost tab in popup
 
 ### Phase 19: File Personalization
 **Goal**: Users can upload resume and job description files that are automatically injected into LLM prompts for personalized interview assistance
