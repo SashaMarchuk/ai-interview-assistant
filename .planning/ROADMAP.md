@@ -111,10 +111,10 @@ Plans:
   2. `npx prettier --check .` reports all files are formatted
   3. Claude Code hook auto-runs `eslint --fix` and `prettier --write` after every file Edit/Write
   4. ESLint config covers TypeScript strict rules appropriate for a Chrome extension + React project
-**Plans**: 0 plans
+**Plans**: 1 plan
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 14 to break down)
+- [ ] 14-01-PLAN.md -- Install ESLint 10 + Prettier, format codebase, fix all lint errors, create Claude Code auto-format hook
 
 ## Progress
 
