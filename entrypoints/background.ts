@@ -35,6 +35,8 @@ import {
 import { CircuitState } from '../src/services/circuitBreaker/types';
 import { encryptionService } from '../src/services/crypto/encryption';
 import { storeReadyPromise } from '../src/store';
+import { saveCostRecord } from '../src/services/costHistory/costDb';
+import type { CostRecord } from '../src/services/costHistory/types';
 
 // Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
 setStateChangeCallback((serviceId, state) => {
@@ -58,6 +60,9 @@ const interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timesta
 let isTabCaptureActive = false;
 let isTranscriptionActive = false;
 let isCaptureStartInProgress = false; // Guard to ignore CAPTURE_STOPPED during START_CAPTURE
+
+// Session ID for cost record grouping (generated on START_CAPTURE, cleared on STOP_CAPTURE)
+let currentSessionId: string | null = null;
 
 // Track active LLM requests for cancellation
 const activeAbortControllers: Map<string, AbortController> = new Map();
@@ -489,6 +494,24 @@ async function handleLLMRequest(
             totalTokens: usage.totalTokens,
             costUSD,
           } as LLMCostMessage);
+
+          // Persist to IndexedDB for historical dashboard
+          const costRecord: CostRecord = {
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            sessionId: currentSessionId ?? `adhoc-${Date.now()}`,
+            provider: resolution!.provider.id,
+            modelId: modelId,
+            modelSlot: modelType,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            reasoningTokens: usage.reasoningTokens,
+            totalTokens: usage.totalTokens,
+            costUSD,
+          };
+          saveCostRecord(costRecord).catch((err) => {
+            console.error('Failed to persist cost record:', err);
+          });
         },
       },
       modelType,
@@ -761,6 +784,7 @@ async function handleMessage(
 
         // Mark capture as starting (will be confirmed by CAPTURE_STARTED)
         isTabCaptureActive = true;
+        currentSessionId = `session-${Date.now()}-${activeTab.id}`;
 
         // IMMEDIATELY send stream ID to offscreen document (stream IDs expire quickly!)
         const response = await chrome.runtime.sendMessage({
@@ -797,6 +821,7 @@ async function handleMessage(
           _fromBackground: true,
         } as StopCaptureMessage & { _fromBackground: true });
         isTabCaptureActive = false;
+        currentSessionId = null;
         // Give Chrome extra time to fully release the stream
         await new Promise((resolve) => setTimeout(resolve, 300));
         console.log('Tab capture stopped');
@@ -804,6 +829,7 @@ async function handleMessage(
       } catch (error) {
         // Reset state even on error
         isTabCaptureActive = false;
+        currentSessionId = null;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Stop capture failed:', errorMessage);
         return { success: false, error: errorMessage };
