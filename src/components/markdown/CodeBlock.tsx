@@ -1,11 +1,9 @@
 import { useState, useCallback } from 'react';
+import type { ExtraProps } from 'react-markdown';
 
-interface CodeBlockProps {
-  children: React.ReactNode;
-  className?: string;
-  node?: unknown;
-  [key: string]: unknown;
-}
+type CodeBlockProps = React.ClassAttributes<HTMLElement> &
+  React.HTMLAttributes<HTMLElement> &
+  ExtraProps;
 
 export function CodeBlock({ children, className, node: _node, ...props }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);

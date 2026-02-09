@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 
+/* Highlight.js github-dark theme for syntax highlighting in Shadow DOM.
+ * Imported here so WXT's cssInjectionMode: 'ui' bundles it into the Shadow DOM
+ * alongside Tailwind styles. Override background to transparent so the
+ * code block background comes from CodeBlock's bg-black/40 class. */
+@import 'highlight.js/styles/github-dark.min.css';
+
 /*
  * Tailwind v4 Shadow DOM Compatibility
  *
@@ -87,4 +93,10 @@
     'Segoe UI',
     Roboto,
     sans-serif;
+}
+
+/* Override highlight.js default background so code block backgrounds
+ * come from CodeBlock's Tailwind bg-black/40 class instead */
+.hljs {
+  background: transparent;
 }
