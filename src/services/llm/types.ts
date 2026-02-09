@@ -45,6 +45,10 @@ export interface DualLLMRequest {
   fullTranscript: string;
   /** Template ID to use for prompt building */
   templateId: string;
+  /** Optional: if true, this is a reasoning request (single-stream, not dual) */
+  isReasoningRequest?: boolean;
+  /** Optional: reasoning effort level */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 /**
@@ -69,7 +73,7 @@ export interface StreamCallbacks {
  */
 export interface OpenRouterChatMessage {
   /** Message role */
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'developer';
   /** Message content */
   content: string;
 }

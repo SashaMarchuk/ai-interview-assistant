@@ -36,6 +36,8 @@ Recent decisions affecting current work:
 - [v2.0 roadmap]: recharts for cost charts (SVG-based, no CSP issues) -- loads only in popup context
 - [v2.0 roadmap]: Minimum 25K token budget for reasoning models -- prevents empty responses
 - [v2.0 roadmap]: Phases 15+16 parallel, then 17 sequential, then 18+19+20 parallel, then 21 sequential
+- [15-01]: CodeBlock props typed with react-markdown ExtraProps for type safety
+- [15-01]: highlight.js CSS via @import in app.css (Vite resolves node_modules) with transparent background override
 
 ### Pending Todos
 
