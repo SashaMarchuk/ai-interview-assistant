@@ -6,7 +6,6 @@
  */
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import type { ExtensionMessage } from '../../src/types/messages';
 import { safeSendMessage } from '../../src/utils/messaging';
 import { useStore } from '../../src/store';
 import { PrivacyConsentModal } from '../../src/components/consent/PrivacyConsentModal';
