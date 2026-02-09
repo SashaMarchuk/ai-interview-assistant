@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import type { LLMResponse } from '../types/transcript';
+import { MemoizedMarkdown } from '../components/markdown/MemoizedMarkdown';
 
 interface ResponsePanelProps {
   response: LLMResponse | null;
@@ -80,8 +81,8 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
                   <span className="font-medium text-green-300">Quick Hint</span>
                   <span className="text-xs text-white/40">— start talking</span>
                 </div>
-                <div className="border-l-2 border-green-400/50 pl-2 text-white/90">
-                  {response.fastHint}
+                <div className="border-l-2 border-green-400/50 pl-2">
+                  <MemoizedMarkdown content={response.fastHint} />
                 </div>
               </div>
             )}
@@ -93,8 +94,8 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
                   <span className="font-medium text-purple-300">Full Answer</span>
                   <span className="text-xs text-white/40">— detailed response</span>
                 </div>
-                <div className="border-l-2 border-purple-400/50 pl-2 text-white/90">
-                  {response.fullAnswer}
+                <div className="border-l-2 border-purple-400/50 pl-2">
+                  <MemoizedMarkdown content={response.fullAnswer} />
                 </div>
               </div>
             )}
