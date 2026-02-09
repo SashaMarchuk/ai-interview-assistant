@@ -35,19 +35,26 @@ interface PersistedStoreData {
 async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
   const result = { ...apiKeys };
 
+  // Wait for encryption service to be ready before attempting decryption.
+  // This prevents a race condition where store hydration runs before
+  // the encryption key is derived, returning encrypted garbage as-is.
+  try {
+    await encryptionService.initialize();
+  } catch {
+    // Non-background context or init failed -- pass through as-is
+    return result;
+  }
+
   for (const field of ENCRYPTED_FIELDS) {
     const value = result[field];
     if (!value || value.length === 0) continue;
 
-    if (encryptionService.isInitialized) {
-      try {
-        result[field] = await encryptionService.decrypt(value);
-      } catch {
-        // Decryption failed -- value is likely still plaintext (pre-migration).
-        // Pass through as-is; it will be encrypted on next write.
-      }
+    try {
+      result[field] = await encryptionService.decrypt(value);
+    } catch {
+      // Decryption failed -- value is likely still plaintext (pre-migration).
+      // Pass through as-is; it will be encrypted on next write.
     }
-    // If not initialized (non-background context), pass through as-is
   }
 
   return result;
@@ -60,14 +67,18 @@ async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<s
 async function encryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
   const result = { ...apiKeys };
 
+  try {
+    await encryptionService.initialize();
+  } catch {
+    // Non-background context or init failed -- pass through as-is
+    return result;
+  }
+
   for (const field of ENCRYPTED_FIELDS) {
     const value = result[field];
     if (!value || value.length === 0) continue;
 
-    if (encryptionService.isInitialized) {
-      result[field] = await encryptionService.encrypt(value);
-    }
-    // If not initialized (non-background context), pass through as-is
+    result[field] = await encryptionService.encrypt(value);
   }
 
   return result;

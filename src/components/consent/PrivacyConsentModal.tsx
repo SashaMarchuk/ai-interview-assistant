@@ -16,22 +16,22 @@ interface PrivacyConsentModalProps {
 
 export function PrivacyConsentModal({ onAccept }: PrivacyConsentModalProps) {
   return (
-    <div className="flex w-full flex-col bg-white p-6">
+    <div className="flex w-96 flex-col bg-white p-4">
       {/* Header */}
       <h1 className="mb-1 text-lg font-bold text-gray-900">Welcome to AI Interview Assistant</h1>
-      <p className="mb-4 text-sm text-gray-700">
+      <p className="mb-3 text-sm text-gray-700">
         Please review our privacy policy before using the extension.
       </p>
 
       {/* Scrollable privacy policy container */}
-      <div className="mb-4 flex-1 overflow-y-auto rounded-lg border border-gray-200 p-3">
+      <div className="mb-3 max-h-[350px] overflow-y-auto rounded-lg border border-gray-200 p-3">
         <PrivacyPolicyContent />
       </div>
 
-      {/* Accept button */}
+      {/* Accept button - always visible */}
       <button
         onClick={onAccept}
-        className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
+        className="w-full shrink-0 rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
       >
         I Accept
       </button>

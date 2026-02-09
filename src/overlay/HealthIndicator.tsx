@@ -65,7 +65,7 @@ export const HealthIndicator = memo(function HealthIndicator({ issues }: HealthI
   }
 
   return (
-    <div className="overlay-drag-handle absolute top-0 right-0 left-0 z-20 flex cursor-move flex-col">
+    <div className="overlay-drag-handle flex shrink-0 cursor-move flex-col">
       {issues.map((issue, index) => {
         const styles = getStatusStyles(issue.status);
         return (
