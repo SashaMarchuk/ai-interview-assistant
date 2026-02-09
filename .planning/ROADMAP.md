@@ -52,7 +52,7 @@ Phase 16 (Reasoning) ──┘                      │
 ```
 
 - [x] **Phase 15: Markdown Rendering** - Rich formatting for LLM responses inside Shadow DOM overlay
-- [ ] **Phase 16: Reasoning Models** - o-series and GPT-5 model support with reasoning controls
+- [x] **Phase 16: Reasoning Models** - o-series and GPT-5 model support with reasoning controls
 - [ ] **Phase 17: Cost Tracking Capture** - Token usage extraction, per-request cost display, session totals
 - [ ] **Phase 18: Cost Dashboard** - IndexedDB persistence and popup charts with historical usage
 - [ ] **Phase 19: File Personalization** - Resume/JD upload, client-side extraction, LLM prompt injection
@@ -91,9 +91,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 16-01-PLAN.md -- Provider & types foundation (model lists, isReasoningModel utility, request body construction, store setting)
-- [ ] 16-02-PLAN.md -- Message types & background handler (single-stream reasoning mode, 25K budget, reasoningEffort passthrough)
-- [ ] 16-03-PLAN.md -- Reasoning UI (reasoning button, effort selector, thinking indicator, ModelSettings grouping)
+- [x] 16-01-PLAN.md -- Provider & types foundation (model lists, isReasoningModel utility, request body construction, store setting)
+- [x] 16-02-PLAN.md -- Message types & background handler (single-stream reasoning mode, 25K budget, reasoningEffort passthrough)
+- [x] 16-03-PLAN.md -- Reasoning UI (reasoning button, effort selector, thinking indicator, ModelSettings grouping)
 
 ### Phase 17: Cost Tracking Capture
 **Goal**: Every LLM request captures token usage and calculates cost, displayed per-request in the overlay and as a running session total
@@ -178,7 +178,7 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 15. Markdown Rendering | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
-| 16. Reasoning Models | v2.0 | 0/TBD | Not started | - |
+| 16. Reasoning Models | v2.0 | 3/3 | ✓ Complete | 2026-02-09 |
 | 17. Cost Tracking Capture | v2.0 | 0/TBD | Not started | - |
 | 18. Cost Dashboard | v2.0 | 0/TBD | Not started | - |
 | 19. File Personalization | v2.0 | 0/TBD | Not started | - |

@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 
 Phase: 16 of 21 (Reasoning Models) -- COMPLETE
 Plan: Phase 15 complete (2/2), Phase 16 complete (3/3)
-Status: Phase 16 complete. Ready for Phase 17 (Custom Templates v2) or next parallel wave.
-Last activity: 2026-02-09 -- Phase 16 Plan 03 (UI Controls & Reasoning Button) complete
+Status: Phase 16 verified and complete. Ready for Phase 17 (Cost Tracking Capture).
+Last activity: 2026-02-09 -- Phase 16 verified (16/16 must-haves passed)
 
 Progress: [███░░░░░░░] 21% (v2.0)
 
@@ -70,5 +70,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Completed 16-03-PLAN.md (UI Controls & Reasoning Button) -- Phase 16 complete
+Stopped at: Phase 16 verified and complete -- ready for Phase 17 (Cost Tracking Capture)
 Resume file: .planning/ROADMAP.md
