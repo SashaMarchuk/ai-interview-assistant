@@ -331,8 +331,11 @@ export default defineContentScript({
       position: 'inline',
       anchor: 'body',
       onMount: (container) => {
-        // Create React root inside shadow DOM
-        const root = createRoot(container);
+        // Create a wrapper div to avoid React warning about rendering on <body>
+        const wrapper = document.createElement('div');
+        wrapper.id = 'ai-interview-root';
+        container.appendChild(wrapper);
+        const root = createRoot(wrapper);
         // Render the overlay wrapped with CaptureProvider for keyboard handling
         root.render(
           <CaptureProvider
