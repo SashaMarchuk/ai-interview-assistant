@@ -103,10 +103,11 @@ Plans:
   1. After each LLM response completes, the overlay shows the cost (e.g., "$0.003") next to that response
   2. Token counts (prompt tokens, completion tokens, reasoning tokens when applicable) are extracted from streaming response metadata
   3. A running session cost total is visible in the overlay during an active interview session
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 17-01: TBD
+- [ ] 17-01-PLAN.md -- Types, pricing module, streaming pipeline usage extraction, and background cost broadcasting
+- [ ] 17-02-PLAN.md -- Content script LLM_COST handler, ResponsePanel cost badge, Overlay session cost footer
 
 ### Phase 18: Cost Dashboard
 **Goal**: Historical cost data is persisted to IndexedDB and visualized in a popup dashboard with per-provider and per-session charts
