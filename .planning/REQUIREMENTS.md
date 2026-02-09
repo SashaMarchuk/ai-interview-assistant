@@ -115,39 +115,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-03 | Phase 12: Circuit Breaker | Shipped (v1.1) |
 | COMP-01 | Phase 13: Compliance UI | Shipped (v1.1) |
 | COMP-02 | Phase 13: Compliance UI | Shipped (v1.1) |
-| MD-01 | — | Pending |
-| MD-02 | — | Pending |
-| MD-03 | — | Pending |
-| MD-04 | — | Pending |
-| RSN-01 | — | Pending |
-| RSN-02 | — | Pending |
-| RSN-03 | — | Pending |
-| RSN-04 | — | Pending |
-| RSN-05 | — | Pending |
-| RSN-06 | — | Pending |
-| COST-01 | — | Pending |
-| COST-02 | — | Pending |
-| COST-03 | — | Pending |
-| COST-04 | — | Pending |
-| COST-05 | — | Pending |
-| FILE-01 | — | Pending |
-| FILE-02 | — | Pending |
-| FILE-03 | — | Pending |
-| FILE-04 | — | Pending |
-| SEL-01 | — | Pending |
-| SEL-02 | — | Pending |
-| SEL-03 | — | Pending |
-| EDIT-01 | — | Pending |
-| EDIT-02 | — | Pending |
-| EDIT-03 | — | Pending |
-| EDIT-04 | — | Pending |
+| MD-01 | Phase 15: Markdown Rendering | Pending |
+| MD-02 | Phase 15: Markdown Rendering | Pending |
+| MD-03 | Phase 15: Markdown Rendering | Pending |
+| MD-04 | Phase 15: Markdown Rendering | Pending |
+| RSN-01 | Phase 16: Reasoning Models | Pending |
+| RSN-02 | Phase 16: Reasoning Models | Pending |
+| RSN-03 | Phase 16: Reasoning Models | Pending |
+| RSN-04 | Phase 16: Reasoning Models | Pending |
+| RSN-05 | Phase 16: Reasoning Models | Pending |
+| RSN-06 | Phase 16: Reasoning Models | Pending |
+| COST-01 | Phase 17: Cost Tracking Capture | Pending |
+| COST-02 | Phase 17: Cost Tracking Capture | Pending |
+| COST-03 | Phase 17: Cost Tracking Capture | Pending |
+| COST-04 | Phase 18: Cost Dashboard | Pending |
+| COST-05 | Phase 18: Cost Dashboard | Pending |
+| FILE-01 | Phase 19: File Personalization | Pending |
+| FILE-02 | Phase 19: File Personalization | Pending |
+| FILE-03 | Phase 19: File Personalization | Pending |
+| FILE-04 | Phase 19: File Personalization | Pending |
+| SEL-01 | Phase 21: Enhanced Text Selection | Pending |
+| SEL-02 | Phase 21: Enhanced Text Selection | Pending |
+| SEL-03 | Phase 21: Enhanced Text Selection | Pending |
+| EDIT-01 | Phase 20: Transcript Editing | Pending |
+| EDIT-02 | Phase 20: Transcript Editing | Pending |
+| EDIT-03 | Phase 20: Transcript Editing | Pending |
+| EDIT-04 | Phase 20: Transcript Editing | Pending |
 
 **Coverage:**
 - v1.1 requirements: 7 total (all shipped)
 - v2.0 requirements: 23 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 23
+- Mapped to phases: 23/23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-08*
-*Last updated: 2026-02-09 after v2.0 requirements definition*
+*Last updated: 2026-02-09 after v2.0 roadmap creation*

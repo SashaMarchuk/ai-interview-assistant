@@ -3,7 +3,8 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** - Phases 1-8 (shipped 2026-02-03)
-- 🚧 **v1.1 Security & Reliability** - Phases 9-14 (in progress)
+- ✅ **v1.1 Security & Reliability** - Phases 9-14 (shipped 2026-02-09)
+- 🚧 **v2.0 Enhanced Experience** - Phases 15-21 (in progress)
 
 ## Phases
 
@@ -15,119 +16,170 @@ See MILESTONES.md for details.
 
 </details>
 
-### 🚧 v1.1 Security & Reliability (In Progress)
+<details>
+<summary>✅ v1.1 Security & Reliability (Phases 9-14) - SHIPPED 2026-02-09</summary>
 
-**Milestone Goal:** Harden security, add compliance features, and fix critical reliability bugs before adding new capabilities.
+6 phases, 7 plans, 7 requirements delivered.
+
+- [x] **Phase 9: Security Foundation** - Remove API keys from messages + store race condition fix
+- [x] **Phase 10: Encryption Layer** - AES-GCM encryption for API keys at rest
+- [x] **Phase 11: Transcript Resilience** - Persistent transcript buffer across SW restarts
+- [x] **Phase 12: Circuit Breaker** - Graceful API failure handling with auto-recovery
+- [x] **Phase 13: Compliance UI** - Privacy policy, consent modals, recording warnings
+- [x] **Phase 14: Linter & Prettier** - ESLint 9 + Prettier, format entire codebase
+
+</details>
+
+### 🚧 v2.0 Enhanced Experience (In Progress)
+
+**Milestone Goal:** Transform from a basic transcription+LLM tool into a personalized, intelligent interview companion with rich formatting, reasoning models, cost visibility, file context, and transcript editing.
 
 **Phase Numbering:**
-- Integer phases (9, 10, 11, 12, 13, 14): Planned milestone work
-- Decimal phases (e.g., 10.1): Urgent insertions (marked with INSERTED)
+- Integer phases (15-21): Planned milestone work
+- Decimal phases (e.g., 16.1): Urgent insertions (marked with INSERTED)
 
-- [x] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition (completed 2026-02-08)
-- [x] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM (completed 2026-02-08)
-- [x] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts (completed 2026-02-08)
-- [x] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling (completed 2026-02-08)
-- [x] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings (completed 2026-02-08)
-- [x] **Phase 14: Linter & Prettier** - ESLint + Prettier setup, format entire codebase, Claude Code auto-lint hook (completed 2026-02-09)
+**Parallelization Map:**
+```
+Phase 15 (Markdown) ──┐
+                       ├── parallel ──► Phase 17 (Cost Capture)
+Phase 16 (Reasoning) ──┘                      │
+                                               ▼
+                              ┌── Phase 18 (Cost Dashboard) ──┐
+                              │                                │
+                              ├── Phase 19 (File Personal.) ──├── all complete ──► Phase 21 (Text Selection)
+                              │                                │
+                              └── Phase 20 (Transcript Edit) ─┘
+```
+
+- [ ] **Phase 15: Markdown Rendering** - Rich formatting for LLM responses inside Shadow DOM overlay
+- [ ] **Phase 16: Reasoning Models** - o-series and GPT-5 model support with reasoning controls
+- [ ] **Phase 17: Cost Tracking Capture** - Token usage extraction, per-request cost display, session totals
+- [ ] **Phase 18: Cost Dashboard** - IndexedDB persistence and popup charts with historical usage
+- [ ] **Phase 19: File Personalization** - Resume/JD upload, client-side extraction, LLM prompt injection
+- [ ] **Phase 20: Transcript Editing** - Inline edit, soft delete, undo, and LLM context integration
+- [ ] **Phase 21: Enhanced Text Selection** - Floating tooltip with quick prompts on transcript selection
 
 ## Phase Details
 
-### Phase 9: Security Foundation
-**Goal**: API keys are no longer exposed in chrome.runtime messages, and the background service worker handles messages reliably regardless of initialization timing
-**Depends on**: Nothing (first phase of v1.1)
-**Requirements**: SEC-01, REL-01
+### Phase 15: Markdown Rendering
+**Goal**: LLM responses display as properly formatted Markdown with code blocks, syntax highlighting, and copy-to-clipboard -- all working correctly inside the Shadow DOM overlay
+**Depends on**: Nothing (first phase of v2.0, zero dependencies on other v2.0 features)
+**Requirements**: MD-01, MD-02, MD-03, MD-04
+**Parallel**: Can run simultaneously with Phase 16 (Reasoning Models) -- different files, no overlap
 **Success Criteria** (what must be TRUE):
-  1. Opening DevTools and inspecting chrome.runtime messages shows zero API key values in any message payload
-  2. Sending a message to the background script immediately after service worker wakes up (cold start) results in correct handling -- no dropped or failed messages
-  3. The background script reads API keys directly from the Zustand store, never from incoming message data
-**Plans**: 1 plan
+  1. LLM response text with headers, bold, italic, and lists renders as formatted HTML in the overlay (not raw Markdown syntax)
+  2. Code blocks in LLM responses display with syntax highlighting, a language label in the corner, and a copy button that copies code to clipboard
+  3. Streaming responses render incrementally as Markdown without visible flicker, reparse lag, or layout jumps
+  4. All Markdown styling works correctly inside the Shadow DOM overlay on a Google Meet page (no style leakage in or out)
+**Plans**: TBD
 
 Plans:
-- [x] 09-01-PLAN.md -- Remove API keys from messages + queue guard for store hydration
+- [ ] 15-01: TBD
+- [ ] 15-02: TBD
 
-### Phase 10: Encryption Layer
-**Goal**: API keys stored in chrome.storage.local are encrypted at rest, unreadable without the derived decryption key, with safe migration from plaintext
-**Depends on**: Phase 9 (store race condition must be fixed before wrapping storage adapter)
-**Requirements**: SEC-02
+### Phase 16: Reasoning Models
+**Goal**: Users can access o-series reasoning models and GPT-5 series with proper API parameter handling, dedicated reasoning button, and token budget management
+**Depends on**: Nothing (independent from Markdown; parallel with Phase 15)
+**Requirements**: RSN-01, RSN-02, RSN-03, RSN-04, RSN-05, RSN-06
+**Parallel**: Can run simultaneously with Phase 15 (Markdown Rendering) -- different files, no overlap
 **Success Criteria** (what must be TRUE):
-  1. Inspecting chrome.storage.local via DevTools shows encrypted (non-human-readable) values for all API key fields
-  2. The extension continues to function normally after encryption migration -- all previously saved API keys still work for API calls
-  3. Restarting Chrome (full browser restart) does not break decryption -- keys remain accessible to the extension
-  4. Encryption uses WebCrypto AES-GCM with PBKDF2 key derivation from chrome.runtime.id + stored salt (not browser fingerprints or user agent)
-**Plans**: 1 plan
+  1. User can select o3-mini, o4-mini, and GPT-5 series models from the model picker in both fast and full model dropdowns
+  2. Selecting a reasoning model and sending a question produces a valid response (no empty responses from insufficient token budget)
+  3. User can set reasoning_effort to low, medium, or high before sending a request, and the setting affects response depth
+  4. A dedicated "Reasoning" button in the overlay triggers a reasoning model request with a visible thinking/processing indicator
+  5. Reasoning model requests use correct API parameters (developer role instead of system, max_completion_tokens >= 25K, reasoning_effort field)
+**Plans**: TBD
 
 Plans:
-- [x] 10-01-PLAN.md -- Encrypt API keys at rest with AES-GCM + PBKDF2 and wire init chain
+- [ ] 16-01: TBD
+- [ ] 16-02: TBD
 
-### Phase 11: Transcript Resilience
-**Goal**: Active transcript data survives service worker termination -- no data loss during interviews
-**Depends on**: Phase 10 (storage adapter must be finalized before adding new persistent writes)
-**Requirements**: REL-02
+### Phase 17: Cost Tracking Capture
+**Goal**: Every LLM request captures token usage and calculates cost, displayed per-request in the overlay and as a running session total
+**Depends on**: Phase 15 + Phase 16 (needs reasoning token awareness from Phase 16; benefits from Markdown rendering in Phase 15 for formatted cost display area)
+**Requirements**: COST-01, COST-02, COST-03
 **Success Criteria** (what must be TRUE):
-  1. During active transcription, killing the service worker (via chrome://serviceworker-internals) and letting it restart preserves all transcript segments captured before termination
-  2. Stopping transcription normally flushes the complete transcript to persistent storage with no missing segments
-  3. A transcript that was being actively captured survives Chrome's 30-second idle timeout for service workers without data loss
-**Plans**: 1 plan
+  1. After each LLM response completes, the overlay shows the cost (e.g., "$0.003") next to that response
+  2. Token counts (prompt tokens, completion tokens, reasoning tokens when applicable) are extracted from streaming response metadata
+  3. A running session cost total is visible in the overlay during an active interview session
+**Plans**: TBD
 
 Plans:
-- [x] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
+- [ ] 17-01: TBD
 
-### Phase 12: Circuit Breaker
-**Goal**: API calls fail gracefully with automatic recovery instead of hammering unresponsive services
-**Depends on**: Phase 10 (encryption layer complete; circuit breaker is independent but sequential for solo developer)
-**Requirements**: REL-03
+### Phase 18: Cost Dashboard
+**Goal**: Historical cost data is persisted to IndexedDB and visualized in a popup dashboard with per-provider and per-session charts
+**Depends on**: Phase 17 (cost capture data must exist before dashboard can display it)
+**Requirements**: COST-04, COST-05
+**Parallel**: Can run simultaneously with Phase 19 (File Personalization) and Phase 20 (Transcript Editing) -- different files and UI contexts
 **Success Criteria** (what must be TRUE):
-  1. After 3+ consecutive API failures, subsequent calls are immediately rejected without making network requests (circuit OPEN state) and the UI shows a service unavailable indicator
-  2. After the recovery timeout elapses, the circuit automatically transitions to HALF_OPEN and allows a test request through
-  3. Circuit breaker state persists across service worker restarts -- killing the service worker while circuit is OPEN does not reset it to CLOSED
-  4. When the failing service recovers, the circuit transitions back to CLOSED and normal operation resumes automatically
-**Plans**: 1 plan
+  1. Cost records persist across browser restarts in IndexedDB with per-provider breakdown (OpenRouter vs OpenAI, per-model)
+  2. Opening the popup settings shows a cost dashboard tab with charts showing usage over time, per-provider breakdown, and per-session costs
+  3. Charts render correctly using recharts (SVG-based, no CSP issues) and load only in the popup context (not in the overlay)
+**Plans**: TBD
 
 Plans:
-- [x] 12-01-PLAN.md -- Circuit breaker service with per-provider instances, persistent state, and background.ts integration
+- [ ] 18-01: TBD
+- [ ] 18-02: TBD
 
-### Phase 13: Compliance UI
-**Goal**: Users are informed about privacy implications and consent to recording before audio capture begins
-**Depends on**: Phase 9 (no hard dependency on encryption/circuit breaker; compliance UI is independent React work)
-**Requirements**: COMP-01, COMP-02
+### Phase 19: File Personalization
+**Goal**: Users can upload resume and job description files that are automatically injected into LLM prompts for personalized interview assistance
+**Depends on**: Phase 17 (IndexedDB patterns established; no hard file dependency but benefits from markdown rendering for formatted file-aware responses)
+**Requirements**: FILE-01, FILE-02, FILE-03, FILE-04
+**Parallel**: Can run simultaneously with Phase 18 (Cost Dashboard) and Phase 20 (Transcript Editing) -- modifies popup settings and PromptBuilder, no overlap
 **Success Criteria** (what must be TRUE):
-  1. On first extension use, a blocking privacy consent modal appears that must be accepted before any functionality is available
-  2. The privacy policy document is accessible from the extension UI at any time (not just during first-time setup)
-  3. Before each recording session, a dismissable recording consent warning appears reminding the user about audio capture
-  4. A user who previously dismissed the per-session warning with "don't show again" does not see it on subsequent sessions
-  5. A settings option exists to reset all consent acknowledgments (re-trigger first-time and per-session flows)
-**Plans**: 2 plans
+  1. User can upload a PDF or TXT resume file via a file picker in popup settings, and the extracted text content is shown as a preview
+  2. User can paste or upload a job description via popup settings
+  3. Uploaded file content is stored in IndexedDB (not Zustand) and persists across browser restarts
+  4. When resume and/or JD are uploaded, LLM responses demonstrate awareness of the user's background and the target role (file context is injected into prompts via PromptBuilder)
+**Plans**: TBD
 
 Plans:
-- [x] 13-01-PLAN.md -- Consent state slice + privacy policy content component
-- [x] 13-02-PLAN.md -- Consent UI gates + settings integration in popup
+- [ ] 19-01: TBD
+- [ ] 19-02: TBD
 
-### Phase 14: Linter & Prettier
-**Goal**: All code follows consistent formatting and lint rules, enforced automatically during development and Claude Code sessions
-**Depends on**: Phase 13 (no hard dependency, but should run after all code changes are complete)
-**Requirements**: DX-01
+### Phase 20: Transcript Editing
+**Goal**: Users can correct transcription errors inline, hide irrelevant entries, and undo changes -- with edits flowing into subsequent LLM context
+**Depends on**: Phase 17 (no hard dependency on cost capture, but sequential after cost capture to avoid TranscriptPanel conflicts; the real constraint is finishing before Phase 21)
+**Requirements**: EDIT-01, EDIT-02, EDIT-03, EDIT-04
+**Parallel**: Can run simultaneously with Phase 18 (Cost Dashboard) and Phase 19 (File Personalization) -- modifies TranscriptPanel only, no overlap with popup/cost/file features
 **Success Criteria** (what must be TRUE):
-  1. `npx eslint .` runs with zero errors across the entire codebase
-  2. `npx prettier --check .` reports all files are formatted
-  3. Claude Code hook auto-runs `eslint --fix` and `prettier --write` after every file Edit/Write
-  4. ESLint config covers TypeScript strict rules appropriate for a Chrome extension + React project
-**Plans**: 1 plan
+  1. Double-clicking a transcript entry enables inline editing; pressing Enter saves the edit and Escape cancels it
+  2. User can soft-delete a transcript entry (it disappears from the visible list and is excluded from LLM context)
+  3. After editing a transcript entry, subsequent LLM requests use the edited text instead of the original transcription
+  4. User can undo any edit or soft-delete to restore the original transcript text
+**Plans**: TBD
 
 Plans:
-- [x] 14-01-PLAN.md -- Install ESLint 9 + Prettier, format codebase, fix all lint errors, create Claude Code auto-format hook
+- [ ] 20-01: TBD
+
+### Phase 21: Enhanced Text Selection
+**Goal**: Selecting transcript text shows a floating tooltip with quick prompt actions that send selected text to the LLM
+**Depends on**: Phase 20 (both modify TranscriptPanel; transcript editing must be stable before adding selection behaviors on top)
+**Requirements**: SEL-01, SEL-02, SEL-03
+**Success Criteria** (what must be TRUE):
+  1. Selecting text in the transcript panel causes a floating tooltip to appear near the selection with action buttons
+  2. Clicking a quick prompt button (e.g., "Explain", "Elaborate", "Correct") sends the selected text plus the chosen prompt to the LLM and displays the response
+  3. User can customize which quick prompt actions appear in the tooltip via popup settings
+**Plans**: TBD
+
+Plans:
+- [ ] 21-01: TBD
+- [ ] 21-02: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 12, 13 can execute in parallel (separate terminals/branches).
+Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 20 in parallel. Then Phase 21 sequential.
 
-**Parallelization Note:** User prefers running independent phases in parallel via separate Claude terminals on separate branches. Phases 11, 12, 13 touch different files and can safely parallelize after Phase 10 completes.
+**Parallelization Note:** User prefers running independent phases in parallel via separate Claude terminals on separate branches. See parallelization map above for which phases can safely run simultaneously.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 11. Transcript Resilience | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 12. Circuit Breaker | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
-| 13. Compliance UI | v1.1 | 2/2 | ✓ Complete | 2026-02-08 |
-| 14. Linter & Prettier | v1.1 | 1/1 | ✓ Complete | 2026-02-09 |
+| 15. Markdown Rendering | v2.0 | 0/TBD | Not started | - |
+| 16. Reasoning Models | v2.0 | 0/TBD | Not started | - |
+| 17. Cost Tracking Capture | v2.0 | 0/TBD | Not started | - |
+| 18. Cost Dashboard | v2.0 | 0/TBD | Not started | - |
+| 19. File Personalization | v2.0 | 0/TBD | Not started | - |
+| 20. Transcript Editing | v2.0 | 0/TBD | Not started | - |
+| 21. Enhanced Text Selection | v2.0 | 0/TBD | Not started | - |
