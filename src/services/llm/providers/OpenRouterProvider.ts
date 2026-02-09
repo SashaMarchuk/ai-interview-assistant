@@ -7,26 +7,10 @@
 
 import { streamSSE } from './streamSSE';
 import type { LLMProvider, ProviderId, ProviderStreamOptions, ModelInfo } from './LLMProvider';
+import { isReasoningModel } from './LLMProvider';
 
 /** OpenRouter API endpoint */
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-/**
- * OpenAI reasoning model prefixes (o-series) that require `max_completion_tokens`
- * instead of `max_tokens`. On OpenRouter these are prefixed with "openai/".
- */
-const REASONING_MODEL_PREFIXES = ['o1', 'o3'];
-
-/**
- * Check if a model ID is an OpenAI reasoning model (o-series).
- * Handles OpenRouter-style IDs like "openai/o1-mini".
- */
-function isReasoningModel(modelId: string): boolean {
-  const bareModel = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
-  return REASONING_MODEL_PREFIXES.some(
-    (prefix) => bareModel === prefix || bareModel.startsWith(`${prefix}-`),
-  );
-}
 
 /**
  * Available models on OpenRouter
@@ -55,6 +39,11 @@ export const OPENROUTER_MODELS: ModelInfo[] = [
   },
   { id: 'openai/gpt-4o', name: 'GPT-4o', category: 'full', provider: 'openrouter' },
   { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', category: 'full', provider: 'openrouter' },
+  // Reasoning models (o-series and GPT-5)
+  { id: 'openai/o3-mini', name: 'o3 Mini', category: 'fast', provider: 'openrouter' },
+  { id: 'openai/o4-mini', name: 'o4 Mini', category: 'fast', provider: 'openrouter' },
+  { id: 'openai/gpt-5', name: 'GPT-5', category: 'full', provider: 'openrouter' },
+  { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini', category: 'fast', provider: 'openrouter' },
 ];
 
 /**

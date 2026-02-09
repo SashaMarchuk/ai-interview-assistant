@@ -13,6 +13,13 @@
 export type CaptureMode = 'hold' | 'toggle';
 
 /**
+ * Reasoning effort levels for o-series and GPT-5 reasoning models.
+ * Defined independently from LLMProvider to avoid circular dependency
+ * between store and services layers. Both define the same 3-value union.
+ */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
+/**
  * Template type categories for interview prompt templates
  */
 export type TemplateType = 'system-design' | 'coding' | 'behavioral' | 'custom';
@@ -77,6 +84,8 @@ export interface SettingsSlice {
   captureMode: CaptureMode;
   /** Transcription language code (ISO 639-3, e.g. 'eng', 'ukr') - empty for auto-detect */
   transcriptionLanguage: string;
+  /** Reasoning effort for reasoning models (o-series, GPT-5) */
+  reasoningEffort: ReasoningEffort;
   /** Set an API key for a provider */
   setApiKey: (provider: ApiKeyProvider, key: string) => void;
   /** Set a model for a specific type */
@@ -89,6 +98,8 @@ export interface SettingsSlice {
   setCaptureMode: (mode: CaptureMode) => void;
   /** Set transcription language (ISO 639-3 code or empty for auto-detect) */
   setTranscriptionLanguage: (language: string) => void;
+  /** Set reasoning effort for reasoning models */
+  setReasoningEffort: (effort: ReasoningEffort) => void;
 }
 
 /**

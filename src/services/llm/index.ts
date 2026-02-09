@@ -19,7 +19,11 @@ export type {
   ProviderId,
   ProviderStreamOptions,
   ModelInfo,
+  ReasoningEffort,
 } from './providers/LLMProvider';
+
+// Re-export reasoning model utilities
+export { isReasoningModel, MIN_REASONING_TOKEN_BUDGET } from './providers/LLMProvider';
 
 // Re-export provider registry functions
 export {

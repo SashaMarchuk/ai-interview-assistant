@@ -44,6 +44,7 @@ export const useStore = create<StoreState>()(
         hotkeys: state.hotkeys,
         captureMode: state.captureMode,
         transcriptionLanguage: state.transcriptionLanguage,
+        reasoningEffort: state.reasoningEffort,
         templates: state.templates,
         activeTemplateId: state.activeTemplateId,
         privacyPolicyAccepted: state.privacyPolicyAccepted,
@@ -106,6 +107,7 @@ export const storeReadyPromise: Promise<void> = new Promise((resolve) => {
 export type { StoreState } from './types';
 export type {
   CaptureMode,
+  ReasoningEffort,
   PromptTemplate,
   TemplateType,
   ApiKeyProvider,
