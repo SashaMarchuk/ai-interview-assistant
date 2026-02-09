@@ -5,27 +5,28 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15+16 parallel execution
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15 complete, Phase 16 in progress (parallel terminal)
 
 ## Current Position
 
-Phase: 15+16 of 21 (Markdown Rendering + Reasoning Models) -- parallel
-Plan: 15-01 complete, 16-01 complete
-Status: Executing
-Last activity: 2026-02-09 -- Plan 16-01 (Provider Foundation) complete
+Phase: 16 of 21 (Reasoning Models) -- in progress in parallel terminal
+Plan: Phase 15 complete (2/2), Phase 16 in progress
+Status: Phase 15 verified, Phase 16 executing
+Last activity: 2026-02-09 -- Phase 15 (Markdown Rendering) complete and verified
 
-Progress: [█░░░░░░░░░] 7% (v2.0)
+Progress: [██░░░░░░░░] 14% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 39 (30 v1.0 + 7 v1.1 + 2 v2.0)
+- Total plans completed: 41 (30 v1.0 + 7 v1.1 + 4 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 15-01 | Markdown Components | 5min | 2 | 6 |
+| 15-02 | ResponsePanel Integration | 5min | 2 | 2 |
 
 ## Accumulated Context
 
@@ -44,6 +45,8 @@ Recent decisions affecting current work:
 - [16-01]: Non-streaming JSON fallback in streamSSE for reasoning models that don't support SSE
 - [15-01]: CodeBlock props typed with react-markdown ExtraProps for type safety
 - [15-01]: highlight.js CSS via @import in app.css (Vite resolves node_modules) with transparent background override
+- [15-02]: MemoizedMarkdown integrated into ResponsePanel for both fastHint and fullAnswer
+- [15-02]: requestAnimationFrame token batching (~16ms windows) for streaming performance
 
 ### Pending Todos
 
@@ -58,5 +61,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Completed 16-01-PLAN.md (Provider Foundation) -- Phase 16 Plan 02 next
-Resume file: .planning/phases/16-reasoning-models/16-02-PLAN.md
+Stopped at: Phase 15 (Markdown Rendering) complete and verified -- Phase 16 running in parallel terminal
+Resume file: .planning/ROADMAP.md

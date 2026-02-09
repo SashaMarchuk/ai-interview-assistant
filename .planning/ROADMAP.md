@@ -51,7 +51,7 @@ Phase 16 (Reasoning) ──┘                      │
                               └── Phase 20 (Transcript Edit) ─┘
 ```
 
-- [ ] **Phase 15: Markdown Rendering** - Rich formatting for LLM responses inside Shadow DOM overlay
+- [x] **Phase 15: Markdown Rendering** - Rich formatting for LLM responses inside Shadow DOM overlay
 - [ ] **Phase 16: Reasoning Models** - o-series and GPT-5 model support with reasoning controls
 - [ ] **Phase 17: Cost Tracking Capture** - Token usage extraction, per-request cost display, session totals
 - [ ] **Phase 18: Cost Dashboard** - IndexedDB persistence and popup charts with historical usage
@@ -177,7 +177,7 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 15. Markdown Rendering | v2.0 | 0/TBD | Not started | - |
+| 15. Markdown Rendering | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 16. Reasoning Models | v2.0 | 0/TBD | Not started | - |
 | 17. Cost Tracking Capture | v2.0 | 0/TBD | Not started | - |
 | 18. Cost Dashboard | v2.0 | 0/TBD | Not started | - |
