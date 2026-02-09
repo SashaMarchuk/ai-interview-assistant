@@ -71,11 +71,11 @@ Phase 16 (Reasoning) ──┘                      │
   2. Code blocks in LLM responses display with syntax highlighting, a language label in the corner, and a copy button that copies code to clipboard
   3. Streaming responses render incrementally as Markdown without visible flicker, reparse lag, or layout jumps
   4. All Markdown styling works correctly inside the Shadow DOM overlay on a Google Meet page (no style leakage in or out)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: TBD
-- [ ] 15-02: TBD
+- [ ] 15-01-PLAN.md — Markdown component system (MarkdownRenderer, CodeBlock, MemoizedMarkdown, highlight.js CSS)
+- [ ] 15-02-PLAN.md — ResponsePanel integration and token batching for streaming performance
 
 ### Phase 16: Reasoning Models
 **Goal**: Users can access o-series reasoning models and GPT-5 series with proper API parameter handling, dedicated reasoning button, and token budget management
