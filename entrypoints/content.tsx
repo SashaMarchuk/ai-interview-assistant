@@ -18,6 +18,11 @@ import type {
 // Meeting URL pattern: meet.google.com/xxx-xxxx-xxx
 const MEET_URL_PATTERN = /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i;
 
+// Custom event type for reasoning request from overlay
+export interface ReasoningRequestEventDetail {
+  effort: 'low' | 'medium' | 'high';
+}
+
 // Custom event type for transcript updates
 export interface TranscriptUpdateEventDetail {
   entries: TranscriptEntry[];
@@ -177,6 +182,49 @@ async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Pr
     }
   } catch (error) {
     console.error('AI Interview Assistant: Failed to send LLM request:', error);
+  }
+}
+
+/**
+ * Send reasoning request to background service worker.
+ * Uses recent transcript as the question and sends with reasoning flags.
+ */
+async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<void> {
+  const state = useStore.getState();
+
+  if (!state.activeTemplateId) {
+    console.warn('AI Interview Assistant: No active template selected');
+    return;
+  }
+
+  const responseId = crypto.randomUUID();
+
+  // Clear any existing response and initialize fresh state for new request
+  activeResponseId = responseId;
+  currentLLMResponse = null;
+  initLLMResponse(responseId);
+
+  const message: LLMRequestMessage = {
+    type: 'LLM_REQUEST',
+    responseId,
+    question: getRecentTranscript(), // Use recent transcript as the "question"
+    recentContext: getRecentTranscript(),
+    fullTranscript: getFullTranscript(),
+    templateId: state.activeTemplateId,
+    isReasoningRequest: true,
+    reasoningEffort: effort,
+  };
+
+  try {
+    const response = await chrome.runtime.sendMessage(message);
+    if (!response?.success) {
+      console.error(
+        'AI Interview Assistant: Reasoning request failed:',
+        response?.error || `Unknown - response: ${JSON.stringify(response)}`,
+      );
+    }
+  } catch (error) {
+    console.error('AI Interview Assistant: Failed to send reasoning request:', error);
   }
 }
 
@@ -356,6 +404,12 @@ export default defineContentScript({
 
     ui.mount();
     console.log('AI Interview Assistant: Overlay injected with capture mode support');
+
+    // Listen for reasoning-request events from the overlay's Reason button
+    const handleReasoningRequest = ((event: CustomEvent<ReasoningRequestEventDetail>) => {
+      sendReasoningRequest(event.detail.effort);
+    }) as EventListener;
+    window.addEventListener('reasoning-request', handleReasoningRequest);
 
     // Notify background that UI is ready
     try {
