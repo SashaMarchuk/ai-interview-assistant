@@ -121,8 +121,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 18-01-PLAN.md -- IndexedDB persistence layer, CostRecord types, aggregation helpers, background.ts write integration
-- [ ] 18-02-PLAN.md -- recharts chart components, CostDashboard, Cost tab in popup
+- [x] 18-01-PLAN.md -- IndexedDB persistence layer, CostRecord types, aggregation helpers, background.ts write integration
+- [x] 18-02-PLAN.md -- recharts chart components, CostDashboard, Cost tab in popup
 
 ### Phase 19: File Personalization
 **Goal**: Users can upload resume and job description files that are automatically injected into LLM prompts for personalized interview assistance
@@ -182,7 +182,7 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 | 15. Markdown Rendering | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 16. Reasoning Models | v2.0 | 3/3 | ✓ Complete | 2026-02-09 |
 | 17. Cost Tracking Capture | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
-| 18. Cost Dashboard | v2.0 | 0/TBD | Not started | - |
-| 19. File Personalization | v2.0 | 0/TBD | Not started | - |
+| 18. Cost Dashboard | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
+| 19. File Personalization | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 20. Transcript Editing | v2.0 | 0/TBD | Not started | - |
 | 21. Enhanced Text Selection | v2.0 | 0/TBD | Not started | - |
