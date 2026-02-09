@@ -13,6 +13,7 @@ import type {
 import {
   buildPrompt,
   resolveProviderForModel,
+  isReasoningModel,
   MIN_REASONING_TOKEN_BUDGET,
   type LLMProvider,
   type ReasoningEffort,
@@ -489,8 +490,11 @@ async function handleLLMRequest(
       status: 'complete',
     });
 
-    // Enforce minimum 25K token budget for reasoning models (defense in depth -- provider also enforces)
-    const fullMaxTokens = Math.max(2000, MIN_REASONING_TOKEN_BUDGET);
+    // Only apply 25K budget for actual reasoning models; standard models keep their normal limit
+    const isFullModelReasoning = isReasoningModel(models.fullModel);
+    const fullMaxTokens = isFullModelReasoning
+      ? Math.max(2000, MIN_REASONING_TOKEN_BUDGET)
+      : 2000;
 
     const fullPromise = fireModelRequest({
       resolution: fullResolution,
