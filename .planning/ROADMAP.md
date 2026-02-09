@@ -88,11 +88,12 @@ Plans:
   3. User can set reasoning_effort to low, medium, or high before sending a request, and the setting affects response depth
   4. A dedicated "Reasoning" button in the overlay triggers a reasoning model request with a visible thinking/processing indicator
   5. Reasoning model requests use correct API parameters (developer role instead of system, max_completion_tokens >= 25K, reasoning_effort field)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 16-01: TBD
-- [ ] 16-02: TBD
+- [ ] 16-01-PLAN.md -- Provider & types foundation (model lists, isReasoningModel utility, request body construction, store setting)
+- [ ] 16-02-PLAN.md -- Message types & background handler (single-stream reasoning mode, 25K budget, reasoningEffort passthrough)
+- [ ] 16-03-PLAN.md -- Reasoning UI (reasoning button, effort selector, thinking indicator, ModelSettings grouping)
 
 ### Phase 17: Cost Tracking Capture
 **Goal**: Every LLM request captures token usage and calculates cost, displayed per-request in the overlay and as a running session total
