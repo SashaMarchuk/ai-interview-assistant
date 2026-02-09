@@ -81,22 +81,20 @@ function initLLMResponse(responseId: string): void {
   dispatchLLMResponseUpdate(response);
 }
 
-/**
- * Handle LLM stream token message.
- * Ignores tokens from cancelled/old requests.
- */
+function ensureLLMResponse(responseId: string): LLMResponse | null {
+  if (activeResponseId && responseId !== activeResponseId) {
+    return null;
+  }
+  if (!currentLLMResponse || currentLLMResponse.id !== responseId) {
+    initLLMResponse(responseId);
+  }
+  return { ...currentLLMResponse! };
+}
+
 function handleLLMStream(message: LLMStreamMessage): void {
-  // Ignore tokens from cancelled/old requests
-  if (activeResponseId && message.responseId !== activeResponseId) {
-    return;
-  }
+  const response = ensureLLMResponse(message.responseId);
+  if (!response) return;
 
-  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
-    // Initialize if response doesn't exist
-    initLLMResponse(message.responseId);
-  }
-
-  const response = { ...currentLLMResponse! };
   response.status = 'streaming';
 
   if (message.model === 'fast') {
@@ -108,24 +106,10 @@ function handleLLMStream(message: LLMStreamMessage): void {
   dispatchLLMResponseUpdate(response);
 }
 
-/**
- * Handle LLM status change message.
- * Ignores status updates from cancelled/old requests.
- */
 function handleLLMStatus(message: LLMStatusMessage): void {
-  // Ignore status updates from cancelled/old requests
-  if (activeResponseId && message.responseId !== activeResponseId) {
-    return;
-  }
+  const response = ensureLLMResponse(message.responseId);
+  if (!response) return;
 
-  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
-    // Initialize if response doesn't exist
-    initLLMResponse(message.responseId);
-  }
-
-  const response = { ...currentLLMResponse! };
-
-  // Update status based on which model(s) the status applies to
   if (message.status === 'error') {
     response.status = 'error';
     response.error = message.error;
@@ -140,35 +124,20 @@ function handleLLMStatus(message: LLMStatusMessage): void {
   dispatchLLMResponseUpdate(response);
 }
 
-/**
- * Get transcript entries since a given timestamp, formatted as string
- */
+function formatEntries(entries: TranscriptEntry[]): string {
+  return entries.map((e) => `${e.speaker}: ${e.text}`).join('\n');
+}
+
 function getTranscriptSince(timestamp: number): string {
-  return currentTranscript
-    .filter((e) => e.timestamp >= timestamp && e.isFinal)
-    .map((e) => `${e.speaker}: ${e.text}`)
-    .join('\n');
+  return formatEntries(currentTranscript.filter((e) => e.isFinal && e.timestamp >= timestamp));
 }
 
-/**
- * Get recent transcript (last 5 final entries)
- */
 function getRecentTranscript(): string {
-  return currentTranscript
-    .filter((e) => e.isFinal)
-    .slice(-5)
-    .map((e) => `${e.speaker}: ${e.text}`)
-    .join('\n');
+  return formatEntries(currentTranscript.filter((e) => e.isFinal).slice(-5));
 }
 
-/**
- * Get full transcript formatted as string
- */
 function getFullTranscript(): string {
-  return currentTranscript
-    .filter((e) => e.isFinal)
-    .map((e) => `${e.speaker}: ${e.text}`)
-    .join('\n');
+  return formatEntries(currentTranscript.filter((e) => e.isFinal));
 }
 
 /**

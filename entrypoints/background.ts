@@ -347,163 +347,112 @@ async function handleLLMRequest(
     status: 'pending',
   });
 
-  // Fire fast model request (if provider available)
-  let fastPromise: Promise<void> = Promise.resolve();
-  if (fastResolution) {
-    const fastBreaker = circuitBreakerManager.getBreaker(fastResolution.provider.id);
-    if (!fastBreaker.allowRequest()) {
-      // Circuit is OPEN -- reject immediately without network request
+  interface ModelRequestConfig {
+    resolution: typeof fastResolution;
+    modelType: 'fast' | 'full';
+    modelId: string;
+    userPrompt: string;
+    maxTokens: number;
+    onDone: () => void;
+  }
+
+  function fireModelRequest(config: ModelRequestConfig): Promise<void> {
+    const { resolution, modelType, modelId, userPrompt, maxTokens, onDone } = config;
+
+    if (!resolution) {
+      onDone();
+      return sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: modelType,
+        status: 'error',
+        error: `Model ${modelId} not available with current API keys`,
+      }).then(() => {});
+    }
+
+    const breaker = circuitBreakerManager.getBreaker(resolution.provider.id);
+    if (!breaker.allowRequest()) {
+      onDone();
+      return sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: modelType,
+        status: 'error',
+        error: `${resolution.provider.id} service temporarily unavailable`,
+      }).then(() => {});
+    }
+
+    return streamWithRetry(
+      {
+        provider: resolution.provider,
+        model: resolution.model,
+        systemPrompt: prompts.system,
+        userPrompt,
+        maxTokens,
+        apiKey: resolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
+        onToken: (token) => {
+          sendLLMMessageToMeet({ type: 'LLM_STREAM', responseId, model: modelType, token });
+        },
+        onComplete: () => {
+          onDone();
+          console.log(`LLM: ${modelType} model complete`);
+          sendLLMMessageToMeet({
+            type: 'LLM_STATUS',
+            responseId,
+            model: modelType,
+            status: 'complete',
+          });
+          checkAllComplete();
+        },
+        onError: (error) => {
+          onDone();
+          console.error(`LLM: ${modelType} model error:`, error.message);
+          sendLLMMessageToMeet({
+            type: 'LLM_STATUS',
+            responseId,
+            model: modelType,
+            status: 'error',
+            error: error.message || 'Unknown error',
+          });
+          checkAllComplete();
+        },
+        abortSignal: abortController.signal,
+      },
+      modelType,
+      responseId,
+    )
+      .then(() => {
+        breaker.recordSuccess();
+      })
+      .catch((error) => {
+        breaker.recordFailure();
+        throw error;
+      });
+  }
+
+  const fastPromise = fireModelRequest({
+    resolution: fastResolution,
+    modelType: 'fast',
+    modelId: models.fastModel,
+    userPrompt: prompts.user,
+    maxTokens: 300,
+    onDone: () => {
       fastComplete = true;
-      await sendLLMMessageToMeet({
-        type: 'LLM_STATUS',
-        responseId,
-        model: 'fast',
-        status: 'error',
-        error: `${fastResolution.provider.id} service temporarily unavailable`,
-      });
-    } else {
-      fastPromise = streamWithRetry(
-        {
-          provider: fastResolution.provider,
-          model: fastResolution.model,
-          systemPrompt: prompts.system,
-          userPrompt: prompts.user,
-          maxTokens: 300, // Short response for fast hint
-          apiKey: fastResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
-          onToken: (token) => {
-            sendLLMMessageToMeet({
-              type: 'LLM_STREAM',
-              responseId,
-              model: 'fast',
-              token,
-            });
-          },
-          onComplete: () => {
-            fastComplete = true;
-            console.log('LLM: Fast model complete');
-            sendLLMMessageToMeet({
-              type: 'LLM_STATUS',
-              responseId,
-              model: 'fast',
-              status: 'complete',
-            });
-            checkAllComplete();
-          },
-          onError: (error) => {
-            fastComplete = true;
-            console.error('LLM: Fast model error:', error.message);
-            sendLLMMessageToMeet({
-              type: 'LLM_STATUS',
-              responseId,
-              model: 'fast',
-              status: 'error',
-              error: error.message || 'Unknown error',
-            });
-            checkAllComplete();
-          },
-          abortSignal: abortController.signal,
-        },
-        'fast',
-        responseId,
-      )
-        .then(() => {
-          fastBreaker.recordSuccess();
-        })
-        .catch((error) => {
-          fastBreaker.recordFailure();
-          throw error;
-        });
-    }
-  } else {
-    fastComplete = true;
-    await sendLLMMessageToMeet({
-      type: 'LLM_STATUS',
-      responseId,
-      model: 'fast',
-      status: 'error',
-      error: `Model ${models.fastModel} not available with current API keys`,
-    });
-  }
+    },
+  });
 
-  // Fire full model request (if provider available)
-  let fullPromise: Promise<void> = Promise.resolve();
-  if (fullResolution) {
-    const fullBreaker = circuitBreakerManager.getBreaker(fullResolution.provider.id);
-    if (!fullBreaker.allowRequest()) {
-      // Circuit is OPEN -- reject immediately without network request
+  const fullPromise = fireModelRequest({
+    resolution: fullResolution,
+    modelType: 'full',
+    modelId: models.fullModel,
+    userPrompt: prompts.userFull,
+    maxTokens: 2000,
+    onDone: () => {
       fullComplete = true;
-      await sendLLMMessageToMeet({
-        type: 'LLM_STATUS',
-        responseId,
-        model: 'full',
-        status: 'error',
-        error: `${fullResolution.provider.id} service temporarily unavailable`,
-      });
-    } else {
-      fullPromise = streamWithRetry(
-        {
-          provider: fullResolution.provider,
-          model: fullResolution.model,
-          systemPrompt: prompts.system,
-          userPrompt: prompts.userFull,
-          maxTokens: 2000, // Comprehensive response
-          apiKey: fullResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
-          onToken: (token) => {
-            sendLLMMessageToMeet({
-              type: 'LLM_STREAM',
-              responseId,
-              model: 'full',
-              token,
-            });
-          },
-          onComplete: () => {
-            fullComplete = true;
-            console.log('LLM: Full model complete');
-            sendLLMMessageToMeet({
-              type: 'LLM_STATUS',
-              responseId,
-              model: 'full',
-              status: 'complete',
-            });
-            checkAllComplete();
-          },
-          onError: (error) => {
-            fullComplete = true;
-            console.error('LLM: Full model error:', error.message);
-            sendLLMMessageToMeet({
-              type: 'LLM_STATUS',
-              responseId,
-              model: 'full',
-              status: 'error',
-              error: error.message || 'Unknown error',
-            });
-            checkAllComplete();
-          },
-          abortSignal: abortController.signal,
-        },
-        'full',
-        responseId,
-      )
-        .then(() => {
-          fullBreaker.recordSuccess();
-        })
-        .catch((error) => {
-          fullBreaker.recordFailure();
-          throw error;
-        });
-    }
-  } else {
-    fullComplete = true;
-    await sendLLMMessageToMeet({
-      type: 'LLM_STATUS',
-      responseId,
-      model: 'full',
-      status: 'error',
-      error: `Model ${models.fullModel} not available with current API keys`,
-    });
-  }
+    },
+  });
 
-  // Send streaming status for both (only if at least one is streaming)
+  // Send streaming status (only if at least one model is available)
   if (fastResolution || fullResolution) {
     await sendLLMMessageToMeet({
       type: 'LLM_STATUS',
@@ -524,7 +473,12 @@ type MessageResponse =
   | { type: string }
   | { received: boolean }
   | { success: boolean; error?: string }
-  | { isCapturing: boolean; isTranscribing: boolean; hasActiveLLMRequest: boolean; isCaptureStartInProgress: boolean }
+  | {
+      isCapturing: boolean;
+      isTranscribing: boolean;
+      hasActiveLLMRequest: boolean;
+      isCaptureStartInProgress: boolean;
+    }
   | { error: string }
   | undefined;
 
@@ -738,11 +692,7 @@ async function handleMessage(
     }
 
     case 'TAB_AUDIO_CHUNK':
-      // Audio chunks are processed in offscreen - no logging needed (too frequent)
-      return { received: true };
-
     case 'MIC_AUDIO_CHUNK':
-      // Audio chunks are processed in offscreen - no logging needed (too frequent)
       return { received: true };
 
     case 'GET_CAPTURE_STATE':
@@ -815,9 +765,6 @@ async function handleMessage(
 
     case 'INJECT_UI':
     case 'UI_INJECTED':
-      // Content script communication - no logging needed
-      return { received: true };
-
     case 'PONG':
       return { received: true };
 
@@ -944,11 +891,7 @@ async function handleMessage(
     }
 
     case 'TRANSCRIPT_UPDATE':
-      // This is outbound only - no logging
-      return { received: true };
-
     case 'REQUEST_MIC_PERMISSION':
-      // This goes directly to content script
       return { received: true };
 
     // LLM request lifecycle messages
@@ -975,11 +918,7 @@ async function handleMessage(
     }
 
     case 'LLM_STREAM':
-      // Outbound only - no logging (too frequent)
-      return { received: true };
-
     case 'LLM_STATUS':
-      // Outbound only - no logging
       return { received: true };
 
     case 'LLM_CANCEL': {

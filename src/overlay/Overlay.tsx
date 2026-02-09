@@ -156,50 +156,38 @@ export function Overlay({ response }: OverlayProps) {
 
   // Listen for connection state updates from background (for HealthIndicator)
   useEffect(() => {
+    const serviceNameMap: Record<ConnectionStateEventDetail['service'], string> = {
+      'stt-tab': 'Tab STT',
+      'stt-mic': 'Mic STT',
+      llm: 'LLM-conn',
+    };
+
     const handleConnectionStateUpdate: TypedCustomEventHandler<ConnectionStateEventDetail> = (
       event,
     ) => {
       const { service, state, error } = event.detail;
+      const serviceName = serviceNameMap[service];
 
       setConnectionIssues((prev) => {
-        // Remove existing issue for this service
-        const remaining = prev.filter(
-          (i) => i.service !== 'Tab STT' && i.service !== 'Mic STT' && i.service !== 'LLM-conn',
-        );
+        const remaining = prev.filter((i) => i.service !== serviceName);
 
-        // Only add connection issue if not connected
-        if (state !== 'connected') {
-          type NonConnectedState = 'disconnected' | 'reconnecting' | 'error';
-          const statusMap: Record<NonConnectedState, HealthIssue['status']> = {
-            disconnected: 'warning',
-            reconnecting: 'reconnecting',
-            error: 'error',
-          };
-          const messageMap: Record<NonConnectedState, string> = {
-            disconnected: 'Disconnected',
-            reconnecting: 'Reconnecting...',
-            error: error || 'Connection error',
-          };
+        if (state === 'connected') return remaining;
 
-          const serviceNameMap: Record<ConnectionStateEventDetail['service'], string> = {
-            'stt-tab': 'Tab STT',
-            'stt-mic': 'Mic STT',
-            llm: 'LLM-conn',
-          };
-          const serviceName = serviceNameMap[service];
+        const statusMap: Record<string, HealthIssue['status']> = {
+          disconnected: 'warning',
+          reconnecting: 'reconnecting',
+          error: 'error',
+        };
+        const messageMap: Record<string, string> = {
+          disconnected: 'Disconnected',
+          reconnecting: 'Reconnecting...',
+          error: error || 'Connection error',
+        };
 
-          const nonConnectedState = state as NonConnectedState;
-          return [
-            ...remaining,
-            {
-              service: serviceName,
-              status: statusMap[nonConnectedState],
-              message: messageMap[nonConnectedState],
-            },
-          ];
-        }
-
-        return remaining;
+        return [
+          ...remaining,
+          { service: serviceName, status: statusMap[state], message: messageMap[state] },
+        ];
       });
     };
 

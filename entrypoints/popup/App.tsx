@@ -389,36 +389,19 @@ function App() {
 
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('capture')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'capture'
-              ? 'border-b-2 border-blue-600 bg-blue-50 text-blue-600'
-              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-          }`}
-        >
-          Capture
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'settings'
-              ? 'border-b-2 border-blue-600 bg-blue-50 text-blue-600'
-              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-          }`}
-        >
-          Settings
-        </button>
-        <button
-          onClick={() => setActiveTab('templates')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'templates'
-              ? 'border-b-2 border-blue-600 bg-blue-50 text-blue-600'
-              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-          }`}
-        >
-          Templates
-        </button>
+        {(['capture', 'settings', 'templates'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 px-4 py-2 text-sm font-medium capitalize transition-colors ${
+              activeTab === tab
+                ? 'border-b-2 border-blue-600 bg-blue-50 text-blue-600'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
       {/* Tab Content */}
