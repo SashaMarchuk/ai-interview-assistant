@@ -228,6 +228,10 @@ export interface LLMRequestMessage extends BaseMessage {
   recentContext: string; // Last N transcript entries formatted
   fullTranscript: string; // Full session transcript formatted
   templateId: string; // Active template ID
+  /** Optional: if true, this is a single-stream reasoning request (not dual fast+full) */
+  isReasoningRequest?: boolean;
+  /** Optional: reasoning effort level for reasoning models */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 // Streaming token updates from background to content script
