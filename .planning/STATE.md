@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 18 in progress, Plan 01 complete
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 19 complete, Phase 18 Plan 01 complete
 
 ## Current Position
 
-Phase: 18 of 21 (Cost Dashboard) -- IN PROGRESS
-Plan: 1 of 2 complete
-Status: Phase 18 Plan 01 complete. Cost data layer: IndexedDB persistence, aggregation helpers, background.ts integration. Plan 02 (Dashboard UI) next.
-Last activity: 2026-02-09 -- Phase 18 Plan 01 complete
+Phase: 19 of 21 (File Personalization) -- COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 19 complete. File personalization: IndexedDB storage, PDF extraction, FileUploadSettings UI, PromptBuilder context injection. Phases 18+20 in progress on separate branches.
+Last activity: 2026-02-09 -- Phase 19 Plan 02 complete
 
-Progress: [████░░░░░░] 35% (v2.0)
+Progress: [████░░░░░░] 40% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46 (30 v1.0 + 7 v1.1 + 9 v2.0)
+- Total plans completed: 47 (30 v1.0 + 7 v1.1 + 10 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -34,6 +34,7 @@ Progress: [████░░░░░░] 35% (v2.0)
 | 17-02 | Cost Display UI | 2min | 2 | 3 |
 | 18-01 | Cost History Data Layer | 8min | 2 | 4 |
 | 19-01 | File Storage & PDF Extraction | 10min | 2 | 5 |
+| 19-02 | File Upload UI & Prompt Injection | 7min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -74,6 +75,10 @@ Recent decisions affecting current work:
 - [19-01]: idb library for IndexedDB Promise wrapper (1.19KB gzipped, TypeScript-first) -- separate DB from phase 18's cost DB
 - [19-01]: pdfjs-dist worker configured via Vite ?url import -- no custom type declarations needed (vite/client declares *?url)
 - [19-01]: Lazy singleton DB connection pattern for file-personalization database
+- [19-02]: FileContext optional parameter to buildPrompt -- backward compatible, no impact on existing callers
+- [19-02]: Resume 8K chars, JD 4K chars -- fits within typical context windows
+- [19-02]: File context appended as system prompt sections (## Candidate Background, ## Target Role) -- persistent context
+- [19-02]: Parallel IndexedDB reads (Promise.all) for resume + JD in background -- non-blocking
 
 ### Pending Todos
 
@@ -88,5 +93,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Completed 18-01-PLAN.md (Cost History Data Layer)
-Resume file: Phase 18 Plan 02 (Cost Dashboard UI) next
+Stopped at: Completed 19-02-PLAN.md (File Upload UI & Prompt Injection)
+Resume file: Phase 19 complete. Phase 18 Plan 02 and Phase 20 still in progress on separate branches.
