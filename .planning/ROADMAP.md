@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** - Phases 1-8 (shipped 2026-02-03)
-- 🚧 **v1.1 Security & Reliability** - Phases 9-13 (in progress)
+- 🚧 **v1.1 Security & Reliability** - Phases 9-14 (in progress)
 
 ## Phases
 
@@ -28,6 +28,7 @@ See MILESTONES.md for details.
 - [x] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts (completed 2026-02-08)
 - [x] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling (completed 2026-02-08)
 - [x] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings (completed 2026-02-08)
+- [ ] **Phase 14: Linter & Prettier** - ESLint + Prettier setup, format entire codebase, Claude Code auto-lint hook
 
 ## Phase Details
 
@@ -101,6 +102,20 @@ Plans:
 - [x] 13-01-PLAN.md -- Consent state slice + privacy policy content component
 - [x] 13-02-PLAN.md -- Consent UI gates + settings integration in popup
 
+### Phase 14: Linter & Prettier
+**Goal**: All code follows consistent formatting and lint rules, enforced automatically during development and Claude Code sessions
+**Depends on**: Phase 13 (no hard dependency, but should run after all code changes are complete)
+**Requirements**: DX-01
+**Success Criteria** (what must be TRUE):
+  1. `npx eslint .` runs with zero errors across the entire codebase
+  2. `npx prettier --check .` reports all files are formatted
+  3. Claude Code hook auto-runs `eslint --fix` and `prettier --write` after every file Edit/Write
+  4. ESLint config covers TypeScript strict rules appropriate for a Chrome extension + React project
+**Plans**: 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 14 to break down)
+
 ## Progress
 
 **Execution Order:**
@@ -115,3 +130,4 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 | 11. Transcript Resilience | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 12. Circuit Breaker | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
 | 13. Compliance UI | v1.1 | 2/2 | ✓ Complete | 2026-02-08 |
+| 14. Linter & Prettier | v1.1 | 0/0 | Not started | - |
