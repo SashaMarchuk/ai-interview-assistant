@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | xargs -I{} sh -c 'npx prettier --write \"{}\" 2>/dev/null; npx eslint --fix \"{}\" 2>/dev/null; exit 0'"
+          }
+        ]
+      }
+    ]
+  }
+}

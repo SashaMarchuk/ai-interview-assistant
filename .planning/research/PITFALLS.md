@@ -1,595 +1,436 @@
-# Pitfalls Research: Chrome MV3 Extension with Real-Time Audio and LLM Integration
+# Domain Pitfalls: v1.1 Security, Reliability & Compliance
 
-Research findings for common mistakes and critical pitfalls when building Chrome extensions with real-time audio processing, WebSocket connections, and LLM streaming.
+**Domain:** Adding encryption, IndexedDB storage, circuit breaker, compliance features to existing Chrome MV3 extension
+**Researched:** 2026-02-08
+**Confidence:** HIGH (verified against codebase + official documentation + community reports)
 
 ---
 
 ## Critical Pitfalls
 
-These will fundamentally break the extension if not addressed properly.
-
-### 1. Service Worker Termination Kills Active Connections
-
-**The Problem:** Chrome terminates service workers after 30 seconds of inactivity or 5 minutes of continuous work. Any WebSocket or SSE connection in the service worker will be killed unpredictably.
-
-**Why It's Critical:** Your ElevenLabs WebSocket and OpenRouter SSE connections cannot live in the service worker. Period.
-
-**Warning Signs:**
-- Transcription randomly stops mid-sentence
-- LLM responses cut off unexpectedly
-- Users report "it worked for a bit then stopped"
-- Console shows service worker restart messages
-
-**Prevention Strategy:**
-- Run WebSocket connections in an [Offscreen Document](https://developer.chrome.com/docs/extensions/reference/api/offscreen), not the service worker
-- Offscreen documents can live for hours as long as they're fulfilling their purpose
-- Implement heartbeat/ping-pong every 20 seconds to keep connections alive within the offscreen document
-- Store critical state in `chrome.storage.session` (survives service worker restarts)
-
-**Phase:** Architecture/Foundation - must be designed correctly from day one
-
-**Sources:**
-- [Extension Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
-- [Longer Extension Service Worker Lifetimes](https://developer.chrome.com/blog/longer-esw-lifetimes)
-- [Offscreen Documents Guide](https://dev.to/notearthian/how-to-create-offscreen-documents-in-chrome-extensions-a-complete-guide-3ke2)
+Mistakes that cause data loss, broken encryption, or security regressions.
 
 ---
 
-### 2. tabCapture Mutes Tab Audio by Default
+### Pitfall 1: Browser Fingerprint Key Derivation Breaks in Service Worker
 
-**The Problem:** When you capture a tab's MediaStream, the audio stops playing to the user. This is by design, similar to `getDisplayMedia()` with `suppressLocalAudioPlayback: true`.
+**What goes wrong:** The proposed encryption todo (`20260208-security-encrypt-api-keys.md`) derives the encryption key from a "browser fingerprint" that includes `screen.width`, `screen.height`, and `navigator.userAgent`. The `screen` object does **not exist in service workers** -- service workers have no access to `window` or DOM-related APIs. This means the encryption service will throw a `ReferenceError` when initialized in the background service worker.
 
-**Why It's Critical:** Users will think their audio is broken. They won't hear the interviewer/interviewee.
+**Why it happens:** The todo was written assuming all encryption code runs in a context with full browser APIs. But in Chrome MV3, the background script IS a service worker. `navigator.userAgent` is available via `WorkerNavigator`, but `screen.width`, `screen.height`, `new Date().getTimezoneOffset()` work, while `screen` does not.
 
-**Warning Signs:**
-- Tab goes silent immediately after starting capture
-- Users frantically checking volume controls
-- "The extension muted my meeting!" complaints
+**Consequences:**
+- Encryption service fails to initialize in the service worker
+- API keys cannot be encrypted or decrypted
+- Extension becomes non-functional if encryption is required before key access
+- If the fingerprint approach works in popup (where `screen` exists) but not in the service worker, you get mismatched keys -- data encrypted in one context cannot be decrypted in another
 
-**Prevention Strategy:**
-```javascript
-// Create an AudioContext to pipe the stream back to speakers
-const audioContext = new AudioContext();
-const source = audioContext.createMediaStreamSource(capturedStream);
-source.connect(audioContext.destination);
-```
+**Prevention:**
+- Use ONLY APIs available in `ServiceWorkerGlobalScope` for key derivation: `chrome.runtime.id` (stable per installation), `self.navigator.userAgent`, and `Date().getTimezoneOffset()`
+- Better approach: generate a random key on first install, store the CryptoKey object directly in IndexedDB (IndexedDB can store structured-cloneable CryptoKey objects natively)
+- If deriving from a passphrase/entropy, derive in one canonical context and cache the CryptoKey in IndexedDB
+- Test encryption init in the actual service worker, not in a page context
 
-**Phase:** Audio Capture implementation - critical for initial working prototype
+**Detection:** Error in service worker console: `ReferenceError: screen is not defined` on first key derivation attempt
+
+**Codebase reference:** The current background.ts (`entrypoints/background.ts`) runs as a service worker. Line 228 calls `useStore.getState()` to read API keys -- after encryption, this will need the encryption service initialized first.
 
 **Sources:**
-- [chrome.tabCapture API](https://developer.chrome.com/docs/extensions/reference/api/tabCapture)
-- [How to Build a Chrome Recording Extension](https://www.recall.ai/blog/how-to-build-a-chrome-recording-extension)
+- [WorkerGlobalScope: navigator property (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/navigator)
+- [Window is not defined in service workers (Workbox #1482)](https://github.com/GoogleChrome/workbox/issues/1482)
 
 ---
 
-### 3. tabCapture Requires User Gesture from Visible UI
+### Pitfall 2: Plaintext-to-Encrypted Migration Causes Permanent Key Loss
 
-**The Problem:** `chrome.tabCapture.capture()` and `getMediaStreamId()` can only be called after a user gesture from a visible extension UI (popup, options page, or tab).
+**What goes wrong:** During migration from plaintext to encrypted storage, if the encryption service fails to initialize (see Pitfall 1), or if the migration runs partially (encrypts some keys, removes plaintext, crashes before completing), users permanently lose their API keys.
 
-**Why It's Critical:** Silent/automatic capture won't work. Popup dismissal before capture starts will fail.
+**Why it happens:** The proposed migration in the todo does: (1) read plaintext, (2) encrypt each key, (3) remove plaintext. If step 2 fails for any key, step 3 has already removed the plaintext for previously-processed keys. Also, `chrome.runtime.onInstalled` only fires once per install/update -- if migration fails silently, there is no retry mechanism.
 
-**Warning Signs:**
-- "chrome.tabCapture.capture is not a function" errors
-- Capture works in dev but fails in production
-- Permission prompts never appear
-- Silent failures with no error messages
+**Consequences:**
+- Users must re-enter all API keys after extension update
+- If they don't notice, transcription and LLM features silently fail
+- Support tickets spike after v1.1 release
+- Worst case: users blame the extension and uninstall
 
-**Prevention Strategy:**
-- Initiate capture from a popup click handler that keeps the popup open
-- Alternatively, open a dedicated setup tab for capture initialization
-- Never try to capture from the service worker directly
-- The streamId expires after a few seconds - use it immediately
+**Prevention:**
+- Implement atomic migration: read ALL plaintext keys, encrypt ALL keys, verify ALL decryption works, THEN remove plaintext
+- Keep a migration version flag in storage: `{ migration_v: 2, completed: true }`
+- If migration fails, leave plaintext in place and retry on next service worker restart (not just onInstalled)
+- Add a migration health check: on every service worker startup, verify that stored encrypted keys can be decrypted successfully
+- Never remove plaintext until encrypted versions are verified working
+- Log migration results for debugging
 
-**Phase:** UX/UI design and Audio Capture implementation
+**Detection:** Users report "API keys disappeared" or "Please reconfigure your settings" after updating to v1.1
 
-**Sources:**
-- [tabCapture with MV3 Discussion](https://github.com/w3c/webextensions/issues/137)
-- [Chromium Extension Tab Audio Capture Discussion](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/JI7AW48PxGs/m/QZ69ZIx1AgAJ)
-
----
-
-### 4. Global State Lost on Service Worker Restart
-
-**The Problem:** All JavaScript global variables are wiped when the service worker restarts. This includes interview state, connection status, user settings, and any runtime data.
-
-**Why It's Critical:** Mid-interview service worker restart = complete context loss.
-
-**Warning Signs:**
-- State mysteriously resets to defaults
-- "Where did my conversation history go?"
-- Zustand store appears empty after Chrome activity
-- Extension works fine in dev (DevTools keeps SW alive) but breaks in production
-
-**Prevention Strategy:**
-- Use `chrome.storage.session` for ephemeral state (max 10MB, cleared on browser close)
-- Use `chrome.storage.local` for persistent settings
-- Implement state rehydration on service worker startup
-- For Zustand: subscribe to storage changes and trigger rehydration in popup
-- Save state continuously, not just on suspend (don't rely on `onSuspend`)
-
-**Phase:** State Management architecture - Foundation phase
-
-**Sources:**
-- [Zustand Chrome Extension Discussion](https://github.com/pmndrs/zustand/discussions/2020)
-- [V3 Service Worker State Persistence Solutions](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/a40YbSmgUK4)
+**Codebase reference:** Current store persists API keys via Zustand persist middleware to `chrome.storage.local` under key `ai-interview-settings` (see `src/store/index.ts:33`). Migration must account for this specific storage structure, not raw key-value pairs.
 
 ---
 
-### 5. CSP Blocking External WebSocket Connections
+### Pitfall 3: WebCrypto Key Regenerated on Browser Update Changes User Agent
 
-**The Problem:** Content Security Policy must explicitly allow WebSocket connections to external services. Default CSP won't allow connections to ElevenLabs or OpenRouter.
+**What goes wrong:** If the encryption key is derived from `navigator.userAgent` and the browser auto-updates (e.g., Chrome 130 to Chrome 131), the user agent string changes. PBKDF2 derives a different key. All previously encrypted data becomes undecryptable.
 
-**Why It's Critical:** WebSocket handshakes fail silently or with cryptic CSP errors.
+**Why it happens:** The user agent string includes the Chrome version number (e.g., `Chrome/130.0.6723.69`). Chrome auto-updates frequently. Any fingerprint-based key derivation that includes version-specific strings is inherently fragile.
 
-**Warning Signs:**
-- "Content Security Policy: blocked loading of resource" errors
-- WebSocket connections timeout without clear reason
-- Works locally but fails in production
+**Consequences:**
+- After every Chrome update, all encrypted API keys become garbage
+- Users must re-enter API keys every 2-4 weeks (Chrome's update cycle)
+- Extension appears broken with no clear error message
 
-**Prevention Strategy:**
-In `manifest.json`:
-```json
-{
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' wss://api.elevenlabs.io https://openrouter.ai https://*.openrouter.ai;"
+**Prevention:**
+- Do NOT derive encryption keys from browser fingerprints. This is a fundamentally flawed approach for data that must persist across browser updates
+- Instead, generate a random 256-bit AES-GCM key using `crypto.getRandomValues()` on first install
+- Store the CryptoKey in IndexedDB (CryptoKey is structured-cloneable and can be stored with `extractable: false` for security)
+- Alternatively, use a random salt stored in IndexedDB + a static extension-specific passphrase (like `chrome.runtime.id`) for PBKDF2 derivation -- `chrome.runtime.id` is stable across updates
+- If you must use PBKDF2, use ONLY stable inputs: `chrome.runtime.id` + stored salt
+
+**Detection:** After Chrome auto-update, encrypted API keys fail to decrypt. Console shows `DOMException: OperationError` from `crypto.subtle.decrypt`
+
+**Sources:**
+- [Web Crypto API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
+- [Saving Web Crypto Keys using IndexedDB (GitHub Gist)](https://gist.github.com/saulshanabrook/b74984677bccd08b028b30d9968623f5)
+
+---
+
+### Pitfall 4: Store Race Condition Fix Breaks Message Handling on Service Worker Restart
+
+**What goes wrong:** The todo (`20260208-fix-store-race-condition.md`) proposes awaiting `storeReadyPromise` before registering message listeners. But Chrome MV3 requires ALL event listeners to be registered synchronously at the top level of the service worker script. If you register `chrome.runtime.onMessage.addListener` inside an async function after an await, Chrome may miss events that arrive during the async gap.
+
+**Why it happens:** When a service worker is terminated and re-awakened by an incoming message, Chrome replays the event to registered listeners. If the listener is not yet registered (because it's inside an async init that hasn't completed), the message is dropped silently. The current codebase CORRECTLY registers the listener synchronously at line 436 of `background.ts`.
+
+**Consequences:**
+- Messages sent during store initialization are silently dropped
+- Popup sends START_CAPTURE but background never receives it
+- Users click buttons that appear to do nothing
+- Problem is intermittent and hard to reproduce (depends on service worker wake-up timing)
+
+**Prevention:**
+- Keep the current pattern: register `chrome.runtime.onMessage.addListener` synchronously at the top level
+- Inside the handler, await `storeReadyPromise` before accessing store state (lazy store access pattern)
+- Alternatively, use the message queuing pattern: register handler immediately, queue messages if store not ready, process queue after store initializes
+- The correct fix is NOT to delay listener registration but to delay store-dependent logic inside the handler
+
+```typescript
+// CORRECT: Register synchronously, await store inside handler
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  handleMessage(message, sender).then(sendResponse);
+  return true;
+});
+
+async function handleMessage(message, sender) {
+  // Wait for store only when we need it
+  if (needsStore(message.type)) {
+    await storeReadyPromise;
   }
-}
-```
-Note: `connect-src` is NOT restricted like `script-src` in MV3 - you can specify external URLs.
-
-**Phase:** Manifest configuration - Foundation phase
-
-**Sources:**
-- [Manifest Content Security Policy](https://developer.chrome.com/docs/extensions/reference/manifest/content-security-policy)
-- [Resolving CSP Issues in MV3](https://medium.com/@python-javascript-php-html-css/resolving-content-security-policy-issues-in-chrome-extension-manifest-v3-4ab8ee6b3275)
-
----
-
-## Common Mistakes
-
-Frequently made errors that cause significant issues.
-
-### 6. Shadow DOM CSS Isolation Fails Silently
-
-**The Problem:** CSS from host pages bleeds into your Shadow DOM, or your CSS doesn't apply at all because it's being injected into the document head instead of the shadow root.
-
-**Why It's Common:** React and CSS-in-JS libraries default to injecting styles into `document.head`.
-
-**Warning Signs:**
-- Extension looks perfect in isolation, broken on real pages
-- Styles randomly change across different websites
-- `:hover`, `:focus`, and pseudo-elements don't work
-- `rem` units produce unexpected sizes (they're relative to `<html>`, not shadow root)
-
-**Prevention Strategy:**
-- Use Emotion with `CacheProvider` specifying a container in the shadow root
-- Or use `react-shadow` package for automatic Shadow DOM handling
-- Avoid `rem` units - use `px` or `em` within the shadow root
-- Install `react-shadow-dom-retarget-events` if click events don't fire
-- Test on pages with aggressive CSS (Gmail, Notion, etc.)
-
-**Phase:** UI/Overlay implementation
-
-**Sources:**
-- [Shadow DOM CSS Isolation Guide](https://dev.to/developertom01/solving-css-and-javascript-interference-in-chrome-extensions-a-guide-to-react-shadow-dom-and-best-practices-9l)
-- [Using Shadow DOM for CSS Isolation](https://www.chrisfarber.net/posts/2023/css-isolation)
-
----
-
-### 7. AudioWorklet Memory Leaks from Improper Cleanup
-
-**The Problem:** Creating/destroying AudioContext and AudioWorkletNodes without proper cleanup causes memory to accumulate. Audio data buffers are retained even after the node is "disconnected."
-
-**Why It's Common:** Web Audio API cleanup is non-intuitive. Just calling `disconnect()` isn't enough.
-
-**Warning Signs:**
-- Chrome Helper process memory grows continuously
-- Performance degrades during long interviews
-- Audio glitches appear after 20-30 minutes
-- Users report "Chrome is using all my RAM"
-
-**Prevention Strategy:**
-- Allocate buffers upfront and reuse them (avoid per-chunk allocation)
-- Call `close()` on MessagePort from both AudioWorkletProcessor and AudioWorkletNode sides
-- Call `audioContext.close()` when done
-- Use SharedArrayBuffer for zero-copy data transfer between threads
-- Set all node references to `null` after cleanup
-
-**Phase:** Audio Processing implementation
-
-**Sources:**
-- [Audio Worklet Design Pattern](https://developer.chrome.com/blog/audio-worklet-design-pattern)
-- [Profiling Web Audio Apps](https://web.dev/profiling-web-audio-apps-in-chrome/)
-- [AudioWorklet Memory Leak Discussion](https://github.com/superpoweredSDK/web-audio-javascript-webassembly-SDK-interactive-audio/issues/2)
-
----
-
-### 8. SSE Streaming Response Parsing Errors
-
-**The Problem:** SSE streams from OpenRouter occasionally contain comment payloads (`:`), data-only messages, or non-JSON content. Naive parsing breaks.
-
-**Why It's Common:** Many SSE client implementations don't follow the spec strictly.
-
-**Warning Signs:**
-- `JSON.parse` throws on "unexpected token"
-- LLM responses randomly fail
-- Some responses work, others don't
-
-**Prevention Strategy:**
-```javascript
-// Properly handle SSE events
-eventSource.onmessage = (event) => {
-  if (event.data === '[DONE]') return;
-  if (event.data.startsWith(':')) return; // Ignore comments
-  try {
-    const parsed = JSON.parse(event.data);
-    // Process parsed data
-  } catch (e) {
-    // Log but don't throw - malformed packets happen
-    console.warn('Non-JSON SSE data:', event.data);
-  }
-};
-```
-
-**Phase:** LLM Integration
-
-**Sources:**
-- [OpenRouter API Streaming](https://openrouter.ai/docs/api/reference/streaming)
-- [OpenRouter Error Handling](https://openrouter.ai/docs/api/reference/errors-and-debugging)
-
----
-
-### 9. Service Worker Broken After Extension Auto-Update
-
-**The Problem:** Chrome can end up with TWO service workers after an auto-update: the old one is ACTIVATED but broken due to `chrome.runtime.reload()`, and the new one is INSTALLED but waiting.
-
-**Why It's Common:** This is a known Chrome bug. Extension updates only install when the extension is "idle" (service worker not running).
-
-**Warning Signs:**
-- Extension stops working randomly for some users
-- Works again after toggling extension off/on
-- `chrome://serviceworker-internals/` shows multiple workers
-- Users report "reinstalling fixed it"
-
-**Prevention Strategy:**
-- Handle `chrome.runtime.onUpdateAvailable` and trigger graceful reload
-- Don't keep the service worker perpetually alive (let it go idle for updates)
-- Add a "Restart Extension" option in the popup
-- Test update scenarios explicitly
-- Persist state so restarts are painless
-
-**Phase:** Deployment/Maintenance - but design for it early
-
-**Sources:**
-- [MV3 Service Worker Broken After Auto-Update](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/POU6sW-I39M/m/PljS3_zbAgAJ)
-- [Chrome Extension Update Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/extensions-update-lifecycle)
-- [Chromium Issue #40805401](https://issues.chromium.org/issues/40805401)
-
----
-
-### 10. ElevenLabs PCM Format Mismatch
-
-**The Problem:** ElevenLabs WebSocket expects specific PCM format: 16-bit, little-endian, mono, at specific sample rates (16kHz, 22.05kHz, 24kHz, or 44.1kHz). AudioWorklet produces Float32Array by default.
-
-**Why It's Common:** Format conversion is easy to get wrong, especially endianness.
-
-**Warning Signs:**
-- ElevenLabs returns garbled audio
-- "Invalid audio format" errors
-- Works in testing, fails with certain audio sources
-
-**Prevention Strategy:**
-```javascript
-// Convert Float32Array to 16-bit PCM
-function float32ToPCM16(float32Array) {
-  const pcm16 = new Int16Array(float32Array.length);
-  for (let i = 0; i < float32Array.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32Array[i]));
-    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-  }
-  return pcm16;
-}
-```
-- Match sample rate to ElevenLabs requirement (16kHz recommended for STT)
-- Ensure mono channel (combine stereo if needed)
-- Pro tier required for 44.1kHz
-
-**Phase:** Audio Processing and WebSocket Integration
-
-**Sources:**
-- [ElevenLabs PCM Output Format](https://elevenlabs.io/blog/pcm-output-format)
-- [ElevenLabs Realtime API](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime)
-
----
-
-## Performance Pitfalls
-
-Issues that hurt latency, memory, or user experience.
-
-### 11. Audio Buffer Size Trade-off Misconfigured
-
-**The Problem:** Small buffers = low latency but higher CPU and risk of glitches. Large buffers = smooth audio but noticeable delay.
-
-**Target:** <500ms end-to-end latency
-
-**Warning Signs:**
-- Audio crackling/popping (buffer too small)
-- Noticeable delay between speech and transcription (buffer too large)
-- CPU usage spikes during audio processing
-
-**Prevention Strategy:**
-- Start with 128-sample render quantum (Web Audio standard)
-- Use `latencyHint: 'interactive'` when creating AudioContext
-- Chrome default is 256 samples double-buffered (~23ms at 44.1kHz)
-- Profile with `chrome://tracing` and Web Audio DevTools extension
-- Consider adaptive buffer sizing based on device capability
-
-**Latency Budget:**
-- Audio capture: ~10ms
-- PCM conversion: ~5ms
-- WebSocket transit: ~50-100ms
-- ElevenLabs processing: ~200-300ms
-- Total: ~265-415ms (achievable under 500ms target)
-
-**Phase:** Performance Optimization
-
-**Sources:**
-- [Web Audio API Buffer Size Discussion](https://github.com/WebAudio/web-audio-api/issues/1221)
-- [Web Audio Performance Notes](https://padenot.github.io/web-audio-perf/)
-- [AudioContext Latency](https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/baseLatency)
-
----
-
-### 12. Content Script Memory Leaks from DOM Observers
-
-**The Problem:** MutationObservers, event listeners, and DOM references in content scripts accumulate if not cleaned up when navigating or when the extension unloads.
-
-**Warning Signs:**
-- Memory grows on each page navigation
-- "Detached DOM tree" items in heap snapshots
-- Extension slows down over time
-- Chrome DevTools shows increasing "Detached" count
-
-**Prevention Strategy:**
-```javascript
-// Store references for cleanup
-const observers = [];
-const listeners = [];
-
-function cleanup() {
-  observers.forEach(obs => obs.disconnect());
-  listeners.forEach(({ element, event, handler }) =>
-    element.removeEventListener(event, handler)
-  );
-  observers.length = 0;
-  listeners.length = 0;
-}
-
-// Clean up on unload
-window.addEventListener('beforeunload', cleanup);
-chrome.runtime.onSuspend?.addListener(cleanup);
-```
-
-**Phase:** Content Script implementation
-
-**Sources:**
-- [Fix Memory Problems - Chrome DevTools](https://developer.chrome.com/docs/devtools/memory-problems)
-- [Four Types of Memory Leaks in JavaScript](https://auth0.com/blog/four-types-of-leaks-in-your-javascript-code-and-how-to-get-rid-of-them/)
-
----
-
-### 13. OpenRouter Rate Limits for Free Models
-
-**The Problem:** Free models have strict rate limits: 50 requests/day without credits, 1000 requests/day with $10+ in credits. Hitting limits mid-interview is catastrophic.
-
-**Warning Signs:**
-- 429 rate limit errors
-- 402 errors (negative credit balance affects even free models)
-- LLM suddenly stops responding
-
-**Prevention Strategy:**
-- Use paid models for production reliability
-- Implement request queuing and deduplication
-- Cache similar responses where appropriate
-- Show clear error states in UI when rate limited
-- Have fallback model configuration
-- Monitor credit balance via OpenRouter dashboard
-
-**Phase:** LLM Integration
-
-**Sources:**
-- [OpenRouter Rate Limits](https://openrouter.ai/docs/api/reference/limits)
-- [OpenRouter FAQ](https://openrouter.ai/docs/faq)
-
----
-
-## Chrome MV3 Specific Gotchas
-
-### 14. Event Listeners Must Be Registered Synchronously
-
-**The Problem:** All event listeners in the service worker must be registered at the top level during initial execution, not inside async callbacks or after awaits.
-
-**Why It Matters:** Chrome may miss events if handlers aren't registered when the service worker wakes up.
-
-**Warning Signs:**
-- Events work sometimes but not always
-- "Handler was not registered" warnings
-- First message after wake works, subsequent don't
-
-**Prevention Strategy:**
-```javascript
-// WRONG
-async function init() {
-  await someSetup();
-  chrome.runtime.onMessage.addListener(handler); // May be missed!
-}
-init();
-
-// CORRECT
-chrome.runtime.onMessage.addListener(handler); // Registered synchronously
-async function init() {
-  await someSetup();
-}
-init();
-```
-
-**Phase:** Service Worker setup - Foundation
-
-**Sources:**
-- [Handle Events with Service Workers](https://developer.chrome.com/docs/extensions/get-started/tutorial/service-worker-events)
-
----
-
-### 15. DevTools Prevents Service Worker Termination
-
-**The Problem:** With DevTools open, the service worker never terminates. This masks timeout issues during development.
-
-**Warning Signs:**
-- Everything works in dev, breaks in production
-- "Works on my machine" syndrome
-- Users report random failures you can't reproduce
-
-**Prevention Strategy:**
-- Test explicitly with DevTools closed
-- Use `chrome.runtime.onSuspend` logging (won't fire with DevTools open)
-- Create automated tests that simulate service worker suspension
-- Test on fresh Chrome profile without DevTools
-- Use separate Chrome profile for development vs. testing
-
-**Phase:** Testing strategy - Quality Assurance
-
-**Sources:**
-- [eyeo's Journey to Testing Service Worker Suspension](https://developer.chrome.com/blog/eyeos-journey-to-testing-mv3-service%20worker-suspension)
-
----
-
-### 16. Offscreen Document Permission and Lifecycle
-
-**The Problem:** Offscreen documents require explicit permission declaration and have specific lifecycle constraints. They can only be created for predefined "reasons."
-
-**Warning Signs:**
-- "Offscreen API not available" errors
-- Document creation fails silently
-- Multiple offscreen documents created accidentally
-
-**Prevention Strategy:**
-```json
-// manifest.json
-{
-  "permissions": ["offscreen"]
+  // Now safe to access store
+  const state = useStore.getState();
 }
 ```
 
-```javascript
-// Only one offscreen document at a time
-async function ensureOffscreenDocument() {
-  const existing = await chrome.offscreen.hasDocument();
-  if (!existing) {
-    await chrome.offscreen.createDocument({
-      url: 'offscreen.html',
-      reasons: ['AUDIO_PLAYBACK', 'WEB_RTC'], // Valid reasons
-      justification: 'Audio capture and WebSocket for transcription'
-    });
-  }
-}
-```
+**Detection:** Intermittent failures where popup actions do nothing. Console may show no errors at all (message simply never arrives).
 
-Valid reasons include: `AUDIO_PLAYBACK`, `BLOBS`, `DOM_SCRAPING`, `GEOLOCATION`, `LOCAL_STORAGE`, `TESTING`, `USER_MEDIA`, `WEB_RTC`, etc.
-
-**Phase:** Foundation architecture
+**Codebase reference:** Current `entrypoints/background.ts:436` correctly registers the listener synchronously. The proposed fix in the todo would break this.
 
 **Sources:**
-- [Offscreen Documents Proposal](https://github.com/w3c/webextensions/issues/170)
-- [Offscreen Documents Guide](https://dev.to/notearthian/how-to-create-offscreen-documents-in-chrome-extensions-a-complete-guide-3ke2)
+- [Handle events with service workers (Chrome)](https://developer.chrome.com/docs/extensions/get-started/tutorial/service-worker-events)
+- [MV3 Extension Service Worker Async Init Discussion](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/bnH_zx2LjQY)
 
 ---
 
-### 17. Tab Switching Causes Audio Gaps
+### Pitfall 5: IndexedDB Salt Storage Fails Silently on Version Mismatch
 
-**The Problem:** When the user switches away from the tab being captured, Chrome may throttle or pause rendering, causing audio gaps.
+**What goes wrong:** The encryption todo opens IndexedDB with version 1 and creates a `salt` object store in `onupgradeneeded`. But if a future feature (like persistent transcripts) also opens an IndexedDB database -- possibly the same one with a different version -- the version mismatch triggers `onupgradeneeded` again, potentially with code that doesn't know about the `salt` store, leading to data loss.
 
-**Warning Signs:**
-- Transcription has missing words/phrases
-- Audio quality degrades when user multitasks
-- Gaps correlate with tab visibility changes
+**Why it happens:** IndexedDB's `onupgradeneeded` fires when opening a database with a higher version number. If two separate features independently manage database versions, one can overwrite or fail to preserve the other's stores. Additionally, if the encryption service opens the DB with version 1, but the persistent transcripts feature later opens the same DB with version 2, the `onupgradeneeded` handler for version 2 may not include code to preserve the `salt` store.
 
-**Prevention Strategy:**
-- Inform users to keep the interview tab visible
-- Consider capturing via offscreen document (less affected by visibility)
-- Implement audio buffer to smooth over brief gaps
-- Log visibility changes for debugging
+**Consequences:**
+- Encryption salt is lost during a database upgrade triggered by another feature
+- All encrypted data becomes permanently undecryptable (same effect as Pitfall 3)
+- Data corruption happens silently -- no error is thrown
 
-**Phase:** Audio Capture and UX
+**Prevention:**
+- Use SEPARATE IndexedDB databases for separate concerns: `encryption-db` for encryption salt/keys, `transcripts-db` for persistent transcripts
+- Never share a database between features that have independent version lifecycles
+- In `onupgradeneeded`, always use `event.oldVersion` to incrementally apply migrations rather than unconditionally creating stores
+- Add a check: if the `salt` store already exists, do not recreate it
+- Consider storing the encryption salt in `chrome.storage.local` instead of IndexedDB (simpler, fewer moving parts, and the salt is not secret -- it just needs to be stable)
+
+**Detection:** After updating the extension with new IndexedDB schema, encrypted keys silently fail to decrypt. Console shows `NotFoundError: Failed to execute 'transaction' on 'IDBDatabase': One of the specified object stores was not found.`
 
 **Sources:**
-- [How to Build a Chrome Recording Extension](https://www.recall.ai/blog/how-to-build-a-chrome-recording-extension)
+- [Using IndexedDB (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB)
+- [Handling IndexedDB Upgrade Version Conflict](https://dev.to/ivandotv/handling-indexeddb-upgrade-version-conflict-368a)
 
 ---
 
-## Prevention Strategies Summary
+### Pitfall 6: Circuit Breaker State Lost on Service Worker Termination
 
-| Pitfall | Prevention | Phase |
-|---------|------------|-------|
-| Service Worker kills connections | Use Offscreen Document for WebSocket/SSE | Architecture |
-| tabCapture mutes audio | Pipe stream back to speakers via AudioContext | Audio Capture |
-| tabCapture user gesture | Initiate from popup click, use dedicated tab fallback | UX Design |
-| State loss on SW restart | Use chrome.storage.session, continuous saves | State Management |
-| CSP blocks WebSocket | Configure connect-src in manifest | Manifest Config |
-| Shadow DOM CSS bleed | Emotion CacheProvider, avoid rem units | UI Implementation |
-| AudioWorklet memory | Preallocate buffers, proper cleanup | Audio Processing |
-| SSE parsing errors | Handle non-JSON payloads gracefully | LLM Integration |
-| Extension update breaks | Handle onUpdateAvailable, allow idle periods | Deployment |
-| PCM format mismatch | Float32 to Int16 conversion, match sample rate | Audio/WebSocket |
-| Buffer size wrong | Use 128 samples, latencyHint: 'interactive' | Performance |
-| Content script leaks | Cleanup on unload, disconnect observers | Content Script |
-| OpenRouter rate limits | Use paid models, implement fallbacks | LLM Integration |
-| Async event registration | Register all listeners synchronously at top level | Service Worker |
-| DevTools masks issues | Test with DevTools closed, fresh profile | Testing |
-| Offscreen document issues | Declare permission, check existence before create | Architecture |
-| Tab switching gaps | Buffer audio, inform users, log visibility | Audio/UX |
+**What goes wrong:** The circuit breaker todo implements the circuit breaker as an in-memory JavaScript object with `failureCount`, `successCount`, `state`, and `nextAttempt` fields. When Chrome terminates the service worker (after 30 seconds of inactivity), ALL this state is wiped. The circuit breaker effectively resets to CLOSED after every idle period, defeating its purpose.
 
----
+**Why it happens:** Chrome MV3 service workers are ephemeral. Any `let`, `const`, `class` instance, or `Map` stored in module scope is destroyed when the worker terminates. The circuit breaker pattern assumes a long-running process, which is the opposite of how MV3 service workers work.
 
-## Warning Signs Checklist
+**Consequences:**
+- Circuit breaker never actually opens: after 5 failures the worker goes idle, restarts, and the failure count is zero
+- The extension keeps hammering a failing API endpoint instead of backing off
+- Wasted API credits and poor user experience
+- During rate limiting, the extension makes things worse by continuing to send requests
 
-Use this during development to catch issues early:
+**Prevention:**
+- Persist circuit breaker state to `chrome.storage.session` (cleared on browser close, which is appropriate for circuit breaker state)
+- On service worker startup, rehydrate circuit breaker state from storage
+- Debounce state persistence (write at most once per second, not on every failure/success)
+- Use `chrome.alarms` API instead of `setTimeout` for the OPEN-to-HALF_OPEN transition timer -- `setTimeout` is cleared when the worker terminates, but alarms survive
+- Alternative: keep the circuit breaker stateless and use exponential backoff only (simpler, fewer persistence concerns)
 
-### Audio Issues
-- [ ] Tab goes silent after capture starts
-- [ ] Transcription has gaps or missing words
-- [ ] Audio quality degrades over time
-- [ ] Memory usage grows during long sessions
+**Detection:** API calls continue to fail repeatedly even though the circuit should be open. No "Service temporarily unavailable" message ever appears to the user.
 
-### Connection Issues
-- [ ] WebSocket/SSE randomly disconnects
-- [ ] Works in dev, fails in production
-- [ ] CSP errors in console
-- [ ] Connections work for ~30 seconds then die
-
-### State Issues
-- [ ] Settings reset unexpectedly
-- [ ] Context/history disappears
-- [ ] Works perfectly with DevTools open
-
-### Update Issues
-- [ ] Extension stops working after Chrome/extension update
-- [ ] Multiple service workers in `chrome://serviceworker-internals/`
-
-### Performance Issues
-- [ ] Increasing latency during session
-- [ ] Chrome Helper process growing
-- [ ] UI becomes sluggish after 15+ minutes
+**Sources:**
+- [Extension Service Worker Lifecycle (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
+- [Circuit Breaker Pattern (Microsoft)](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
 
 ---
 
-## Research Sources
+### Pitfall 7: Transcript Debounce Timer Lost on Service Worker Termination
 
-- [Chrome Extension Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
-- [Chrome tabCapture API Reference](https://developer.chrome.com/docs/extensions/reference/api/tabCapture)
-- [Chrome Offscreen Documents](https://developer.chrome.com/docs/extensions/reference/api/offscreen)
-- [Audio Worklet Design Patterns](https://developer.chrome.com/blog/audio-worklet-design-pattern)
-- [ElevenLabs WebSocket Documentation](https://elevenlabs.io/docs/websockets)
-- [OpenRouter API Documentation](https://openrouter.ai/docs/api/reference/overview)
-- [Shadow DOM CSS Isolation](https://dev.to/developertom01/solving-css-and-javascript-interference-in-chrome-extensions-a-guide-to-react-shadow-dom-and-best-practices-9l)
-- [Zustand Chrome Extension State](https://github.com/pmndrs/zustand/discussions/2020)
-- [MV3 Service Worker Update Issues](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/POU6sW-I39M/m/PljS3_zbAgAJ)
+**What goes wrong:** The transcript persistence todo uses `setTimeout` for debouncing writes to `chrome.storage.local`. When Chrome terminates the service worker between the last segment arrival and the debounce timer firing, the unsaved segments are lost forever.
+
+**Why it happens:** The existing code already stores transcript data in memory (`let mergedTranscript: TranscriptEntry[] = []` at `background.ts:21`). The proposed debounced persistence adds a `setTimeout` delay before writing to storage. If the service worker terminates during that delay window (1000ms), the pending write never executes.
+
+**Consequences:**
+- Last 1 second of transcript is lost on every service worker termination
+- During active transcription, the keep-alive interval prevents this
+- But if transcription stops and the user doesn't interact for 30 seconds, any pending debounced write is lost
+- Edge case: user stops transcription, final debounced write is pending, service worker terminates before it fires
+
+**Prevention:**
+- Write immediately on STOP_TRANSCRIPTION (flush the debounce)
+- Write immediately on `chrome.runtime.onSuspend` (fires before Chrome terminates the service worker -- but not reliably for all termination causes)
+- Use a write-through cache: write every segment immediately to storage, use debouncing only for broadcast/UI updates (not for persistence)
+- For the offscreen document (where transcription actually runs), this is less of an issue since offscreen documents persist longer, but the merged transcript is assembled in the background service worker
+- Consider: `beforeunload` in the offscreen document as a last-chance save
+
+**Detection:** Users notice the last few words of a transcription session are missing when they review the saved transcript.
+
+**Codebase reference:** The keep-alive interval at `background.ts:40-46` prevents SW termination during active LLM streaming, and should similarly cover active transcription. But the gap is after transcription stops and before the debounced save completes.
+
+---
+
+## Moderate Pitfalls
+
+---
+
+### Pitfall 8: Encryption Adds Async Overhead to Every Store Read
+
+**What goes wrong:** Currently, `useStore.getState()` returns the store state synchronously. After adding encryption, every API key read requires async decryption (`crypto.subtle.decrypt` returns a Promise). This breaks the synchronous access pattern used throughout the codebase.
+
+**Why it happens:** WebCrypto API is entirely Promise-based. There is no synchronous decryption API. The current code reads API keys synchronously in message handlers (e.g., `background.ts:229`: `const { apiKeys, models } = state`).
+
+**Prevention:**
+- Decrypt API keys on store rehydration (once, at startup) and keep decrypted values in the in-memory Zustand store
+- Only encrypt when writing to `chrome.storage.local` (the persist middleware's `setItem`)
+- Only decrypt when reading from `chrome.storage.local` (the persist middleware's `getItem`)
+- The Zustand persist middleware already uses async storage -- the `chromeStorage` adapter in `src/store/chromeStorage.ts` is already async. Add encrypt/decrypt there, transparently
+- Never expose encrypted values through the Zustand store's `getState()` -- always store decrypted in memory
+
+**Detection:** TypeScript errors across the codebase where `state.apiKeys.openAI` was accessed synchronously but now requires `await`. If not caught by types, runtime `[object Promise]` appears as API key values.
+
+---
+
+### Pitfall 9: Consent Modal Blocks Extension Functionality as Dark Pattern
+
+**What goes wrong:** The proposed consent system requires users to check three separate checkboxes every time they start recording. If the per-session dialog cannot be dismissed, users who have already consented are forced through friction on every use. This creates hostility toward the extension and may itself constitute a dark pattern (unnecessary repeated consent).
+
+**Why it happens:** Overzealous compliance implementation. The todo proposes a "Don't show again" checkbox, but requiring three separate checkboxes for something the user already acknowledged is excessive friction for an interview assistant that needs to start quickly.
+
+**Prevention:**
+- First-time consent: YES, mandatory, blocking, comprehensive
+- Per-session reminder: small, non-blocking banner (not a modal) saying "Recording active -- ensure all parties have consented"
+- "Don't show again" should be prominent and respected permanently (not reset on updates)
+- Never require re-consent unless the privacy policy materially changes
+- Avoid requiring multiple checkboxes -- one clear acknowledgment is sufficient for repeat use
+- The "Start Recording" button label itself can serve as ongoing consent: rename to "Start Recording (consented)" or show a small indicator
+
+**Detection:** User complaints about "too many popups" or uninstalls correlated with the consent dialog flow
+
+**Sources:**
+- [GDPR Dark Patterns (FairPatterns)](https://www.fairpatterns.com/post/gdpr-dark-patterns-how-they-undermine-compliance-risk-legal-penalties)
+- [UX Patterns for High Consent Rates](https://cookie-script.com/guides/ux-patterns-for-high-consent-rates)
+
+---
+
+### Pitfall 10: chrome.storage.local Quota Exhaustion During Long Interviews
+
+**What goes wrong:** The transcript persistence todo writes transcript segments to `chrome.storage.local`, which has a 10MB limit (5MB in Chrome 113 and earlier). A 60-minute interview can generate 2000+ segments at ~500 bytes each = ~1MB per session. After 10 sessions without cleanup, storage is full. New writes throw `QUOTA_BYTES_PER_ITEM` or quota exceeded errors.
+
+**Why it happens:** `chrome.storage.local` is shared between ALL extension data: settings, templates, transcript buffers, consent flags, migration flags, and now encrypted keys. The 10MB limit fills faster than expected.
+
+**Prevention:**
+- Request `"unlimitedStorage"` permission in manifest.json (removes the 10MB cap, limited only by disk space)
+- Even with unlimited storage, implement a storage budget: warn at 50MB, auto-cleanup old sessions at 100MB
+- Implement transcript compression: store only final segments, drop partial/interim data from persistence
+- Move transcript storage to IndexedDB early (not as a "future" feature) -- IndexedDB has much larger quotas
+- Always handle quota errors gracefully: if write fails, log the error but do not crash the extension
+- Never store `ArrayBuffer` audio data in `chrome.storage.local` -- only text transcripts
+
+**Detection:** `chrome.storage.local.set` calls start throwing errors. Settings changes stop persisting. Extension appears to forget configuration.
+
+**Sources:**
+- [chrome.storage API (Chrome)](https://developer.chrome.com/docs/extensions/reference/api/storage)
+- [Storage and Cookies (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies)
+
+---
+
+### Pitfall 11: webext-zustand Initialization Race After Encryption Layer Added
+
+**What goes wrong:** Adding encryption to the `chromeStorage` adapter makes `getItem` and `setItem` async (they already are, but now they're slower due to crypto operations). During service worker restart, `webext-zustand`'s `wrapStore` call races with the Zustand persist middleware's `rehydrate`. If the encryption service hasn't initialized yet (no CryptoKey available), the rehydrate reads encrypted data and cannot decrypt it, resulting in the store being populated with encrypted gibberish or empty defaults.
+
+**Why it happens:** The initialization order becomes: (1) service worker starts, (2) `wrapStore` runs, (3) Zustand persist middleware calls `chromeStorage.getItem`, (4) `getItem` needs to decrypt, (5) but encryption service hasn't initialized its CryptoKey yet from IndexedDB.
+
+**Prevention:**
+- Initialize the encryption service BEFORE creating the Zustand store
+- Make the `chromeStorage` adapter aware of the encryption service lifecycle: if crypto not ready, queue the read and resolve once ready
+- Alternatively, initialize crypto inside `chromeStorage.getItem` lazily (with a cached promise to prevent multiple initializations)
+- Add a timeout: if crypto init takes more than 5 seconds, fall back to reading plaintext (handles migration period gracefully)
+- Test the initialization sequence by logging timestamps: crypto init -> store rehydrate -> wrapStore -> handler registration
+
+**Detection:** Store state contains encrypted strings where objects are expected. Settings page shows garbled text or empty fields after service worker restart.
+
+---
+
+### Pitfall 12: Offscreen Document Cannot Access IndexedDB Created by Service Worker
+
+**What goes wrong:** IndexedDB databases are scoped to the origin, and Chrome extension service workers and offscreen documents share the same origin (`chrome-extension://EXTENSION_ID`). However, there can be timing issues: if the service worker creates an IndexedDB database and the offscreen document tries to open it simultaneously, or if version numbers conflict, one context blocks the other.
+
+**Why it happens:** IndexedDB's `onupgradeneeded` blocks all other connections to the same database until the upgrade transaction completes. If the service worker is in the middle of a database upgrade when the offscreen document tries to open the same database, the offscreen document's open request is blocked until the upgrade finishes or times out.
+
+**Prevention:**
+- Coordinate IndexedDB access: only one context should own database creation and migration
+- The service worker should be the sole owner of database schema management
+- The offscreen document should only read/write data, never trigger version upgrades
+- Use the `onblocked` event to handle database locking gracefully
+- Consider: the offscreen document doesn't need direct IndexedDB access -- it can send data to the service worker via messages, and the service worker persists to IndexedDB
+
+**Detection:** `IDBOpenDBRequest` hangs in the offscreen document. The `onblocked` event fires but is not handled, causing the operation to stall silently.
+
+---
+
+## Minor Pitfalls
+
+---
+
+### Pitfall 13: AES-GCM IV Reuse Catastrophe
+
+**What goes wrong:** AES-GCM requires a unique initialization vector (IV) for every encryption operation with the same key. If the IV is reused (e.g., using a deterministic IV derived from the key name), an attacker can XOR two ciphertexts to recover plaintext.
+
+**Prevention:**
+- Always generate a fresh random IV with `crypto.getRandomValues(new Uint8Array(12))` for each encryption call
+- Store the IV alongside the ciphertext (prepend it, as the todo proposes)
+- Never derive the IV from the data being encrypted or from a counter that might reset
+- The proposed code in the todo handles this correctly -- ensure it is not "simplified" during implementation
+
+---
+
+### Pitfall 14: Base64 Encoding Performance for Large Encrypted Payloads
+
+**What goes wrong:** The proposed encryption uses `btoa(String.fromCharCode(...combined))` to convert encrypted ArrayBuffer to base64 for storage. For large payloads (full transcript encryption), the spread operator `...` on a large Uint8Array can cause stack overflow.
+
+**Prevention:**
+- Use chunked base64 encoding (same pattern already used in `ElevenLabsConnection.ts:225-230`)
+- For API keys (small strings), this is not an issue
+- If encrypting transcripts in the future, use a streaming base64 encoder or store ArrayBuffer directly in IndexedDB (which supports it natively)
+
+---
+
+### Pitfall 15: Privacy Policy URL Becomes Invalid
+
+**What goes wrong:** Chrome Web Store requires a Privacy Policy URL. If the URL breaks (GitHub repo goes private, domain expires, hosting changes), the extension can be removed from the Chrome Web Store.
+
+**Prevention:**
+- Host the privacy policy on a stable, controlled URL (GitHub Pages is fine)
+- Bundle a copy of the privacy policy inside the extension as an HTML page
+- Add the privacy policy URL to the manifest.json
+- Set up monitoring for the URL
+
+---
+
+### Pitfall 16: Consent Timestamp Not Persisted Across Contexts
+
+**What goes wrong:** The recording consent flag is stored in `chrome.storage.local`, but the popup reads it asynchronously. If the popup opens and the storage read hasn't completed, the consent dialog flashes briefly even for users who already consented.
+
+**Prevention:**
+- Cache the consent state in the Zustand store (already synced across contexts via `webext-zustand`)
+- Use `chrome.storage.local.get` with a callback in the popup's init, showing a loading state until the check completes
+- Never show the consent dialog and then hide it -- only render it after confirming the user hasn't consented
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Severity | Mitigation |
+|---|---|---|---|
+| API Key Encryption | Fingerprint-based key derivation breaks in SW | CRITICAL | Use `chrome.runtime.id` + stored salt only, or store CryptoKey in IDB |
+| API Key Encryption | Browser update changes user agent, keys lost | CRITICAL | Do not use UA in key derivation |
+| Plaintext Migration | Partial migration causes key loss | CRITICAL | Atomic migration with verification before plaintext removal |
+| Store Race Condition | Moving listener registration behind await | CRITICAL | Keep synchronous registration, await store inside handler |
+| IndexedDB Salt | Version conflict with other IDB features | HIGH | Separate databases per feature |
+| Circuit Breaker | In-memory state lost on SW termination | HIGH | Persist to chrome.storage.session, use chrome.alarms |
+| Transcript Persistence | Debounce timer lost on SW termination | HIGH | Write-through for persistence, debounce only for UI |
+| Transcript Persistence | Storage quota exhaustion | MODERATE | Request unlimitedStorage, implement cleanup |
+| Encryption + Store | Async decryption breaks sync store access | MODERATE | Decrypt on rehydration, store decrypted in memory |
+| Consent UX | Over-aggressive consent blocks UX | MODERATE | First-time modal only, non-blocking reminder after |
+| Encryption Init | Crypto not ready when store rehydrates | MODERATE | Initialize crypto before store creation |
+| IDB Access | Cross-context database locking | LOW | Single owner for schema, message-based access from offscreen |
+
+---
+
+## Integration Pitfalls (Features Interacting With Each Other)
+
+### Encryption + Store Sync
+The encryption service, Zustand store, `webext-zustand` sync, and `chrome.storage.local` persistence form a dependency chain. The initialization order MUST be:
+1. Encryption service initializes (loads CryptoKey from IndexedDB)
+2. Zustand store creates with encrypted `chromeStorage` adapter
+3. `wrapStore` called for `webext-zustand` sync
+4. Message handlers can now access decrypted state
+
+If any step fails or is reordered, the store contains either encrypted gibberish or stale defaults.
+
+### Circuit Breaker + Keep-Alive
+The existing keep-alive interval (`background.ts:38-52`) runs during active LLM streaming. If the circuit breaker opens (API unavailable), the LLM request fails immediately and keep-alive stops. But the circuit breaker's OPEN-to-HALF_OPEN timer needs to survive the subsequent service worker termination. This requires `chrome.alarms`, not `setTimeout`.
+
+### Transcript Persistence + Encryption (Future)
+If transcripts are later encrypted before storage, the async encryption adds latency to every segment save. With debouncing at 1 second and encryption taking 5-10ms per segment, this is fine. But if encrypting the entire transcript array on each save (not individual segments), a 1000-segment transcript could take 1-5 seconds to encrypt, blocking the service worker.
+
+### Consent + First-Use Flow
+The consent dialog, privacy notice, recording warning, and store initialization all compete for the user's attention on first launch. Order them carefully:
+1. Privacy policy acceptance (one-time, brief)
+2. Recording consent warning (one-time, comprehensive)
+3. API key setup (functional requirement)
+4. Never show consent AND privacy AND settings all at once
+
+---
+
+## Sources
+
+**Official Documentation:**
+- [Extension Service Worker Lifecycle (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
+- [Longer Extension Service Worker Lifetimes (Chrome Blog)](https://developer.chrome.com/blog/longer-esw-lifetimes)
+- [chrome.storage API (Chrome)](https://developer.chrome.com/docs/extensions/reference/api/storage)
+- [Storage and Cookies (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies)
+- [Web Crypto API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
+- [Using IndexedDB (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB)
+- [WorkerGlobalScope: navigator property (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/navigator)
+
+**Community / Technical Reports:**
+- [MV3 Extension Service Worker Async Init (Chromium Groups)](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/bnH_zx2LjQY)
+- [webext-redux Race Condition Fix (GitHub PR #111)](https://github.com/tshaddix/webext-redux/pull/111/files)
+- [Zustand Chrome Extension Discussion (#2020)](https://github.com/pmndrs/zustand/discussions/2020)
+- [Window is not defined in service workers (Workbox #1482)](https://github.com/GoogleChrome/workbox/issues/1482)
+- [Saving Web Crypto Keys using IndexedDB (GitHub Gist)](https://gist.github.com/saulshanabrook/b74984677bccd08b028b30d9968623f5)
+- [Chrome Extension Encryption (codestudy.net)](https://www.codestudy.net/blog/chrome-extension-encrypting-data-to-be-stored-in-chrome-storage/)
+- [Handling IndexedDB Upgrade Version Conflict (DEV)](https://dev.to/ivandotv/handling-indexeddb-upgrade-version-conflict-368a)
+- [GDPR Dark Patterns (FairPatterns)](https://www.fairpatterns.com/post/gdpr-dark-patterns-how-they-undermine-compliance-risk-legal-penalties)
+- [UX Patterns for High Consent Rates (CookieScript)](https://cookie-script.com/guides/ux-patterns-for-high-consent-rates)
+- [Vibe Engineering: MV3 Service Worker Keepalive (Medium)](https://medium.com/@dzianisv/vibe-engineering-mv3-service-worker-keepalive-how-chrome-keeps-killing-our-ai-agent-9fba3bebdc5b)
+- [Microsoft: Learnings from Migrating to MV3](https://devblogs.microsoft.com/engineering-at-microsoft/learnings-from-migrating-accessibility-insights-for-web-to-chromes-manifest-v3/)
+- [Circuit Breaker Pattern (Microsoft Azure)](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
+- [Secure Storage Proposal (W3C WebExtensions)](https://github.com/w3c/webextensions/blob/main/proposals/secure-storage.md)

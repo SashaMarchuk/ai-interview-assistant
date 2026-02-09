@@ -145,9 +145,6 @@ export interface MicAudioChunkMessage extends BaseMessage {
   timestamp: number;
 }
 
-// Union type for audio chunks (backwards compatibility)
-export type AudioChunkMessage = TabAudioChunkMessage | MicAudioChunkMessage;
-
 // Microphone capture message interfaces
 export interface StartMicCaptureMessage extends BaseMessage {
   type: 'START_MIC_CAPTURE';
@@ -170,9 +167,16 @@ export interface GetCaptureStateMessage extends BaseMessage {
 // Transcription lifecycle message interfaces
 export interface StartTranscriptionMessage extends BaseMessage {
   type: 'START_TRANSCRIPTION';
-  apiKey: string;
   /** ISO 639-3 language code (e.g. 'eng', 'ukr') - empty/undefined for auto-detect */
   languageCode?: string;
+}
+
+/** Internal message from background to offscreen -- carries API key within trusted extension origin */
+export interface InternalStartTranscriptionMessage extends BaseMessage {
+  type: 'START_TRANSCRIPTION';
+  apiKey: string;
+  languageCode?: string;
+  _fromBackground: true;
 }
 
 export interface StopTranscriptionMessage extends BaseMessage {
@@ -219,11 +223,11 @@ export interface TranscriptUpdateMessage extends BaseMessage {
 // LLM request from content script to background
 export interface LLMRequestMessage extends BaseMessage {
   type: 'LLM_REQUEST';
-  responseId: string;        // Unique ID for this request/response pair
-  question: string;          // Captured/highlighted text
-  recentContext: string;     // Last N transcript entries formatted
-  fullTranscript: string;    // Full session transcript formatted
-  templateId: string;        // Active template ID
+  responseId: string; // Unique ID for this request/response pair
+  question: string; // Captured/highlighted text
+  recentContext: string; // Last N transcript entries formatted
+  fullTranscript: string; // Full session transcript formatted
+  templateId: string; // Active template ID
 }
 
 // Streaming token updates from background to content script
@@ -302,10 +306,12 @@ export type ExtensionMessage =
   | LLMCancelMessage
   | ConnectionStateMessage;
 
-// Type guard for message checking
-export function isMessage<T extends ExtensionMessage>(
+export type InternalMessage = ExtensionMessage & { _fromBackground?: true };
+
+// Type guard for message checking (constraint widened to support internal message types)
+export function isMessage<T extends { type: string }>(
   message: unknown,
-  type: T['type']
+  type: T['type'],
 ): message is T {
   return (
     typeof message === 'object' &&

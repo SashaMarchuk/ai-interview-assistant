@@ -33,11 +33,22 @@ When a question is captured, get something useful on screen fast enough to start
 
 ### Active
 
-(Planning next milestone)
+## Current Milestone: v1.1 Security & Reliability
+
+**Goal:** Harden security, add compliance features, and fix critical reliability bugs before adding new capabilities.
+
+**Target features:**
+- Remove API keys from Chrome runtime messages
+- Encrypt API keys at rest with WebCrypto AES-GCM
+- Privacy policy document + in-app consent notice
+- Recording consent legal warnings (first-time + per-session)
+- Fix store sync race condition in background script
+- Fix transcript state loss on service worker termination
+- Circuit breaker pattern with retry logic for API calls
+- Persistent transcripts with IndexedDB session history
 
 ### Out of Scope
 
-- Session history and export — deferred to v2
 - Additional STT providers (Whisper, AssemblyAI, Deepgram) — ElevenLabs only
 - TTS audio feedback — not needed for interview use case
 - Mobile support — Chrome desktop only
@@ -102,4 +113,4 @@ See: `.planning/SKILLS.md`
 | webext-zustand for state | Cross-context sync with chrome.storage | ✓ Good — state persists correctly |
 
 ---
-*Last updated: 2026-02-03 after v1.0 milestone*
+*Last updated: 2026-02-08 after v1.1 milestone start*

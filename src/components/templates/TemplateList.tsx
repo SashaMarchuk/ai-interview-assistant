@@ -67,7 +67,7 @@ export function TemplateList() {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium text-gray-700 mb-2">Templates</h3>
+      <h3 className="mb-2 text-sm font-medium text-gray-700">Templates</h3>
 
       {/* Template List */}
       <div className="space-y-1">
@@ -78,29 +78,23 @@ export function TemplateList() {
             <div
               key={template.id}
               onClick={() => setActiveTemplate(template.id)}
-              className={`
-                flex items-center justify-between p-2 rounded cursor-pointer
-                transition-colors duration-150
-                ${isActive
-                  ? 'bg-blue-50 border border-blue-300'
-                  : 'bg-gray-50 border border-transparent hover:bg-gray-100'
-                }
-              `}
+              className={`flex cursor-pointer items-center justify-between rounded p-2 transition-colors duration-150 ${
+                isActive
+                  ? 'border border-blue-300 bg-blue-50'
+                  : 'border border-transparent bg-gray-50 hover:bg-gray-100'
+              } `}
             >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 {/* Template Name */}
                 <span
-                  className={`text-sm truncate ${isActive ? 'font-semibold text-blue-900' : 'text-gray-800'}`}
+                  className={`truncate text-sm ${isActive ? 'font-semibold text-blue-900' : 'text-gray-800'}`}
                 >
                   {template.name}
                 </span>
 
                 {/* Type Badge */}
                 <span
-                  className={`
-                    text-xs px-1.5 py-0.5 rounded shrink-0
-                    ${TYPE_BADGE_COLORS[template.type]}
-                  `}
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${TYPE_BADGE_COLORS[template.type]} `}
                 >
                   {TYPE_LABELS[template.type]}
                 </span>
@@ -110,19 +104,11 @@ export function TemplateList() {
               {!template.isDefault && (
                 <button
                   onClick={(e) => handleDelete(e, template.id)}
-                  className="
-                    ml-2 p-1 text-gray-400 hover:text-red-500
-                    hover:bg-red-50 rounded transition-colors
-                  "
+                  className="ml-2 rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                   title="Delete template"
                   aria-label="Delete template"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -140,26 +126,10 @@ export function TemplateList() {
       {/* Add New Template Button */}
       <button
         onClick={handleAddTemplate}
-        className="
-          w-full mt-2 p-2 text-sm text-blue-600
-          border border-dashed border-blue-300 rounded
-          hover:bg-blue-50 hover:border-blue-400
-          transition-colors duration-150
-          flex items-center justify-center gap-1
-        "
+        className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-dashed border-blue-300 p-2 text-sm text-blue-600 transition-colors duration-150 hover:border-blue-400 hover:bg-blue-50"
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 4v16m8-8H4"
-          />
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
         New Template
       </button>

@@ -33,7 +33,7 @@ User reviews and merges PRs manually.
 The `/polish-milestone` command must execute steps one-by-one:
 
 ```
-1. Performance → 2. Type Safety → 3. Simplification → 4. Cleanup → 5. Code Review → 6. Fixes
+1. Performance → 2. Type Safety → 3. Simplification → 4. Cleanup → 5. Code Review → 6. Fixes → 7. Milestone PR
 ```
 
 **Why:** Parallel execution causes merge conflicts between agents modifying the same files.
@@ -43,13 +43,64 @@ Each step must:
 2. Commit changes
 3. Only then proceed to next step
 
+**Step 7 - Milestone PR:** After all polish steps complete, create a single consolidated PR to `main` that includes ALL phase changes + polish commits. The PR title should follow: `feat: Milestone vX.Y - [Milestone Name]`. The PR body must list all phases, key features, and a summary of the polish pass.
+
+### Phase Parallelization
+
+**Prefer parallel execution** of independent phases via separate Claude Code terminals on separate branches. When phases have no shared file dependencies, run them simultaneously.
+
+Example for v1.1: After Phase 10 (Encryption) completes, Phases 11, 12, 13 can run in parallel — each in its own terminal and branch.
+
+**Exception:** `/polish-milestone` steps are always sequential (shared files).
+
+#### Parallel Phase Best Practices
+
+When running phases in parallel across terminals:
+
+1. **Branch from the same base.** All parallel branches must fork from the same completed phase commit (e.g., after Phase 10 merges, branches for 11/12/13 all start from that point).
+2. **File ownership.** Each parallel phase should own distinct files. Before starting, verify no two phases will modify the same source files. Shared files (like `background.ts`, `store/index.ts`) must be assigned to ONE phase only — others must wait or coordinate.
+3. **Integration branch.** After all parallel phases complete, create a single integration branch. Merge parallel branches one-by-one into it, resolving any conflicts at each step:
+   ```bash
+   git checkout -b milestone/vX.Y <base-commit>
+   git merge --no-ff feature/phase-A   # first
+   git merge --no-ff feature/phase-B   # resolve conflicts if any
+   git merge --no-ff feature/phase-C   # resolve conflicts if any
+   ```
+4. **Conflict resolution priority.** When conflicts occur, the phase that owns the file takes priority. For truly shared files, manually merge keeping both changes.
+5. **Test after each merge.** Run `npx tsc --noEmit` and `npx eslint .` after each merge to catch integration issues early.
+6. **Polish runs on the integration branch.** The `/polish-milestone` command runs on the final integrated branch, not on individual phase branches.
+
+### Branch Management
+
+**NEVER delete branches.** All feature and milestone branches must be preserved for history.
+
+- Individual phase branches stay as-is after PR creation
+- Use **squash merge** when merging PRs to main (keeps main history clean)
+- Branch names are permanent references to the work done in each phase
+
+```bash
+# PR merge strategy (user does this in GitHub UI):
+# Settings → "Squash and merge" as default merge method
+# This keeps individual branch history intact while main stays clean
+```
+
+### Manual Testing Instructions
+
+**After every phase completion and after polishing**, Claude MUST send the user a "How to Test" message with:
+
+1. **Build command** (`npm run dev` or `npm run build` + load instructions)
+2. **Phase-specific test steps** — concrete actions the user can take in the browser to verify the feature works
+3. **What to look for** — expected UI changes, console output, or behavior
+
+This is mandatory. Never skip it. The user should always know how to verify what was just built.
+
 ### GSD Workflow Integration
 
 ```
-/gsd:complete-milestone → /polish-milestone → /gsd:new-milestone
+/gsd:complete-milestone → /polish-milestone (includes Milestone PR) → /gsd:new-milestone
 ```
 
-Run `/polish-milestone` after every milestone completion.
+Run `/polish-milestone` after every milestone completion. The polish workflow ends by creating a consolidated PR to main.
 
 ### GSD Todo Management
 

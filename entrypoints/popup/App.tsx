@@ -8,11 +8,14 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
 import { useStore } from '../../src/store';
+import { PrivacyConsentModal } from '../../src/components/consent/PrivacyConsentModal';
+import { RecordingConsentWarning } from '../../src/components/consent/RecordingConsentWarning';
 import ApiKeySettings from '../../src/components/settings/ApiKeySettings';
 import ModelSettings from '../../src/components/settings/ModelSettings';
 import HotkeySettings from '../../src/components/settings/HotkeySettings';
 import BlurSettings from '../../src/components/settings/BlurSettings';
 import LanguageSettings from '../../src/components/settings/LanguageSettings';
+import ConsentSettings from '../../src/components/settings/ConsentSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
 type Tab = 'capture' | 'settings' | 'templates';
@@ -42,7 +45,7 @@ function getStatusColorClass(status: string): string {
  * Status indicator dot component.
  */
 function StatusDot({ status }: { status: string }): React.JSX.Element {
-  return <div className={`w-2 h-2 rounded-full ${getStatusColorClass(status)}`} />;
+  return <div className={`h-2 w-2 rounded-full ${getStatusColorClass(status)}`} />;
 }
 
 function App() {
@@ -129,6 +132,17 @@ function App() {
   const apiKeys = useStore((state) => state.apiKeys);
   const transcriptionLanguage = useStore((state) => state.transcriptionLanguage);
 
+  // Consent state from store
+  const privacyPolicyAccepted = useStore((state) => state.privacyPolicyAccepted);
+  const acceptPrivacyPolicy = useStore((state) => state.acceptPrivacyPolicy);
+  const recordingConsentDismissed = useStore((state) => state.recordingConsentDismissedPermanently);
+  const dismissRecordingConsentPermanently = useStore(
+    (state) => state.dismissRecordingConsentPermanently,
+  );
+
+  // Recording consent warning local state
+  const [showRecordingConsent, setShowRecordingConsent] = useState(false);
+
   /**
    * Open the permissions page to grant microphone access
    */
@@ -148,17 +162,20 @@ function App() {
 
     // Check for chrome:// or other restricted pages
     if (activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('chrome-extension://')) {
-      return { valid: false, error: 'Cannot capture Chrome internal pages. Navigate to a regular website.' };
+      return {
+        valid: false,
+        error: 'Cannot capture Chrome internal pages. Navigate to a regular website.',
+      };
     }
 
     return { valid: true, tabId: activeTab.id };
   }
 
   /**
-   * Start both tab and microphone capture
+   * Start both tab and microphone capture (internal implementation).
    * Proceeds even without API keys (graceful degradation per CONTEXT.md)
    */
-  async function handleStartCapture() {
+  async function doStartCapture() {
     // Use ref for synchronous check - React state updates are async and can race
     if (captureOperationInFlight.current) {
       return;
@@ -177,10 +194,14 @@ function App() {
 
     // Log warnings for missing keys but don't block capture
     if (!apiKeys.elevenLabs) {
-      console.warn('Starting capture without ElevenLabs API key - transcription will be unavailable');
+      console.warn(
+        'Starting capture without ElevenLabs API key - transcription will be unavailable',
+      );
     }
     if (!apiKeys.openRouter && !apiKeys.openAI) {
-      console.warn('Starting capture without OpenRouter or OpenAI API key - AI responses will be unavailable');
+      console.warn(
+        'Starting capture without OpenRouter or OpenAI API key - AI responses will be unavailable',
+      );
     }
 
     try {
@@ -197,9 +218,8 @@ function App() {
       } as ExtensionMessage);
 
       if (!tabResponse?.success) {
-        const errorMsg = typeof tabResponse?.error === 'string'
-          ? tabResponse.error
-          : 'Tab capture failed';
+        const errorMsg =
+          typeof tabResponse?.error === 'string' ? tabResponse.error : 'Tab capture failed';
         throw new Error(errorMsg);
       }
 
@@ -212,9 +232,8 @@ function App() {
       if (!micResponse?.success) {
         // Tab capture succeeded but mic failed - stop tab capture for clean state
         await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } as ExtensionMessage);
-        const errorMsg = typeof micResponse?.error === 'string'
-          ? micResponse.error
-          : 'Microphone capture failed';
+        const errorMsg =
+          typeof micResponse?.error === 'string' ? micResponse.error : 'Microphone capture failed';
         throw new Error(errorMsg);
       }
 
@@ -230,6 +249,36 @@ function App() {
       // Always clear the in-flight flag when operation completes
       captureOperationInFlight.current = false;
     }
+  }
+
+  /**
+   * Start capture with recording consent gate.
+   * Shows recording consent warning if not permanently dismissed.
+   */
+  async function handleStartCapture() {
+    if (!recordingConsentDismissed) {
+      setShowRecordingConsent(true);
+      return;
+    }
+    await doStartCapture();
+  }
+
+  /**
+   * Handle user proceeding from recording consent warning.
+   */
+  function handleRecordingConsentProceed(dontShowAgain: boolean) {
+    if (dontShowAgain) {
+      dismissRecordingConsentPermanently();
+    }
+    setShowRecordingConsent(false);
+    doStartCapture();
+  }
+
+  /**
+   * Handle user canceling the recording consent warning.
+   */
+  function handleRecordingConsentCancel() {
+    setShowRecordingConsent(false);
   }
 
   /**
@@ -291,7 +340,6 @@ function App() {
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'START_TRANSCRIPTION',
-        apiKey: apiKeys.elevenLabs,
         languageCode: transcriptionLanguage || undefined,
       } as ExtensionMessage);
 
@@ -327,57 +375,45 @@ function App() {
     }
   }
 
+  // Blocking privacy consent gate - replaces all popup content until accepted
+  if (!privacyPolicyAccepted) {
+    return <PrivacyConsentModal onAccept={acceptPrivacyPolicy} />;
+  }
+
   return (
-    <div className="w-96 bg-white">
+    <div className="flex max-h-[600px] w-96 flex-col bg-white">
       {/* Header */}
-      <div className="px-4 pt-4 pb-2 border-b border-gray-200">
+      <div className="border-b border-gray-200 px-4 pt-4 pb-2">
         <h1 className="text-lg font-bold text-gray-900">AI Interview Assistant</h1>
       </div>
 
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('capture')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'capture'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Capture
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'settings'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Settings
-        </button>
-        <button
-          onClick={() => setActiveTab('templates')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === 'templates'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          Templates
-        </button>
+        {(['capture', 'settings', 'templates'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 px-4 py-2 text-sm font-medium capitalize transition-colors ${
+              activeTab === tab
+                ? 'border-b-2 border-blue-600 bg-blue-50 text-blue-600'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
       {/* Tab Content */}
-      <div className="max-h-[500px] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {activeTab === 'capture' && (
-          <div className="p-4 space-y-4">
+          <div className="space-y-4 p-4">
             {/* Audio Capture Section */}
-            <section className="border border-gray-200 rounded-lg p-4">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Audio Capture</h2>
+            <section className="rounded-lg border border-gray-200 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Audio Capture</h2>
 
               {/* Status Display */}
-              <div className="flex items-center gap-2 mb-4">
+              <div className="mb-4 flex items-center gap-2">
                 <StatusDot status={captureStatus} />
                 <span className="text-sm text-gray-700">
                   Status: <span className="font-medium">{captureStatus}</span>
@@ -386,7 +422,7 @@ function App() {
 
               {/* Error Display */}
               {captureError && (
-                <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                <div className="mb-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
                   {captureError}
                 </div>
               )}
@@ -396,9 +432,9 @@ function App() {
                 <button
                   onClick={handleStartCapture}
                   disabled={isCapturing || captureStatus === 'Starting...'}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                     isCapturing || captureStatus === 'Starting...'
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                       : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
                   }`}
                 >
@@ -407,9 +443,9 @@ function App() {
                 <button
                   onClick={handleStopCapture}
                   disabled={!isCapturing || captureStatus === 'Stopping...'}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                     !isCapturing || captureStatus === 'Stopping...'
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                       : 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
                   }`}
                 >
@@ -418,50 +454,56 @@ function App() {
               </div>
 
               {/* Help Text */}
-              <p className="mt-3 text-xs text-gray-500">
-                Starts tab audio and microphone capture.
-              </p>
+              <p className="mt-3 text-xs text-gray-500">Starts tab audio and microphone capture.</p>
 
               {/* First-time setup */}
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">
+              <div className="mt-3 border-t border-gray-200 pt-3">
+                <p className="mb-2 text-xs text-gray-500">
                   First time? Grant microphone permission:
                 </p>
                 <button
                   onClick={openPermissionsPage}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  className="text-xs text-blue-600 underline hover:text-blue-800"
                 >
                   Open Permission Setup
                 </button>
               </div>
             </section>
 
+            {/* Recording Consent Warning - shown when user clicks Start without prior dismissal */}
+            {showRecordingConsent && (
+              <RecordingConsentWarning
+                onProceed={handleRecordingConsentProceed}
+                onCancel={handleRecordingConsentCancel}
+              />
+            )}
+
             {/* API Key Warnings Section - non-blocking, informational */}
             {(!apiKeys.elevenLabs || (!apiKeys.openRouter && !apiKeys.openAI)) && (
               <section className="space-y-2">
                 {!apiKeys.elevenLabs && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                    <div className="text-yellow-600 text-sm">
+                  <div className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                    <div className="text-sm text-yellow-600">
                       <span className="font-medium">Missing ElevenLabs API key</span>
                       <span className="text-yellow-500"> - transcription unavailable</span>
                     </div>
                     <button
                       onClick={() => setActiveTab('settings')}
-                      className="ml-auto text-xs text-yellow-700 hover:text-yellow-900 underline whitespace-nowrap"
+                      className="ml-auto text-xs whitespace-nowrap text-yellow-700 underline hover:text-yellow-900"
                     >
                       Configure
                     </button>
                   </div>
                 )}
                 {!apiKeys.openRouter && !apiKeys.openAI && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                    <div className="text-yellow-600 text-sm">
+                  <div className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                    <div className="text-sm text-yellow-600">
                       <span className="font-medium">Missing LLM API key</span>
                       <span className="text-yellow-500"> - AI responses unavailable</span>
                     </div>
                     <button
                       onClick={() => setActiveTab('settings')}
-                      className="ml-auto text-xs text-yellow-700 hover:text-yellow-900 underline whitespace-nowrap"
+                      className="ml-auto text-xs whitespace-nowrap text-yellow-700 underline hover:text-yellow-900"
                     >
                       Configure
                     </button>
@@ -471,19 +513,19 @@ function App() {
             )}
 
             {/* Transcription Section */}
-            <section className="border border-gray-200 rounded-lg p-4">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Transcription</h2>
+            <section className="rounded-lg border border-gray-200 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Transcription</h2>
 
               {/* Transcription Button */}
               <button
                 onClick={isTranscribing ? handleStopTranscription : handleStartTranscription}
                 disabled={!isCapturing}
-                className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   !isCapturing
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                     : isTranscribing
-                    ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
-                    : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
+                      ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
+                      : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
                 }`}
               >
                 {isTranscribing ? 'Stop Transcription' : 'Start Transcription'}
@@ -493,11 +535,12 @@ function App() {
               {transcriptionStatus && (
                 <p
                   className={`mt-2 text-xs ${
-                    transcriptionStatus.startsWith('Failed') || transcriptionStatus.startsWith('Error')
+                    transcriptionStatus.startsWith('Failed') ||
+                    transcriptionStatus.startsWith('Error')
                       ? 'text-red-600'
                       : transcriptionStatus.includes('API key required')
-                      ? 'text-yellow-600'
-                      : 'text-gray-500'
+                        ? 'text-yellow-600'
+                        : 'text-gray-500'
                   }`}
                 >
                   {transcriptionStatus}
@@ -506,27 +549,23 @@ function App() {
 
               {/* Requirement Warning */}
               {!isCapturing && (
-                <p className="mt-2 text-xs text-yellow-600">
-                  Start audio capture first
-                </p>
+                <p className="mt-2 text-xs text-yellow-600">Start audio capture first</p>
               )}
             </section>
 
             {/* Active LLM Request Indicator */}
             {hasActiveLLMRequest && (
-              <section className="border border-blue-200 bg-blue-50 rounded-lg p-3">
+              <section className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
                   <span className="text-sm font-medium text-blue-700">LLM Request Active</span>
                 </div>
-                <p className="text-xs text-blue-600 mt-1">
-                  AI is processing your request...
-                </p>
+                <p className="mt-1 text-xs text-blue-600">AI is processing your request...</p>
               </section>
             )}
 
             {/* Quick Info */}
-            <section className="text-xs text-gray-500 space-y-1">
+            <section className="space-y-1 text-xs text-gray-500">
               <p>
                 <strong>Tab Audio:</strong> Captures interviewer's voice from the current tab
               </p>
@@ -538,35 +577,41 @@ function App() {
         )}
 
         {activeTab === 'settings' && (
-          <div className="p-4 space-y-6">
+          <div className="space-y-6 p-4">
             {/* API Keys Section */}
             <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">API Keys</h2>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">API Keys</h2>
               <ApiKeySettings />
             </section>
 
             {/* Transcription Section */}
             <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Transcription</h2>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Transcription</h2>
               <LanguageSettings />
             </section>
 
             {/* Models Section */}
             <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Models</h2>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Models</h2>
               <ModelSettings />
             </section>
 
             {/* Hotkeys Section */}
             <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Hotkeys</h2>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Hotkeys</h2>
               <HotkeySettings />
             </section>
 
             {/* Appearance Section */}
             <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Appearance</h2>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Appearance</h2>
               <BlurSettings />
+            </section>
+
+            {/* Privacy & Consent Section */}
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Privacy & Consent</h2>
+              <ConsentSettings />
             </section>
           </div>
         )}
@@ -579,8 +624,8 @@ function App() {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-gray-200">
-        <div className="text-xs text-gray-400">v0.2.0 - Audio Capture</div>
+      <div className="border-t border-gray-200 px-4 py-2">
+        <div className="text-xs text-gray-400">v{__APP_VERSION__} - Audio Capture</div>
       </div>
     </div>
   );

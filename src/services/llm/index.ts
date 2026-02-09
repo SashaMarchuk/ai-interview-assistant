@@ -8,14 +8,7 @@
  */
 
 // Re-export all types
-export type {
-  StreamOptions,
-  DualLLMRequest,
-  StreamCallbacks,
-  OpenRouterChatMessage,
-  OpenRouterStreamChunk,
-  LLMProviderId,
-} from './types';
+export type { DualLLMRequest } from './types';
 
 // Re-export prompt builder
 export { buildPrompt, type BuildPromptResult } from './PromptBuilder';
@@ -30,11 +23,8 @@ export type {
 
 // Re-export provider registry functions
 export {
-  getProvider,
-  resolveActiveProvider,
   getAvailableModels,
   resolveProviderForModel,
-  getAllProviders,
   type ApiKeys,
   type ResolvedProvider,
 } from './providers';
