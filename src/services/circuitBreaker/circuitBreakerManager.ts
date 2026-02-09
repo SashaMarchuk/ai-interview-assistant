@@ -92,8 +92,6 @@ export const circuitBreakerManager = {
  * Register a callback invoked on every circuit state transition.
  * Allows background.ts to broadcast CONNECTION_STATE without circular imports.
  */
-export function setStateChangeCallback(
-  cb: (serviceId: string, state: CircuitState) => void
-): void {
+export function setStateChangeCallback(cb: (serviceId: string, state: CircuitState) => void): void {
   stateChangeCallback = cb;
 }

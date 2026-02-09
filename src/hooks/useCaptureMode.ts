@@ -206,7 +206,7 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
         mode: 'hold',
       });
     },
-    [parsedHotkey, onCapture, captureMode, getTranscriptSince]
+    [parsedHotkey, onCapture, captureMode, getTranscriptSince],
   );
 
   const handleKeyUp = useCallback(
@@ -240,7 +240,7 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
         onCapture(capturedText, 'hold');
       }
     },
-    [parsedHotkey, onCapture, getTranscriptSince, captureMode]
+    [parsedHotkey, onCapture, getTranscriptSince, captureMode],
   );
 
   // Handle window blur (lost keyup - prevents stuck capture state)

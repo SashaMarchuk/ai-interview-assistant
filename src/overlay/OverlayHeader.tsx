@@ -15,18 +15,14 @@ export const OverlayHeader = memo(function OverlayHeader({ onMinimize }: Overlay
       e.stopPropagation(); // Prevent drag when clicking button
       onMinimize();
     },
-    [onMinimize]
+    [onMinimize],
   );
   return (
-    <div
-      className="overlay-drag-handle flex items-center justify-between px-3 py-2 border-b border-white/10 cursor-move select-none"
-    >
-      <span className="font-medium text-white/90 text-sm">
-        AI Interview Assistant
-      </span>
+    <div className="overlay-drag-handle flex cursor-move items-center justify-between border-b border-white/10 px-3 py-2 select-none">
+      <span className="text-sm font-medium text-white/90">AI Interview Assistant</span>
       <button
         onClick={handleClick}
-        className="text-white/50 hover:text-white/90 text-lg leading-none px-2 py-1 rounded hover:bg-white/10 transition-colors"
+        className="rounded px-2 py-1 text-lg leading-none text-white/50 transition-colors hover:bg-white/10 hover:text-white/90"
         title="Minimize"
         aria-label="Minimize overlay"
       >

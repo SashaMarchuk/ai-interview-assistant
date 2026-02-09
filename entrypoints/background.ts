@@ -7,22 +7,26 @@ import type {
   StopMicCaptureMessage,
   InternalStartTranscriptionMessage,
   StopTranscriptionMessage,
-  TranscriptUpdateMessage,
-  GetCaptureStateMessage,
   LLMStreamMessage,
   LLMStatusMessage,
-  ConnectionStateMessage,
 } from '../src/types/messages';
 import { buildPrompt, resolveProviderForModel, type LLMProvider } from '../src/services/llm';
 import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
-import { TranscriptBuffer, setTranscriptionActive, wasTranscriptionActive } from '../src/services/transcription/transcriptBuffer';
-import { circuitBreakerManager, setStateChangeCallback } from '../src/services/circuitBreaker/circuitBreakerManager';
+import {
+  TranscriptBuffer,
+  setTranscriptionActive,
+  wasTranscriptionActive,
+} from '../src/services/transcription/transcriptBuffer';
+import {
+  circuitBreakerManager,
+  setStateChangeCallback,
+} from '../src/services/circuitBreaker/circuitBreakerManager';
 import { CircuitState } from '../src/services/circuitBreaker/types';
 
 // Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
 setStateChangeCallback((serviceId, state) => {
-  const service = serviceId === 'elevenlabs' ? 'stt-tab' as const : 'llm' as const;
+  const service = serviceId === 'elevenlabs' ? ('stt-tab' as const) : ('llm' as const);
 
   if (state === CircuitState.OPEN) {
     sendConnectionState(service, 'error', 'Service temporarily unavailable');
@@ -35,7 +39,7 @@ setStateChangeCallback((serviceId, state) => {
 
 // Module state for transcript management
 const transcriptBuffer = new TranscriptBuffer();
-let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
+const interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
   new Map();
 
 // Module state for capture tracking
@@ -126,7 +130,8 @@ async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
 import { encryptionService } from '../src/services/crypto/encryption';
 import { storeReadyPromise } from '../src/store';
 
-encryptionService.initialize()
+encryptionService
+  .initialize()
   .then(() => circuitBreakerManager.rehydrate())
   .then(() => storeReadyPromise)
   .then(async () => {
@@ -136,7 +141,11 @@ encryptionService.initialize()
       await transcriptBuffer.load();
       isTranscriptionActive = true;
       startKeepAlive();
-      console.log('TranscriptBuffer: Recovered', transcriptBuffer.length, 'entries after SW restart');
+      console.log(
+        'TranscriptBuffer: Recovered',
+        transcriptBuffer.length,
+        'entries after SW restart',
+      );
     }
 
     storeReady = true;
@@ -180,7 +189,7 @@ async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage
 async function sendConnectionState(
   service: 'stt-tab' | 'stt-mic' | 'llm',
   state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
-  error?: string
+  error?: string,
 ): Promise<void> {
   await broadcastToMeetTabs({
     type: 'CONNECTION_STATE',
@@ -211,7 +220,7 @@ async function streamWithRetry(
   params: StreamWithRetryParams,
   modelType: 'fast' | 'full',
   responseId: string,
-  retryCount = 0
+  retryCount = 0,
 ): Promise<void> {
   try {
     await params.provider.streamResponse({
@@ -263,7 +272,7 @@ async function handleLLMRequest(
   question: string,
   recentContext: string,
   fullTranscript: string,
-  templateId: string
+  templateId: string,
 ): Promise<void> {
   // Get store state for settings and templates
   const state = useStore.getState();
@@ -307,10 +316,7 @@ async function handleLLMRequest(
   }
 
   // Build prompts using the template
-  const prompts = buildPrompt(
-    { question, recentContext, fullTranscript, templateId },
-    template
-  );
+  const prompts = buildPrompt({ question, recentContext, fullTranscript, templateId }, template);
 
   // Create abort controller for cancellation
   const abortController = new AbortController();
@@ -398,13 +404,15 @@ async function handleLLMRequest(
           abortSignal: abortController.signal,
         },
         'fast',
-        responseId
-      ).then(() => {
-        fastBreaker.recordSuccess();
-      }).catch((error) => {
-        fastBreaker.recordFailure();
-        throw error;
-      });
+        responseId,
+      )
+        .then(() => {
+          fastBreaker.recordSuccess();
+        })
+        .catch((error) => {
+          fastBreaker.recordFailure();
+          throw error;
+        });
     }
   } else {
     fastComplete = true;
@@ -474,13 +482,15 @@ async function handleLLMRequest(
           abortSignal: abortController.signal,
         },
         'full',
-        responseId
-      ).then(() => {
-        fullBreaker.recordSuccess();
-      }).catch((error) => {
-        fullBreaker.recordFailure();
-        throw error;
-      });
+        responseId,
+      )
+        .then(() => {
+          fullBreaker.recordSuccess();
+        })
+        .catch((error) => {
+          fullBreaker.recordFailure();
+          throw error;
+        });
     }
   } else {
     fullComplete = true;
@@ -564,16 +574,25 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // Message types that should be logged (important events only)
 const LOGGED_MESSAGE_TYPES = [
-  'START_CAPTURE', 'STOP_CAPTURE', 'CAPTURE_STARTED', 'CAPTURE_STOPPED', 'CAPTURE_ERROR',
-  'START_TRANSCRIPTION', 'STOP_TRANSCRIPTION', 'TRANSCRIPTION_STARTED', 'TRANSCRIPTION_STOPPED', 'TRANSCRIPTION_ERROR',
-  'LLM_REQUEST', 'LLM_CANCEL',
+  'START_CAPTURE',
+  'STOP_CAPTURE',
+  'CAPTURE_STARTED',
+  'CAPTURE_STOPPED',
+  'CAPTURE_ERROR',
+  'START_TRANSCRIPTION',
+  'STOP_TRANSCRIPTION',
+  'TRANSCRIPTION_STARTED',
+  'TRANSCRIPTION_STOPPED',
+  'TRANSCRIPTION_ERROR',
+  'LLM_REQUEST',
+  'LLM_CANCEL',
   'CONNECTION_STATE',
 ];
 
 // Async message handler using switch for proper discriminated union narrowing
 async function handleMessage(
   message: ExtensionMessage,
-  sender: chrome.runtime.MessageSender
+  _sender: chrome.runtime.MessageSender,
 ): Promise<unknown> {
   // Only log important events to reduce console spam
   if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
@@ -609,10 +628,13 @@ async function handleMessage(
         // Check if offscreen thinks capture is active (regardless of our flag)
         try {
           console.log('Ensuring clean state before capture...');
-          await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE', _fromBackground: true } as StopCaptureMessage & { _fromBackground: true });
+          await chrome.runtime.sendMessage({
+            type: 'STOP_CAPTURE',
+            _fromBackground: true,
+          } as StopCaptureMessage & { _fromBackground: true });
           // Wait for Chrome to fully release resources
           await new Promise((resolve) => setTimeout(resolve, 300));
-        } catch (e) {
+        } catch {
           // Offscreen might not exist yet - that's fine
         }
         isTabCaptureActive = false;
@@ -630,7 +652,11 @@ async function handleMessage(
         }
 
         // Validate tab URL - some tabs can't be captured
-        if (!activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('chrome-extension://')) {
+        if (
+          !activeTab.url ||
+          activeTab.url.startsWith('chrome://') ||
+          activeTab.url.startsWith('chrome-extension://')
+        ) {
           throw new Error('Cannot capture this tab. Navigate to a regular webpage first.');
         }
 
@@ -638,20 +664,17 @@ async function handleMessage(
         // Do NOT specify consumerTabId - the stream will be used by extension's offscreen document
         console.log('Requesting stream ID for tab:', activeTab.id);
         const streamId = await new Promise<string>((resolve, reject) => {
-          chrome.tabCapture.getMediaStreamId(
-            { targetTabId: activeTab.id },
-            (id) => {
-              if (chrome.runtime.lastError) {
-                const errMsg = chrome.runtime.lastError.message || 'Tab capture permission denied';
-                console.error('getMediaStreamId error:', errMsg);
-                reject(new Error(errMsg));
-              } else if (!id) {
-                reject(new Error('No stream ID returned - try refreshing the page'));
-              } else {
-                resolve(id);
-              }
+          chrome.tabCapture.getMediaStreamId({ targetTabId: activeTab.id }, (id) => {
+            if (chrome.runtime.lastError) {
+              const errMsg = chrome.runtime.lastError.message || 'Tab capture permission denied';
+              console.error('getMediaStreamId error:', errMsg);
+              reject(new Error(errMsg));
+            } else if (!id) {
+              reject(new Error('No stream ID returned - try refreshing the page'));
+            } else {
+              resolve(id);
             }
-          );
+          });
         });
 
         // Mark capture as starting (will be confirmed by CAPTURE_STARTED)
@@ -677,7 +700,8 @@ async function handleMessage(
         // Reset state on failure
         isTabCaptureActive = false;
         isCaptureStartInProgress = false;
-        const errorMessage = error instanceof Error ? error.message : 'Tab capture failed - try refreshing the page';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Tab capture failed - try refreshing the page';
         console.error('Tab capture error:', errorMessage);
         return { success: false, error: errorMessage };
       }
@@ -810,7 +834,10 @@ async function handleMessage(
         // Check ElevenLabs circuit breaker before attempting connection
         const elevenLabsBreaker = circuitBreakerManager.getBreaker('elevenlabs');
         if (!elevenLabsBreaker.allowRequest()) {
-          return { success: false, error: 'ElevenLabs service temporarily unavailable. Will retry automatically.' };
+          return {
+            success: false,
+            error: 'ElevenLabs service temporarily unavailable. Will retry automatically.',
+          };
         }
 
         // Forward to offscreen document with API key from store (internal message)
@@ -920,7 +947,7 @@ async function handleMessage(
       // Cancel ALL existing active requests before starting new one
       if (activeAbortControllers.size > 0) {
         console.log('LLM: Cancelling', activeAbortControllers.size, 'previous request(s)');
-        for (const [existingId, controller] of activeAbortControllers) {
+        for (const [, controller] of activeAbortControllers) {
           controller.abort();
         }
         activeAbortControllers.clear();
@@ -932,7 +959,7 @@ async function handleMessage(
         message.question,
         message.recentContext,
         message.fullTranscript,
-        message.templateId
+        message.templateId,
       );
       console.log('LLM: Starting request');
       return { success: true };

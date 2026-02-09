@@ -8,7 +8,16 @@ import globals from 'globals';
 import autoImports from './.wxt/eslint-auto-imports.mjs';
 
 export default defineConfig(
-  { ignores: ['.output/**', '.wxt/**', 'node_modules/**', 'public/**', '.planning/**', 'scripts/**'] },
+  {
+    ignores: [
+      '.output/**',
+      '.wxt/**',
+      'node_modules/**',
+      'public/**',
+      '.planning/**',
+      'scripts/**',
+    ],
+  },
   eslint.configs.recommended,
   tseslint.configs.recommended,
   {
@@ -17,6 +26,16 @@ export default defineConfig(
         ...globals.browser,
         ...globals.webextensions,
       },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   autoImports,

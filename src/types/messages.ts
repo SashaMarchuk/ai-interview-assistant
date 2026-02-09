@@ -226,11 +226,11 @@ export interface TranscriptUpdateMessage extends BaseMessage {
 // LLM request from content script to background
 export interface LLMRequestMessage extends BaseMessage {
   type: 'LLM_REQUEST';
-  responseId: string;        // Unique ID for this request/response pair
-  question: string;          // Captured/highlighted text
-  recentContext: string;     // Last N transcript entries formatted
-  fullTranscript: string;    // Full session transcript formatted
-  templateId: string;        // Active template ID
+  responseId: string; // Unique ID for this request/response pair
+  question: string; // Captured/highlighted text
+  recentContext: string; // Last N transcript entries formatted
+  fullTranscript: string; // Full session transcript formatted
+  templateId: string; // Active template ID
 }
 
 // Streaming token updates from background to content script
@@ -312,7 +312,7 @@ export type ExtensionMessage =
 // Type guard for message checking (constraint widened to support internal message types)
 export function isMessage<T extends { type: string }>(
   message: unknown,
-  type: T['type']
+  type: T['type'],
 ): message is T {
   return (
     typeof message === 'object' &&

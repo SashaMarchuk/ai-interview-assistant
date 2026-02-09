@@ -39,12 +39,14 @@ function ModelSelect({ label, description, modelType, category }: ModelSelectPro
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
       <select
         value={currentValue}
         onChange={(e) => setModel(modelType, e.target.value)}
-        className={`w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-          !isCurrentAvailable && availableOptions.length > 0 ? 'border-yellow-400' : 'border-gray-300'
+        className={`w-full rounded-md border px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 ${
+          !isCurrentAvailable && availableOptions.length > 0
+            ? 'border-yellow-400'
+            : 'border-gray-300'
         }`}
       >
         {/* Show current value even if not available (grayed out) */}

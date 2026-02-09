@@ -9,33 +9,37 @@ interface ResponsePanelProps {
  * Status indicator showing current response state.
  * Memoized to prevent re-renders when parent updates but status unchanged.
  */
-const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMResponse['status'] }) {
+const StatusIndicator = memo(function StatusIndicator({
+  status,
+}: {
+  status: LLMResponse['status'];
+}) {
   switch (status) {
     case 'pending':
       return (
         <span className="flex items-center gap-1 text-xs text-yellow-300">
-          <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+          <span className="h-2 w-2 animate-pulse rounded-full bg-yellow-400"></span>
           Thinking...
         </span>
       );
     case 'streaming':
       return (
         <span className="flex items-center gap-1 text-xs text-blue-300">
-          <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400"></span>
           Streaming...
         </span>
       );
     case 'complete':
       return (
         <span className="flex items-center gap-1 text-xs text-green-300">
-          <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+          <span className="h-2 w-2 rounded-full bg-green-400"></span>
           Complete
         </span>
       );
     case 'error':
       return (
         <span className="flex items-center gap-1 text-xs text-red-300">
-          <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+          <span className="h-2 w-2 rounded-full bg-red-400"></span>
           Error
         </span>
       );
@@ -50,34 +54,33 @@ const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMR
  */
 export const ResponsePanel = memo(function ResponsePanel({ response }: ResponsePanelProps) {
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="text-xs font-medium text-white/60 mb-1 flex items-center justify-between">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-1 flex items-center justify-between text-xs font-medium text-white/60">
         <span>AI Response</span>
         {response && <StatusIndicator status={response.status} />}
       </div>
 
-      <div className="flex-1 rounded p-2 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto rounded p-2">
         {!response ? (
-          <div className="h-full flex items-center justify-center">
-            <span className="text-sm text-white/40 italic text-center px-4">
+          <div className="flex h-full items-center justify-center">
+            <span className="px-4 text-center text-sm text-white/40 italic">
               Hold hotkey to capture question...
             </span>
           </div>
         ) : response.status === 'error' ? (
           <div className="text-sm text-red-300">
-            <span className="font-medium">Error:</span>{' '}
-            {response.error || 'An error occurred'}
+            <span className="font-medium">Error:</span> {response.error || 'An error occurred'}
           </div>
         ) : (
           <div className="space-y-3">
             {/* Fast Hint Section */}
             {response.fastHint && (
               <div className="text-sm">
-                <div className="flex items-center gap-1 mb-1">
+                <div className="mb-1 flex items-center gap-1">
                   <span className="font-medium text-green-300">Quick Hint</span>
                   <span className="text-xs text-white/40">— start talking</span>
                 </div>
-                <div className="text-white/90 border-l-2 border-green-400/50 pl-2">
+                <div className="border-l-2 border-green-400/50 pl-2 text-white/90">
                   {response.fastHint}
                 </div>
               </div>
@@ -86,11 +89,11 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
             {/* Full Answer Section */}
             {response.fullAnswer && (
               <div className="text-sm">
-                <div className="flex items-center gap-1 mb-1">
+                <div className="mb-1 flex items-center gap-1">
                   <span className="font-medium text-purple-300">Full Answer</span>
                   <span className="text-xs text-white/40">— detailed response</span>
                 </div>
-                <div className="text-white/90 border-l-2 border-purple-400/50 pl-2">
+                <div className="border-l-2 border-purple-400/50 pl-2 text-white/90">
                   {response.fullAnswer}
                 </div>
               </div>
@@ -98,7 +101,7 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
 
             {/* Pending state with no content yet */}
             {response.status === 'pending' && !response.fastHint && !response.fullAnswer && (
-              <div className="text-sm text-white/40 italic text-center py-4">
+              <div className="py-4 text-center text-sm text-white/40 italic">
                 Processing your question...
               </div>
             )}

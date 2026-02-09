@@ -45,7 +45,7 @@ export interface SSEStreamConfig {
  */
 export async function streamSSE(
   config: SSEStreamConfig,
-  options: ProviderStreamOptions
+  options: ProviderStreamOptions,
 ): Promise<void> {
   const { url, headers, body, providerName, checkErrorFinishReason = false } = config;
   const { onToken, onComplete, onError, abortSignal } = options;

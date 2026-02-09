@@ -56,7 +56,7 @@ function dispatchLLMResponseUpdate(response: LLMResponse): void {
   window.dispatchEvent(
     new CustomEvent<LLMResponseEventDetail>('llm-response-update', {
       detail: { response },
-    })
+    }),
   );
 }
 
@@ -172,7 +172,7 @@ function getFullTranscript(): string {
 /**
  * Send LLM request to background service worker
  */
-async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Promise<void> {
+async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Promise<void> {
   const state = useStore.getState();
 
   if (!state.activeTemplateId) {
@@ -199,7 +199,10 @@ async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Pro
   try {
     const response = await chrome.runtime.sendMessage(message);
     if (!response?.success) {
-      console.error('AI Interview Assistant: LLM request failed:', response?.error || `Unknown - response: ${JSON.stringify(response)}`);
+      console.error(
+        'AI Interview Assistant: LLM request failed:',
+        response?.error || `Unknown - response: ${JSON.stringify(response)}`,
+      );
     }
   } catch (error) {
     console.error('AI Interview Assistant: Failed to send LLM request:', error);
@@ -215,7 +218,7 @@ function dispatchTranscriptUpdate(entries: TranscriptEntry[]): void {
   window.dispatchEvent(
     new CustomEvent<TranscriptUpdateEventDetail>('transcript-update', {
       detail: { entries },
-    })
+    }),
   );
 }
 
@@ -257,13 +260,15 @@ function CaptureProvider({
 
   // Dispatch custom event when capture state changes
   // This allows the Overlay to update its CaptureIndicator
+  /* eslint-disable react-hooks/exhaustive-deps -- intentionally tracking specific fields, not the full object */
   useEffect(() => {
     window.dispatchEvent(
       new CustomEvent<CaptureStateEventDetail>('capture-state-update', {
         detail: { state: captureState },
-      })
+      }),
     );
   }, [captureState.isHolding, captureState.mode]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   return <CaptureContext.Provider value={captureState}>{children}</CaptureContext.Provider>;
 }
@@ -323,7 +328,12 @@ export default defineContentScript({
           // Dispatch custom event for Overlay to consume (for HealthIndicator)
           // Only log non-connected states
           if (message.state !== 'connected') {
-            console.log('AI Interview Assistant:', message.service, message.state, message.error || '');
+            console.log(
+              'AI Interview Assistant:',
+              message.service,
+              message.state,
+              message.error || '',
+            );
           }
           window.dispatchEvent(
             new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
@@ -332,7 +342,7 @@ export default defineContentScript({
                 state: message.state,
                 error: message.error,
               },
-            })
+            }),
           );
           return false;
 
@@ -361,7 +371,7 @@ export default defineContentScript({
             getFullTranscript={getFullTranscript}
           >
             <Overlay />
-          </CaptureProvider>
+          </CaptureProvider>,
         );
         return root;
       },

@@ -22,9 +22,7 @@ const ENCRYPTED_FIELDS = ['elevenLabs', 'openRouter', 'openAI'] as const;
  * Decrypt apiKeys values in parsed state, with plaintext fallback for migration.
  * If encryption service is not initialized (non-background context), passes through as-is.
  */
-async function decryptApiKeys(
-  apiKeys: Record<string, string>
-): Promise<Record<string, string>> {
+async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
   const result = { ...apiKeys };
 
   for (const field of ENCRYPTED_FIELDS) {
@@ -49,9 +47,7 @@ async function decryptApiKeys(
  * Encrypt apiKeys values in parsed state.
  * If encryption service is not initialized (non-background context), passes through as-is.
  */
-async function encryptApiKeys(
-  apiKeys: Record<string, string>
-): Promise<Record<string, string>> {
+async function encryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
   const result = { ...apiKeys };
 
   for (const field of ENCRYPTED_FIELDS) {

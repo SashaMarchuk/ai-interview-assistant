@@ -16,11 +16,26 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
  */
 export const OPENROUTER_MODELS: ModelInfo[] = [
   // Fast models (for quick hints)
-  { id: 'google/gemini-flash-1.5', name: 'Gemini Flash 1.5', category: 'fast', provider: 'openrouter' },
-  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', category: 'fast', provider: 'openrouter' },
+  {
+    id: 'google/gemini-flash-1.5',
+    name: 'Gemini Flash 1.5',
+    category: 'fast',
+    provider: 'openrouter',
+  },
+  {
+    id: 'anthropic/claude-3-haiku',
+    name: 'Claude 3 Haiku',
+    category: 'fast',
+    provider: 'openrouter',
+  },
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', category: 'fast', provider: 'openrouter' },
   // Full models (for comprehensive answers)
-  { id: 'anthropic/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', category: 'full', provider: 'openrouter' },
+  {
+    id: 'anthropic/claude-3-5-sonnet',
+    name: 'Claude 3.5 Sonnet',
+    category: 'full',
+    provider: 'openrouter',
+  },
   { id: 'openai/gpt-4o', name: 'GPT-4o', category: 'full', provider: 'openrouter' },
   { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', category: 'full', provider: 'openrouter' },
 ];
@@ -65,7 +80,7 @@ export class OpenRouterProvider implements LLMProvider {
         providerName: 'OpenRouter',
         checkErrorFinishReason: true,
       },
-      options
+      options,
     );
   }
 }

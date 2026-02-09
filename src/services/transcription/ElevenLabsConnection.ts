@@ -44,7 +44,7 @@ export class ElevenLabsConnection {
     config: TranscriptionConfig,
     onTranscript: TranscriptCallback,
     onError: (error: string, canRetry: boolean) => void,
-    onConnect?: () => void
+    onConnect?: () => void,
   ) {
     this.config = config;
     this.onTranscript = onTranscript;
@@ -110,7 +110,7 @@ export class ElevenLabsConnection {
       });
 
       if (response.ok) {
-        const data = await response.json() as TokenResponse;
+        const data = (await response.json()) as TokenResponse;
         if (data.token) {
           return data.token;
         }
@@ -122,7 +122,9 @@ export class ElevenLabsConnection {
         if (response.status === 401) {
           throw new Error('Invalid API key. Please check your ElevenLabs API key in Settings.');
         } else if (response.status === 403) {
-          throw new Error('API key does not have access to Scribe. Check your ElevenLabs subscription.');
+          throw new Error(
+            'API key does not have access to Scribe. Check your ElevenLabs subscription.',
+          );
         } else if (response.status === 404) {
           throw new Error('Token endpoint not found. ElevenLabs API may have changed.');
         }
@@ -225,7 +227,10 @@ export class ElevenLabsConnection {
     const chunkSize = 8192;
     for (let i = 0; i < len; i += chunkSize) {
       const end = Math.min(i + chunkSize, len);
-      binaryString += String.fromCharCode.apply(null, uint8Array.subarray(i, end) as unknown as number[]);
+      binaryString += String.fromCharCode.apply(
+        null,
+        uint8Array.subarray(i, end) as unknown as number[],
+      );
     }
     const base64 = btoa(binaryString);
 
@@ -277,13 +282,13 @@ export class ElevenLabsConnection {
 
         case 'committed_transcript':
         case 'committed_transcript_with_timestamps':
-        case 'final_transcript': // Alternative message type some versions use
+        case 'final_transcript': {
+          // Alternative message type some versions use
           // Deduplicate: ElevenLabs may send both committed_transcript and
           // committed_transcript_with_timestamps for the same utterance
           const now = Date.now();
           const isDuplicate =
-            message.text === this.lastCommittedText &&
-            (now - this.lastCommittedTimestamp) < 1000; // Within 1 second
+            message.text === this.lastCommittedText && now - this.lastCommittedTimestamp < 1000; // Within 1 second
 
           if (isDuplicate) {
             break;
@@ -293,6 +298,7 @@ export class ElevenLabsConnection {
           this.lastCommittedTimestamp = now;
           this.onTranscript(message.text, true, now);
           break;
+        }
 
         case 'vad_event':
         case 'internal_vad_score':
@@ -300,15 +306,23 @@ export class ElevenLabsConnection {
           // Internal debugging messages from ElevenLabs - ignore
           break;
 
-        case 'error':
-          console.error(`[ElevenLabs:${this.config.source}] Error:`, message.error_type, message.message);
+        case 'error': {
+          console.error(
+            `[ElevenLabs:${this.config.source}] Error:`,
+            message.error_type,
+            message.message,
+          );
           const canRetry = message.error_type !== 'auth_error';
           this.onError(`${message.error_type}: ${message.message}`, canRetry);
           break;
+        }
 
         case 'auth_error':
           console.error(`[ElevenLabs:${this.config.source}] Auth failed`);
-          this.onError('Authentication failed. Please check your ElevenLabs API key in Settings.', false);
+          this.onError(
+            'Authentication failed. Please check your ElevenLabs API key in Settings.',
+            false,
+          );
           break;
 
         default:
@@ -391,5 +405,4 @@ export class ElevenLabsConnection {
 
     return `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${params.toString()}`;
   }
-
 }

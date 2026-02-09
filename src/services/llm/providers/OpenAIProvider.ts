@@ -70,7 +70,7 @@ export class OpenAIProvider implements LLMProvider {
         },
         providerName: 'OpenAI',
       },
-      options
+      options,
     );
   }
 }

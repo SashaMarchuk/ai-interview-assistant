@@ -6,7 +6,14 @@
  */
 
 import type { StateCreator } from 'zustand';
-import type { SettingsSlice, StoreState, ApiKeyProvider, ModelType, HotkeyAction, CaptureMode } from './types';
+import type {
+  SettingsSlice,
+  StoreState,
+  ApiKeyProvider,
+  ModelType,
+  HotkeyAction,
+  CaptureMode,
+} from './types';
 
 /**
  * Default settings values

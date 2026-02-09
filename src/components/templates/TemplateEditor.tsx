@@ -31,10 +31,7 @@ const TYPE_OPTIONS: { value: TemplateType; label: string }[] = [
  * Note: delay is included in deps for correctness - if delay ever changes,
  * the callback will use the new value. This is intentional.
  */
-function useDebouncedCallback<T>(
-  callback: (value: T) => void,
-  delay: number
-): (value: T) => void {
+function useDebouncedCallback<T>(callback: (value: T) => void, delay: number): (value: T) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   return useCallback(
@@ -46,7 +43,7 @@ function useDebouncedCallback<T>(
         callback(value);
       }, delay);
     },
-    [callback, delay]
+    [callback, delay],
   );
 }
 
@@ -85,7 +82,8 @@ export function TemplateEditor() {
   const [localUserPromptTemplate, setLocalUserPromptTemplate] = useState('');
   const [localModelOverride, setLocalModelOverride] = useState('');
 
-  // Sync local state when template changes
+  // Sync local state when template changes (controlled form pattern)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing local form state from parent prop is intentional */
   useEffect(() => {
     if (template) {
       setLocalName(template.name);
@@ -95,6 +93,7 @@ export function TemplateEditor() {
       setLocalModelOverride(template.modelOverride || '');
     }
   }, [template]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Debounced update for system prompt
   const debouncedUpdateSystemPrompt = useDebouncedCallback(
@@ -104,9 +103,9 @@ export function TemplateEditor() {
           updateTemplate(activeTemplateId, { systemPrompt: value });
         }
       },
-      [activeTemplateId, updateTemplate]
+      [activeTemplateId, updateTemplate],
     ),
-    500
+    500,
   );
 
   // Debounced update for user prompt template
@@ -117,9 +116,9 @@ export function TemplateEditor() {
           updateTemplate(activeTemplateId, { userPromptTemplate: value });
         }
       },
-      [activeTemplateId, updateTemplate]
+      [activeTemplateId, updateTemplate],
     ),
-    500
+    500,
   );
 
   // Handlers for immediate updates (name, type, model)
@@ -160,7 +159,7 @@ export function TemplateEditor() {
   // No template selected state
   if (!template) {
     return (
-      <div className="flex items-center justify-center h-48 text-gray-500">
+      <div className="flex h-48 items-center justify-center text-gray-500">
         <p>Select a template to edit</p>
       </div>
     );
@@ -168,14 +167,11 @@ export function TemplateEditor() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium text-gray-700 mb-2">Edit Template</h3>
+      <h3 className="mb-2 text-sm font-medium text-gray-700">Edit Template</h3>
 
       {/* Name Field */}
       <div>
-        <label
-          htmlFor="template-name"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="template-name" className="mb-1 block text-sm font-medium text-gray-700">
           Name
         </label>
         <input
@@ -184,27 +180,20 @@ export function TemplateEditor() {
           value={localName}
           onChange={(e) => handleNameChange(e.target.value)}
           disabled={template.isDefault}
-          className={`
-            w-full px-3 py-2 text-sm border rounded
-            ${template.isDefault
-              ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-              : 'bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-            }
-          `}
+          className={`w-full rounded border px-3 py-2 text-sm ${
+            template.isDefault
+              ? 'cursor-not-allowed bg-gray-100 text-gray-500'
+              : 'bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500'
+          } `}
         />
         {template.isDefault && (
-          <p className="mt-1 text-xs text-gray-500">
-            Default templates cannot be renamed
-          </p>
+          <p className="mt-1 text-xs text-gray-500">Default templates cannot be renamed</p>
         )}
       </div>
 
       {/* Type Field */}
       <div>
-        <label
-          htmlFor="template-type"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="template-type" className="mb-1 block text-sm font-medium text-gray-700">
           Type
         </label>
         <select
@@ -212,13 +201,11 @@ export function TemplateEditor() {
           value={localType}
           onChange={(e) => handleTypeChange(e.target.value as TemplateType)}
           disabled={template.isDefault}
-          className={`
-            w-full px-3 py-2 text-sm border rounded
-            ${template.isDefault
-              ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-              : 'bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-            }
-          `}
+          className={`w-full rounded border px-3 py-2 text-sm ${
+            template.isDefault
+              ? 'cursor-not-allowed bg-gray-100 text-gray-500'
+              : 'bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500'
+          } `}
         >
           {TYPE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -230,10 +217,7 @@ export function TemplateEditor() {
 
       {/* System Prompt Field */}
       <div>
-        <label
-          htmlFor="system-prompt"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="system-prompt" className="mb-1 block text-sm font-medium text-gray-700">
           System Prompt
         </label>
         <textarea
@@ -242,23 +226,14 @@ export function TemplateEditor() {
           onChange={(e) => handleSystemPromptChange(e.target.value)}
           placeholder="Instructions for the AI..."
           rows={4}
-          className="
-            w-full px-3 py-2 text-sm border rounded bg-white text-gray-900
-            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-            resize-y min-h-[100px]
-          "
+          className="min-h-[100px] w-full resize-y rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
         />
-        <p className="mt-1 text-xs text-gray-500">
-          This sets the AI's behavior and expertise
-        </p>
+        <p className="mt-1 text-xs text-gray-500">This sets the AI's behavior and expertise</p>
       </div>
 
       {/* User Prompt Template Field */}
       <div>
-        <label
-          htmlFor="user-prompt"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="user-prompt" className="mb-1 block text-sm font-medium text-gray-700">
           User Prompt Template
         </label>
         <textarea
@@ -267,33 +242,21 @@ export function TemplateEditor() {
           onChange={(e) => handleUserPromptChange(e.target.value)}
           placeholder="Question: $highlighted&#10;&#10;Context: $recent"
           rows={4}
-          className="
-            w-full px-3 py-2 text-sm border rounded bg-white text-gray-900
-            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-            resize-y min-h-[100px]
-          "
+          className="min-h-[100px] w-full resize-y rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
         />
-        <p className="mt-1 text-xs text-gray-500">
-          Variables: $highlighted, $recent, $transcript
-        </p>
+        <p className="mt-1 text-xs text-gray-500">Variables: $highlighted, $recent, $transcript</p>
       </div>
 
       {/* Model Override Field */}
       <div>
-        <label
-          htmlFor="model-override"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
+        <label htmlFor="model-override" className="mb-1 block text-sm font-medium text-gray-700">
           Model Override
         </label>
         <select
           id="model-override"
           value={localModelOverride}
           onChange={(e) => handleModelOverrideChange(e.target.value)}
-          className="
-            w-full px-3 py-2 text-sm border rounded bg-white text-gray-900
-            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-          "
+          className="w-full rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
         >
           {modelOptions.map((option) => (
             <option key={option.value} value={option.value}>

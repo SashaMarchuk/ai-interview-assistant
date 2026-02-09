@@ -13,6 +13,7 @@ export default defineConfig({
   vite: () => ({
     // Note: Tailwind type cast is needed due to WXT/Vite plugin type incompatibility.
     // The @tailwindcss/vite plugin returns a Vite plugin but WXT's types don't match exactly.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WXT/Vite plugin type mismatch requires cast
     plugins: [tailwindcss() as any, tsconfigPaths()],
     resolve: {
       alias: {

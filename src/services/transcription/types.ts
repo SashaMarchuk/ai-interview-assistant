@@ -126,7 +126,7 @@ export function isServerMessage(data: unknown): data is ServerMessage {
  */
 export function isServerMessageType<T extends ServerMessage>(
   data: ServerMessage,
-  type: T['message_type']
+  type: T['message_type'],
 ): data is T {
   return data.message_type === type;
 }

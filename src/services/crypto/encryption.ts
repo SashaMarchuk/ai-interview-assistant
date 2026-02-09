@@ -69,7 +69,7 @@ class EncryptionService {
     const ciphertext = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
       this.key,
-      encoder.encode(plaintext)
+      encoder.encode(plaintext),
     );
 
     // Prepend IV to ciphertext for storage
@@ -96,11 +96,7 @@ class EncryptionService {
     const iv = raw.slice(0, IV_LENGTH);
     const data = raw.slice(IV_LENGTH);
 
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      this.key,
-      data
-    );
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, this.key, data);
 
     return new TextDecoder().decode(decrypted);
   }
@@ -118,7 +114,7 @@ class EncryptionService {
       encoder.encode(chrome.runtime.id),
       { name: 'PBKDF2' },
       false,
-      ['deriveKey']
+      ['deriveKey'],
     );
 
     // Derive AES-GCM-256 key (non-extractable)
@@ -133,7 +129,7 @@ class EncryptionService {
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
       false, // non-extractable
-      ['encrypt', 'decrypt']
+      ['encrypt', 'decrypt'],
     );
 
     console.log('EncryptionService: initialized');

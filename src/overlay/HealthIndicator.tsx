@@ -65,24 +65,22 @@ export const HealthIndicator = memo(function HealthIndicator({ issues }: HealthI
   }
 
   return (
-    <div className="overlay-drag-handle absolute top-0 left-0 right-0 z-20 flex flex-col cursor-move">
+    <div className="overlay-drag-handle absolute top-0 right-0 left-0 z-20 flex cursor-move flex-col">
       {issues.map((issue, index) => {
         const styles = getStatusStyles(issue.status);
         return (
           <div
             key={`${issue.service}-${index}`}
-            className={`${styles.bg} px-3 py-1.5 flex items-center gap-2 text-xs font-medium ${styles.text} select-none`}
+            className={`${styles.bg} flex items-center gap-2 px-3 py-1.5 text-xs font-medium ${styles.text} select-none`}
           >
             {/* Status dot with optional pulse animation */}
             <span className="relative flex h-2 w-2">
               {styles.animate && (
                 <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full ${styles.dot} opacity-75`}
+                  className={`absolute inline-flex h-full w-full animate-ping rounded-full ${styles.dot} opacity-75`}
                 ></span>
               )}
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${styles.dot}`}
-              ></span>
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${styles.dot}`}></span>
             </span>
 
             {/* Compact message format: "Service: message" */}

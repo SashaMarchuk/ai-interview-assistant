@@ -12,7 +12,7 @@ export default function BlurSettings() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
+      <div className="mb-1 flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">Blur Level</label>
         <span className="text-sm text-gray-500">{blurLevel}px</span>
       </div>
@@ -22,9 +22,9 @@ export default function BlurSettings() {
         max="20"
         value={blurLevel}
         onChange={(e) => setBlurLevel(Number(e.target.value))}
-        className="w-full h-2 bg-gray-200 rounded-lg cursor-pointer accent-blue-600"
+        className="h-2 w-full cursor-pointer rounded-lg bg-gray-200 accent-blue-600"
       />
-      <div className="flex justify-between text-xs text-gray-400 mt-1">
+      <div className="mt-1 flex justify-between text-xs text-gray-400">
         <span>Clear</span>
         <span>Heavy blur</span>
       </div>

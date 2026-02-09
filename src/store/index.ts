@@ -55,8 +55,8 @@ export const useStore = create<StoreState>()(
           state.seedDefaultTemplates();
         }
       },
-    }
-  )
+    },
+  ),
 );
 
 /**

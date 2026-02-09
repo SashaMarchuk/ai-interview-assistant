@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { DEFAULT_OVERLAY_STATE, type OverlayState } from '../../types/transcript';
 
 const STORAGE_KEY = 'ai-interview-overlay-state';
@@ -127,7 +134,12 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
           updates.minBtnY = defaultPos.y;
         } else {
           // Manual position - clamp to viewport
-          const clamped = clampToViewport(prev.minBtnX, prev.minBtnY, MIN_BTN_WIDTH, MIN_BTN_HEIGHT);
+          const clamped = clampToViewport(
+            prev.minBtnX,
+            prev.minBtnY,
+            MIN_BTN_WIDTH,
+            MIN_BTN_HEIGHT,
+          );
           if (clamped.x !== prev.minBtnX || clamped.y !== prev.minBtnY) {
             updates.minBtnX = clamped.x;
             updates.minBtnY = clamped.y;

@@ -11,36 +11,37 @@
 
 export function PrivacyPolicyContent() {
   return (
-    <div className="max-h-[300px] overflow-y-auto px-1 text-sm text-gray-700 space-y-4">
+    <div className="max-h-[300px] space-y-4 overflow-y-auto px-1 text-sm text-gray-700">
       <section>
-        <h3 className="font-semibold text-gray-900 mb-1">What Data Is Captured</h3>
+        <h3 className="mb-1 font-semibold text-gray-900">What Data Is Captured</h3>
         <p>
-          This extension captures <strong>tab audio</strong> from your browser tabs
-          (interviewer's voice) and <strong>microphone audio</strong> (your voice) when
-          recording is active. No audio is recorded or stored — it is only transcribed
-          in real-time and discarded immediately after processing.
+          This extension captures <strong>tab audio</strong> from your browser tabs (interviewer's
+          voice) and <strong>microphone audio</strong> (your voice) when recording is active. No
+          audio is recorded or stored — it is only transcribed in real-time and discarded
+          immediately after processing.
         </p>
       </section>
 
       <section>
-        <h3 className="font-semibold text-gray-900 mb-1">Where Data Is Sent</h3>
-        <ul className="list-disc list-inside space-y-1">
+        <h3 className="mb-1 font-semibold text-gray-900">Where Data Is Sent</h3>
+        <ul className="list-inside list-disc space-y-1">
           <li>
             <strong>ElevenLabs API</strong> — for speech-to-text transcription of captured audio.
           </li>
           <li>
-            <strong>OpenRouter or OpenAI API</strong> — for AI-generated interview assistance responses.
+            <strong>OpenRouter or OpenAI API</strong> — for AI-generated interview assistance
+            responses.
           </li>
         </ul>
         <p className="mt-1">
-          Data is sent <strong>directly from your browser</strong> to these services — there are
-          no intermediate servers operated by the extension developer.
+          Data is sent <strong>directly from your browser</strong> to these services — there are no
+          intermediate servers operated by the extension developer.
         </p>
       </section>
 
       <section>
-        <h3 className="font-semibold text-gray-900 mb-1">What Is Stored Locally</h3>
-        <ul className="list-disc list-inside space-y-1">
+        <h3 className="mb-1 font-semibold text-gray-900">What Is Stored Locally</h3>
+        <ul className="list-inside list-disc space-y-1">
           <li>
             <strong>API keys</strong> — encrypted with AES-GCM-256 in chrome.storage.local.
           </li>
@@ -59,8 +60,8 @@ export function PrivacyPolicyContent() {
       </section>
 
       <section>
-        <h3 className="font-semibold text-gray-900 mb-1">Third-Party Services</h3>
-        <ul className="list-disc list-inside space-y-1">
+        <h3 className="mb-1 font-semibold text-gray-900">Third-Party Services</h3>
+        <ul className="list-inside list-disc space-y-1">
           <li>
             <strong>ElevenLabs</strong> — speech-to-text transcription.
           </li>
@@ -72,25 +73,26 @@ export function PrivacyPolicyContent() {
           </li>
         </ul>
         <p className="mt-1">
-          Each service has its own privacy policy. Your API keys authenticate directly with
-          these services.
+          Each service has its own privacy policy. Your API keys authenticate directly with these
+          services.
         </p>
       </section>
 
       <section>
-        <h3 className="font-semibold text-gray-900 mb-1">Data Sharing</h3>
+        <h3 className="mb-1 font-semibold text-gray-900">Data Sharing</h3>
         <p>
-          No data is shared with the extension developer or any third party beyond the API
-          providers you configure. All processing happens locally in your browser or directly
-          with your chosen API providers.
+          No data is shared with the extension developer or any third party beyond the API providers
+          you configure. All processing happens locally in your browser or directly with your chosen
+          API providers.
         </p>
       </section>
 
       <section>
-        <h3 className="font-semibold text-gray-900 mb-1">Your Rights</h3>
-        <ul className="list-disc list-inside space-y-1">
+        <h3 className="mb-1 font-semibold text-gray-900">Your Rights</h3>
+        <ul className="list-inside list-disc space-y-1">
           <li>
-            You can <strong>delete all stored data</strong> by removing the extension from your browser.
+            You can <strong>delete all stored data</strong> by removing the extension from your
+            browser.
           </li>
           <li>
             You can <strong>reset consent acknowledgments</strong> at any time in Settings.
@@ -101,7 +103,7 @@ export function PrivacyPolicyContent() {
         </ul>
       </section>
 
-      <p className="text-xs italic text-gray-400 pt-2 border-t border-gray-100">
+      <p className="border-t border-gray-100 pt-2 text-xs text-gray-400 italic">
         This is a draft privacy policy for personal use. Consult a legal professional for
         distribution.
       </p>

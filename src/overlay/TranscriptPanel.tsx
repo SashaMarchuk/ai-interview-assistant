@@ -66,22 +66,12 @@ const TranscriptEntryRow = memo(function TranscriptEntryRow({
   const formattedTime = useMemo(() => formatTimestamp(entry.timestamp), [entry.timestamp]);
 
   return (
-    <div
-      className={`text-sm mb-1.5 last:mb-0 ${
-        !entry.isFinal ? 'opacity-60 italic' : ''
-      }`}
-    >
-      <span className={`font-medium ${speakerColor}`}>
-        {entry.speaker}
-      </span>
-      <span className="text-white/40 ml-1 text-xs">
-        ({formattedTime})
-      </span>
-      <span className="text-white/90 ml-1">
+    <div className={`mb-1.5 text-sm last:mb-0 ${!entry.isFinal ? 'italic opacity-60' : ''}`}>
+      <span className={`font-medium ${speakerColor}`}>{entry.speaker}</span>
+      <span className="ml-1 text-xs text-white/40">({formattedTime})</span>
+      <span className="ml-1 text-white/90">
         {entry.text}
-        {!entry.isFinal && (
-          <span className="text-white/40">...</span>
-        )}
+        {!entry.isFinal && <span className="text-white/40">...</span>}
       </span>
     </div>
   );
@@ -103,19 +93,15 @@ export const TranscriptPanel = memo(function TranscriptPanel({ entries }: Transc
 
   return (
     <div className="flex-shrink-0">
-      <div className="text-xs font-medium text-white/60 mb-1 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between text-xs font-medium text-white/60">
         <span>Transcript</span>
-        {entryCountText && (
-          <span className="text-white/40">{entryCountText}</span>
-        )}
+        {entryCountText && <span className="text-white/40">{entryCountText}</span>}
       </div>
 
-      <div className="rounded p-2 h-28 overflow-y-auto">
+      <div className="h-28 overflow-y-auto rounded p-2">
         {entries.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <span className="text-sm text-white/40 italic">
-              Waiting for audio...
-            </span>
+          <div className="flex h-full items-center justify-center">
+            <span className="text-sm text-white/40 italic">Waiting for audio...</span>
           </div>
         ) : (
           <>

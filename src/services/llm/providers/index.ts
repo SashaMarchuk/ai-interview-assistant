@@ -89,7 +89,7 @@ export interface ResolvedProvider {
  */
 export function resolveProviderForModel(
   modelId: string,
-  apiKeys: ApiKeys
+  apiKeys: ApiKeys,
 ): ResolvedProvider | null {
   // Check OpenAI first (if configured)
   if (apiKeys.openAI) {

@@ -72,7 +72,10 @@ export class CircuitBreaker {
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
-    if (this.currentState === CircuitState.CLOSED && this.failureCount >= this.config.failureThreshold) {
+    if (
+      this.currentState === CircuitState.CLOSED &&
+      this.failureCount >= this.config.failureThreshold
+    ) {
       // Threshold exceeded -- open the circuit
       this.currentState = CircuitState.OPEN;
       this.openedAt = Date.now();
