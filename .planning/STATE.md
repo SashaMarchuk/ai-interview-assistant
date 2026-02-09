@@ -5,23 +5,27 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15 (Markdown Rendering) ready to plan
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15+16 parallel execution
 
 ## Current Position
 
-Phase: 15 of 21 (Markdown Rendering)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-02-09 -- v2.0 roadmap created (7 phases, 23 requirements)
+Phase: 15+16 of 21 (Markdown Rendering + Reasoning Models) -- parallel
+Plan: 15-01 complete, 16-01 complete
+Status: Executing
+Last activity: 2026-02-09 -- Plan 16-01 (Provider Foundation) complete
 
-Progress: [░░░░░░░░░░] 0% (v2.0)
+Progress: [█░░░░░░░░░] 7% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 37 (30 v1.0 + 7 v1.1)
+- Total plans completed: 39 (30 v1.0 + 7 v1.1 + 2 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 15-01 | Markdown Components | 5min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -36,6 +40,8 @@ Recent decisions affecting current work:
 - [v2.0 roadmap]: recharts for cost charts (SVG-based, no CSP issues) -- loads only in popup context
 - [v2.0 roadmap]: Minimum 25K token budget for reasoning models -- prevents empty responses
 - [v2.0 roadmap]: Phases 15+16 parallel, then 17 sequential, then 18+19+20 parallel, then 21 sequential
+- [16-01]: ReasoningEffort type defined independently in LLMProvider.ts and store/types.ts to avoid circular dependency
+- [16-01]: Non-streaming JSON fallback in streamSSE for reasoning models that don't support SSE
 
 ### Pending Todos
 
@@ -50,5 +56,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: v2.0 roadmap created -- ready to plan Phase 15 (Markdown Rendering)
-Resume file: .planning/ROADMAP.md
+Stopped at: Completed 16-01-PLAN.md (Provider Foundation) -- Phase 16 Plan 02 next
+Resume file: .planning/phases/16-reasoning-models/16-02-PLAN.md
