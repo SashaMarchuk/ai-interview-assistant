@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15 complete, Phase 16 in progress (parallel terminal)
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phases 15 and 16 complete, Phase 17 next
 
 ## Current Position
 
-Phase: 16 of 21 (Reasoning Models) -- in progress in parallel terminal
-Plan: Phase 15 complete (2/2), Phase 16 plan 2 of 3 complete
-Status: Phase 16 executing (plans 01, 02 done; plan 03 remaining)
-Last activity: 2026-02-09 -- Phase 16 Plan 02 (Message Types & Background Handler) complete
+Phase: 16 of 21 (Reasoning Models) -- COMPLETE
+Plan: Phase 15 complete (2/2), Phase 16 complete (3/3)
+Status: Phase 16 complete. Ready for Phase 17 (Custom Templates v2) or next parallel wave.
+Last activity: 2026-02-09 -- Phase 16 Plan 03 (UI Controls & Reasoning Button) complete
 
-Progress: [██░░░░░░░░] 14% (v2.0)
+Progress: [███░░░░░░░] 21% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42 (30 v1.0 + 7 v1.1 + 5 v2.0)
+- Total plans completed: 43 (30 v1.0 + 7 v1.1 + 6 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -29,6 +29,7 @@ Progress: [██░░░░░░░░] 14% (v2.0)
 | 15-02 | ResponsePanel Integration | 5min | 2 | 2 |
 | 16-01 | Provider Foundation | 8min | 3 | 4 |
 | 16-02 | Message Types & Background Handler | 11min | 2 | 3 |
+| 16-03 | UI Controls & Reasoning Button | 4min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -52,6 +53,9 @@ Recent decisions affecting current work:
 - [16-02]: reasoningEffort passed as string from message, cast to ReasoningEffort at streamWithRetry boundary (safe because UI constrains valid values)
 - [16-02]: Fast model gets immediate complete status in reasoning mode (UI state machine needs events for both models)
 - [16-02]: Reasoning mode sends streaming status for model:'full' only (not 'both') for accurate UI feedback
+- [16-03]: isReasoningPending tracked as local state + ref in Overlay to avoid stale closure in event listener
+- [16-03]: Purple theme (bg-purple-500/20, text-purple-300) for all reasoning UI elements
+- [16-03]: Model grouping in ModelSettings uses isReasoningModel utility from LLM service layer
 
 ### Pending Todos
 
@@ -66,5 +70,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Completed 16-02-PLAN.md (Message Types & Background Handler) -- Plan 03 (UI Controls) remaining
+Stopped at: Completed 16-03-PLAN.md (UI Controls & Reasoning Button) -- Phase 16 complete
 Resume file: .planning/ROADMAP.md
