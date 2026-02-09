@@ -17,6 +17,7 @@ import HotkeySettings from '../../src/components/settings/HotkeySettings';
 import BlurSettings from '../../src/components/settings/BlurSettings';
 import LanguageSettings from '../../src/components/settings/LanguageSettings';
 import ConsentSettings from '../../src/components/settings/ConsentSettings';
+import FileUploadSettings from '../../src/components/settings/FileUploadSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
 type Tab = 'capture' | 'settings' | 'templates';
@@ -635,6 +636,12 @@ function App() {
             <section>
               <h2 className="mb-3 text-sm font-semibold text-gray-900">Models</h2>
               <ModelSettings />
+            </section>
+
+            {/* Personalization Section */}
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Personalization</h2>
+              <FileUploadSettings />
             </section>
 
             {/* Hotkeys Section */}
