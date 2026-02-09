@@ -28,6 +28,8 @@ export interface ReasoningRequestEventDetail {
 // Custom event type for transcript updates
 export interface TranscriptUpdateEventDetail {
   entries: TranscriptEntry[];
+  editedIds: string[]; // IDs of entries that have been edited (for UI indicators)
+  deletedIds: string[]; // IDs of soft-deleted entries (for undo UI)
 }
 
 // Custom event type for capture state updates (for visual indicator)
@@ -353,14 +355,27 @@ async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<
 /**
  * Dispatch transcript update to the React overlay via custom event.
  * Raw entries are stored in currentTranscript (needed for undo original text lookup).
- * The overlay receives the edited/filtered version via applyEdits.
+ * Display entries: apply text edits but keep deleted entries visible for undo UI.
+ * The applyEdits function (which filters deleted) is only used by LLM context getters.
  */
 function dispatchTranscriptUpdate(entries: TranscriptEntry[]): void {
   currentTranscript = entries; // Keep raw for undo reference
-  const displayEntries = applyEdits(entries);
+  // For display: apply text edits but keep deleted entries visible (marked for UI rendering)
+  const displayEntries = entries.map((entry) => {
+    const edit = transcriptEdits.get(entry.id);
+    if (edit?.editedText != null) {
+      return { ...entry, text: edit.editedText };
+    }
+    return entry;
+  });
+  const editedIds = Array.from(transcriptEdits.keys());
+  const deletedIds: string[] = [];
+  transcriptEdits.forEach((edit, id) => {
+    if (edit.isDeleted) deletedIds.push(id);
+  });
   window.dispatchEvent(
     new CustomEvent<TranscriptUpdateEventDetail>('transcript-update', {
-      detail: { entries: displayEntries },
+      detail: { entries: displayEntries, editedIds, deletedIds },
     }),
   );
 }
