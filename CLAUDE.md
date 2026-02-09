@@ -46,30 +46,128 @@ Each step must:
 **Step 7 - Milestone PR:** After all polish steps complete, create a single consolidated PR to `main` that includes ALL phase changes + polish commits. The PR title should follow: `feat: Milestone vX.Y - [Milestone Name]`. The PR body must list all phases, key features, and a summary of the polish pass.
 
 
-### Phase Parallelization
+### Phase Branching & Parallelization
 
 **Prefer parallel execution** of independent phases via separate Claude Code terminals on separate branches. When phases have no shared file dependencies, run them simultaneously.
 
-Example for v1.1: After Phase 10 (Encryption) completes, Phases 11, 12, 13 can run in parallel — each in its own terminal and branch.
-
 **Exception:** `/polish-milestone` steps are always sequential (shared files).
 
-#### Parallel Phase Best Practices
+#### Branch Naming Conventions
 
-When running phases in parallel across terminals:
+| Type | Pattern | Example |
+|------|---------|---------|
+| Feature branch | `feature/phase-N-short-name` | `feature/phase-17-cost-capture` |
+| Integration branch | `milestone/vX.Y-phase-A-B-C` | `milestone/v2.0-phase-18-19-20` |
 
-1. **Branch from the same base.** All parallel branches must fork from the same completed phase commit (e.g., after Phase 10 merges, branches for 11/12/13 all start from that point).
-2. **File ownership.** Each parallel phase should own distinct files. Before starting, verify no two phases will modify the same source files. Shared files (like `background.ts`, `store/index.ts`) must be assigned to ONE phase only — others must wait or coordinate.
-3. **Integration branch.** After all parallel phases complete, create a single integration branch. Merge parallel branches one-by-one into it, resolving any conflicts at each step:
-   ```bash
-   git checkout -b milestone/vX.Y <base-commit>
-   git merge --no-ff feature/phase-A   # first
-   git merge --no-ff feature/phase-B   # resolve conflicts if any
-   git merge --no-ff feature/phase-C   # resolve conflicts if any
-   ```
-4. **Conflict resolution priority.** When conflicts occur, the phase that owns the file takes priority. For truly shared files, manually merge keeping both changes.
-5. **Test after each merge.** Run `npx tsc --noEmit` and `npx eslint .` after each merge to catch integration issues early.
-6. **Polish runs on the integration branch.** The `/polish-milestone` command runs on the final integrated branch, not on individual phase branches.
+#### Determining the Base Branch (Universal Rule)
+
+**Before starting ANY phase**, Claude MUST determine the correct base branch:
+
+1. Read `STATE.md` to understand current project position
+2. Run `git branch --sort=-committerdate` to see available branches
+3. Find the **latest milestone/integration branch** — this is always the base
+4. If no milestone branch exists, the base is `main`
+
+**The base branch is NEVER `main` mid-milestone.** It is always the latest `milestone/*` branch that contains all previously completed and integrated phases.
+
+```bash
+# Algorithm (pseudocode):
+base = find latest milestone/* branch for current milestone version
+if not found:
+    base = main
+git checkout -b feature/phase-N-short-name $base
+```
+
+#### Sequential Phase Flow
+
+When a phase must run alone (no parallelization):
+
+```bash
+# 1. Branch from latest milestone/integration branch
+git checkout milestone/vX.Y-phase-A-B
+git checkout -b feature/phase-N-name
+
+# 2. Do work, commit
+
+# 3. After completion, create new integration branch or merge into existing
+git checkout milestone/vX.Y-phase-A-B
+git checkout -b milestone/vX.Y-phase-A-B-N   # or reuse existing milestone branch
+git merge --no-ff feature/phase-N-name
+
+# 4. Verify
+npx tsc --noEmit && npx eslint .
+```
+
+**Shortcut:** For a single sequential phase, Claude may merge directly into the existing milestone branch instead of creating a new one, if that branch is the current working integration branch.
+
+#### Parallel Phase Flow
+
+When multiple phases can run simultaneously:
+
+**Step 1 — Fork from same base (each terminal):**
+```bash
+# Terminal 1:
+git checkout -b feature/phase-A-name  milestone/vX.Y-latest
+
+# Terminal 2:
+git checkout -b feature/phase-B-name  milestone/vX.Y-latest
+
+# Terminal 3:
+git checkout -b feature/phase-C-name  milestone/vX.Y-latest
+```
+
+**Step 2 — File ownership.** Each parallel phase should own distinct files. Before starting, verify no two phases will modify the same source files. Shared files (like `background.ts`, `store/index.ts`) must be assigned to ONE phase only — others must wait or coordinate.
+
+**Step 3 — Integration (after ALL parallel phases complete):**
+
+This is a separate step — either run by the user or by a dedicated Claude terminal.
+
+```bash
+# Create integration branch from the base all parallel branches forked from
+git checkout -b milestone/vX.Y-phase-A-B-C  milestone/vX.Y-latest
+
+# Merge each parallel branch one by one
+git merge --no-ff feature/phase-A-name
+npx tsc --noEmit && npx eslint .          # verify after each merge
+
+git merge --no-ff feature/phase-B-name    # resolve conflicts if any
+npx tsc --noEmit && npx eslint .
+
+git merge --no-ff feature/phase-C-name    # resolve conflicts if any
+npx tsc --noEmit && npx eslint .
+```
+
+**Step 4 — Continue.** The new `milestone/vX.Y-phase-A-B-C` branch becomes the base for subsequent phases.
+
+#### Conflict Resolution
+
+- The phase that **owns** the file takes priority
+- For truly shared files, manually merge keeping both changes
+- Always run `npx tsc --noEmit && npx eslint .` after each merge
+
+#### Full Milestone Lifecycle Example
+
+```
+main
+ └── milestone/vX.Y-phase-A-B          ← after sequential phases A, B
+      ├── feature/phase-C  ─┐
+      ├── feature/phase-D  ─┤           ← parallel terminals
+      └── feature/phase-E  ─┘
+           └── milestone/vX.Y-phase-C-D-E   ← integration step
+                └── feature/phase-F          ← next sequential phase
+                     └── milestone/vX.Y-final
+                          └── /polish-milestone → PR to main
+```
+
+#### Claude's Pre-Phase Checklist
+
+Every Claude terminal MUST do this before starting a phase:
+
+1. `git branch --sort=-committerdate` — find latest milestone branch
+2. `cat .planning/STATE.md` — confirm current project position
+3. Verify the base branch contains all prerequisite phases
+4. Create feature branch from the correct base
+5. If parallel phases are done but not integrated — **integrate first, then start new phase**
 
 ### Branch Management
 

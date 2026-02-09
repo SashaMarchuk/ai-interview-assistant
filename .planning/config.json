@@ -13,12 +13,32 @@
     "best_practices": {
       "branch_from_same_base": true,
       "file_ownership": "Each parallel phase must own distinct files. Shared files assigned to ONE phase only.",
-      "integration_branch": "After parallel phases complete, merge one-by-one into milestone/vX.Y branch.",
+      "integration_branch": "After parallel phases complete, merge one-by-one into milestone/vX.Y-phase-A-B-C branch.",
       "conflict_resolution": "File owner phase takes priority. Shared files merged manually.",
       "test_after_merge": "Run tsc --noEmit and eslint after each merge.",
       "polish_on_integration": "Polish runs on the final integrated branch, not individual phase branches."
     },
-    "notes": "User prefers running independent phases in parallel via separate Claude Code terminals on separate branches. Only parallelize phases with no shared file dependencies."
+    "branch_naming": {
+      "feature": "feature/phase-{N}-{short-name}",
+      "integration": "milestone/v{X.Y}-phase-{A}-{B}-{C}"
+    },
+    "base_branch_algorithm": {
+      "rule": "NEVER branch from main mid-milestone. Always branch from latest milestone/* integration branch.",
+      "steps": [
+        "1. Read STATE.md to find current position",
+        "2. Find latest milestone/* branch for current milestone version",
+        "3. If no milestone branch exists, base is main",
+        "4. If parallel phases done but not integrated — integrate first, then start new phase"
+      ]
+    },
+    "pre_phase_checklist": [
+      "git branch --sort=-committerdate — find latest milestone branch",
+      "cat .planning/STATE.md — confirm current position",
+      "Verify base branch contains all prerequisite phases",
+      "Create feature branch from correct base",
+      "If parallel phases not yet integrated — integrate first"
+    ],
+    "notes": "User prefers running independent phases in parallel via separate Claude Code terminals on separate branches. Only parallelize phases with no shared file dependencies. After parallel phases, a dedicated integration step merges all branches into a new milestone branch before continuing."
   },
   "commit_docs": true,
   "model_profile": "quality",
