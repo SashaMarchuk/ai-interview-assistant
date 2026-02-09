@@ -45,6 +45,7 @@ Each step must:
 
 **Step 7 - Milestone PR:** After all polish steps complete, create a single consolidated PR to `main` that includes ALL phase changes + polish commits. The PR title should follow: `feat: Milestone vX.Y - [Milestone Name]`. The PR body must list all phases, key features, and a summary of the polish pass.
 
+
 ### Phase Parallelization
 
 **Prefer parallel execution** of independent phases via separate Claude Code terminals on separate branches. When phases have no shared file dependencies, run them simultaneously.
@@ -93,6 +94,7 @@ When running phases in parallel across terminals:
 3. **What to look for** — expected UI changes, console output, or behavior
 
 This is mandatory. Never skip it. The user should always know how to verify what was just built.
+
 
 ### GSD Workflow Integration
 

@@ -20,7 +20,7 @@ See MILESTONES.md for details.
 **Milestone Goal:** Harden security, add compliance features, and fix critical reliability bugs before adding new capabilities.
 
 **Phase Numbering:**
-- Integer phases (9, 10, 11, 12, 13): Planned milestone work
+- Integer phases (9, 10, 11, 12, 13, 14): Planned milestone work
 - Decimal phases (e.g., 10.1): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition (completed 2026-02-08)
@@ -70,7 +70,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
+- [x] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
 
 ### Phase 12: Circuit Breaker
 **Goal**: API calls fail gracefully with automatic recovery instead of hammering unresponsive services
