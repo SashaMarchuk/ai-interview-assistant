@@ -3,13 +3,6 @@
  */
 
 /**
- * Speaker identification for transcript entries
- * - 'Interviewer': Audio from tab (the other person)
- * - 'You': Audio from microphone (the user)
- */
-export type TranscriptSpeaker = 'Interviewer' | 'You';
-
-/**
  * Transcript entry from STT service.
  * Represents a single utterance from either the interviewer or the user.
  */

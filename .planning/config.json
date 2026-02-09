@@ -10,6 +10,14 @@
   "parallel_phases": {
     "enabled": true,
     "method": "separate_terminals",
+    "best_practices": {
+      "branch_from_same_base": true,
+      "file_ownership": "Each parallel phase must own distinct files. Shared files assigned to ONE phase only.",
+      "integration_branch": "After parallel phases complete, merge one-by-one into milestone/vX.Y branch.",
+      "conflict_resolution": "File owner phase takes priority. Shared files merged manually.",
+      "test_after_merge": "Run tsc --noEmit and eslint after each merge.",
+      "polish_on_integration": "Polish runs on the final integrated branch, not individual phase branches."
+    },
     "notes": "User prefers running independent phases in parallel via separate Claude Code terminals on separate branches. Only parallelize phases with no shared file dependencies."
   },
   "commit_docs": true,
@@ -25,13 +33,26 @@
     "auto_pr": true,
     "pr_target": "main",
     "direct_merge_to_main": false,
-    "notes": "NEVER merge directly to main. Always create PR. User reviews and merges manually."
+    "never_delete_branches": true,
+    "merge_strategy": "squash",
+    "notes": "NEVER merge directly to main. Always create PR. User reviews and merges manually. NEVER delete branches - preserve for history. Use squash merge to keep main clean."
   },
   "polish": {
     "sequential_only": true,
-    "steps": ["performance", "type-safety", "simplification", "cleanup", "code-review", "fixes"],
+    "steps": ["performance", "type-safety", "simplification", "cleanup", "code-review", "fixes", "milestone-pr"],
     "branch_pattern": "polish/{milestone}-optimization",
-    "notes": "Run /polish-milestone after each milestone. Steps must run sequentially to avoid conflicts."
+    "milestone_pr": {
+      "enabled": true,
+      "title_pattern": "feat: Milestone vX.Y - {milestone_name}",
+      "includes": "All phase changes + polish commits in single consolidated PR to main"
+    },
+    "notes": "Run /polish-milestone after each milestone. Steps must run sequentially to avoid conflicts. Final step creates consolidated milestone PR to main.",
+    "post_phase_testing": {
+      "required": true,
+      "when": ["after each phase completion", "after polish completion"],
+      "must_include": ["build command", "phase-specific test steps", "expected behavior"],
+      "notes": "Claude MUST send manual testing instructions after every phase and after polishing. Never skip."
+    }
   },
   "todos": {
     "support_raw_prompts": true,

@@ -7,7 +7,7 @@ import type {
   TabStreamIdMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
-  StartTranscriptionMessage,
+  InternalStartTranscriptionMessage,
   StopTranscriptionMessage,
   TranscriptionStartedMessage,
   TranscriptionStoppedMessage,
@@ -15,6 +15,7 @@ import type {
   TranscriptPartialMessage,
   TranscriptFinalMessage,
   ConnectionStateMessage,
+  InternalMessage,
 } from '../../src/types/messages';
 import { isMessage } from '../../src/types/messages';
 import { ElevenLabsConnection } from '../../src/services/transcription';
@@ -26,16 +27,18 @@ import { ElevenLabsConnection } from '../../src/services/transcription';
 function broadcastConnectionState(
   service: 'stt-tab' | 'stt-mic',
   state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
-  error?: string
+  error?: string,
 ): void {
-  chrome.runtime.sendMessage({
-    type: 'CONNECTION_STATE',
-    service,
-    state,
-    error,
-  } satisfies ConnectionStateMessage).catch(() => {
-    // Ignore - background might not be listening yet
-  });
+  chrome.runtime
+    .sendMessage({
+      type: 'CONNECTION_STATE',
+      service,
+      state,
+      error,
+    } satisfies ConnectionStateMessage)
+    .catch(() => {
+      // Ignore - background might not be listening yet
+    });
 }
 
 // Module-level state for tab audio capture
@@ -68,7 +71,17 @@ async function startTabCapture(streamId: string): Promise<void> {
   try {
     // Get MediaStream using Chrome's tab capture API
     // Note: mandatory syntax is deprecated but REQUIRED for chromeMediaSource
-    const constraints = {
+    interface ChromeTabCaptureConstraints {
+      audio: {
+        mandatory: {
+          chromeMediaSource: string;
+          chromeMediaSourceId: string;
+        };
+      };
+      video: boolean;
+    }
+
+    const constraints: ChromeTabCaptureConstraints = {
       audio: {
         mandatory: {
           chromeMediaSource: 'tab',
@@ -78,7 +91,9 @@ async function startTabCapture(streamId: string): Promise<void> {
       video: false,
     };
 
-    tabStream = await (navigator.mediaDevices.getUserMedia as (constraints: unknown) => Promise<MediaStream>)(constraints);
+    tabStream = await (
+      navigator.mediaDevices.getUserMedia as (constraints: ChromeTabCaptureConstraints) => Promise<MediaStream>
+    )(constraints);
 
     // Create AudioContext at 16kHz for STT
     tabAudioContext = new AudioContext({ sampleRate: 16000 });
@@ -125,7 +140,8 @@ async function startTabCapture(streamId: string): Promise<void> {
     // Provide more helpful error messages
     let userFriendlyError = errorMessage;
     if (errorMessage.includes('Permission dismissed') || errorMessage.includes('NotAllowedError')) {
-      userFriendlyError = 'Tab audio permission denied. Try reloading the tab and clicking Start again.';
+      userFriendlyError =
+        'Tab audio permission denied. Try reloading the tab and clicking Start again.';
     } else if (errorMessage.includes('invalid') || errorMessage.includes('expired')) {
       userFriendlyError = 'Stream ID expired. Please try again.';
     }
@@ -152,28 +168,42 @@ async function stopTabCapture(skipBroadcast = false): Promise<void> {
     // Stop all tracks on the stream FIRST (releases Chrome's tab capture)
     if (tabStream) {
       tabStream.getTracks().forEach((track) => {
-        try { track.stop(); } catch { /* ignore */ }
+        try {
+          track.stop();
+        } catch {
+          /* ignore */
+        }
       });
       tabStream = null;
     }
 
     // Disconnect worklet node
     if (tabWorkletNode) {
-      try { tabWorkletNode.disconnect(); } catch { /* ignore */ }
+      try {
+        tabWorkletNode.disconnect();
+      } catch {
+        /* ignore */
+      }
       tabWorkletNode = null;
     }
 
     // Close audio context and AWAIT completion
     if (tabAudioContext) {
-      try { await tabAudioContext.close(); } catch { /* ignore */ }
+      try {
+        await tabAudioContext.close();
+      } catch {
+        /* ignore */
+      }
       tabAudioContext = null;
     }
 
     // Notify that capture has stopped (unless this is cleanup before restart)
     if (!skipBroadcast) {
-      chrome.runtime.sendMessage({
-        type: 'CAPTURE_STOPPED',
-      } satisfies CaptureStoppedMessage).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: 'CAPTURE_STOPPED',
+        } satisfies CaptureStoppedMessage)
+        .catch(() => {});
     }
 
     console.log('Tab capture: Stopped', skipBroadcast ? '(cleanup)' : '');
@@ -195,11 +225,17 @@ async function startMicCapture(): Promise<void> {
   try {
     // Check current permission state first
     try {
-      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      const permissionStatus = await navigator.permissions.query({
+        name: 'microphone' as PermissionName,
+      });
       if (permissionStatus.state === 'denied') {
-        throw new Error('Microphone permission is blocked. Go to chrome://settings/content/microphone and allow this extension.');
+        throw new Error(
+          'Microphone permission is blocked. Go to chrome://settings/content/microphone and allow this extension.',
+        );
       }
-    } catch { /* ignore query errors */ }
+    } catch {
+      /* ignore query errors */
+    }
 
     // Request microphone access with audio processing
     micStream = await navigator.mediaDevices.getUserMedia({
@@ -218,7 +254,7 @@ async function startMicCapture(): Promise<void> {
     // NOTE: Do NOT connect to destination - we don't want to hear ourselves
 
     // Load AudioWorklet processor (same as tab capture)
-    await micAudioContext.audioWorklet.addModule('/pcm-processor.js');
+    await micAudioContext.audioWorklet.addModule(chrome.runtime.getURL('pcm-processor.js'));
 
     // Create worklet node for PCM conversion
     micWorkletNode = new AudioWorkletNode(micAudioContext, 'pcm-processor');
@@ -246,8 +282,12 @@ async function startMicCapture(): Promise<void> {
 
     // Provide helpful error message
     let userFriendlyError = errorMessage;
-    if (error instanceof DOMException && (error.name === 'NotAllowedError' || errorMessage.includes('Permission'))) {
-      userFriendlyError = 'Microphone blocked. Click the extension icon in Chrome toolbar, then click the 3-dot menu → "Site settings" → Allow Microphone.';
+    if (
+      error instanceof DOMException &&
+      (error.name === 'NotAllowedError' || errorMessage.includes('Permission'))
+    ) {
+      userFriendlyError =
+        'Microphone blocked. Click the extension icon in Chrome toolbar, then click the 3-dot menu → "Site settings" → Allow Microphone.';
     }
 
     // Send error message
@@ -271,20 +311,32 @@ async function stopMicCapture(): Promise<void> {
     // Stop all tracks on the stream
     if (micStream) {
       micStream.getTracks().forEach((track) => {
-        try { track.stop(); } catch { /* ignore */ }
+        try {
+          track.stop();
+        } catch {
+          /* ignore */
+        }
       });
       micStream = null;
     }
 
     // Disconnect worklet node
     if (micWorkletNode) {
-      try { micWorkletNode.disconnect(); } catch { /* ignore */ }
+      try {
+        micWorkletNode.disconnect();
+      } catch {
+        /* ignore */
+      }
       micWorkletNode = null;
     }
 
     // Close audio context and AWAIT completion
     if (micAudioContext) {
-      try { await micAudioContext.close(); } catch { /* ignore */ }
+      try {
+        await micAudioContext.close();
+      } catch {
+        /* ignore */
+      }
       micAudioContext = null;
     }
 
@@ -323,7 +375,7 @@ const MIC_SOURCE: TranscriptionSource = {
 function createTranscription(
   apiKey: string,
   languageCode: string | undefined,
-  config: TranscriptionSource
+  config: TranscriptionSource,
 ): ElevenLabsConnection {
   const { source, speaker, connectionService, sendStarted } = config;
 
@@ -372,7 +424,7 @@ function createTranscription(
       }
       broadcastConnectionState(connectionService, 'connected');
       console.log(`STT ${speaker}: Connected`);
-    }
+    },
   );
 }
 
@@ -422,13 +474,16 @@ function stopTranscription(): void {
 
 // Message types that should be logged (important events only)
 const LOGGED_MESSAGE_TYPES = [
-  'TAB_STREAM_ID', 'STOP_CAPTURE',
-  'START_MIC_CAPTURE', 'STOP_MIC_CAPTURE',
-  'START_TRANSCRIPTION', 'STOP_TRANSCRIPTION',
+  'TAB_STREAM_ID',
+  'STOP_CAPTURE',
+  'START_MIC_CAPTURE',
+  'STOP_MIC_CAPTURE',
+  'START_TRANSCRIPTION',
+  'STOP_TRANSCRIPTION',
 ];
 
 // Register message listener
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendResponse) => {
   // Only log important events
   if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
     console.log('Offscreen:', message.type);
@@ -496,8 +551,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open for async response
   }
 
-  // Handle START_TRANSCRIPTION
-  if (isMessage<StartTranscriptionMessage>(message, 'START_TRANSCRIPTION')) {
+  // Handle START_TRANSCRIPTION (only from background, which attaches the API key)
+  if (
+    isMessage<InternalStartTranscriptionMessage>(message, 'START_TRANSCRIPTION') &&
+    message._fromBackground
+  ) {
     // Guard against duplicate messages (popup and background both send this)
     if (transcriptionStarting || transcriptionApiKey) {
       sendResponse({ success: true, alreadyStarting: true });
@@ -554,13 +612,25 @@ async function notifyReady(): Promise<void> {
  * Called on page unload or extension suspend.
  */
 function cleanupAllCapture(): void {
-  try { stopTranscription(); } catch { /* ignore */ }
+  try {
+    stopTranscription();
+  } catch {
+    /* ignore */
+  }
   if (tabStream || tabAudioContext) {
     // Skip broadcast during cleanup - everything is shutting down
-    try { stopTabCapture(true); } catch { /* ignore */ }
+    try {
+      stopTabCapture(true);
+    } catch {
+      /* ignore */
+    }
   }
   if (micStream || micAudioContext) {
-    try { stopMicCapture(); } catch { /* ignore */ }
+    try {
+      stopMicCapture();
+    } catch {
+      /* ignore */
+    }
   }
 }
 

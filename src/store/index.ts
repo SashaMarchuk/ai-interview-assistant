@@ -1,8 +1,9 @@
 /**
  * Combined Zustand Store
  *
- * Main store combining settings and templates slices with:
+ * Main store combining settings, templates, and consent slices with:
  * - Chrome storage persistence via persist middleware
+ * - Transparent encryption of API keys at rest (AES-GCM-256)
  * - Cross-context synchronization via webext-zustand
  * - Automatic default template seeding on first install
  */
@@ -12,15 +13,16 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { wrapStore } from 'webext-zustand';
 
 import type { StoreState } from './types';
-import { chromeStorage } from './chromeStorage';
+import { encryptedChromeStorage } from '../services/crypto/encryptedStorage';
 import { createSettingsSlice } from './settingsSlice';
 import { createTemplatesSlice } from './templatesSlice';
+import { createConsentSlice } from './consentSlice';
 
 /**
  * Combined Zustand store with persistence
  *
  * Features:
- * - Persists to chrome.storage.local
+ * - Persists to chrome.storage.local with encrypted API keys (AES-GCM-256)
  * - Syncs across popup, content script, and service worker
  * - Seeds default templates on first install
  */
@@ -29,10 +31,11 @@ export const useStore = create<StoreState>()(
     (...a) => ({
       ...createSettingsSlice(...a),
       ...createTemplatesSlice(...a),
+      ...createConsentSlice(...a),
     }),
     {
       name: 'ai-interview-settings',
-      storage: createJSONStorage(() => chromeStorage),
+      storage: createJSONStorage(() => encryptedChromeStorage),
       // Only persist data, not actions
       partialize: (state) => ({
         apiKeys: state.apiKeys,
@@ -40,8 +43,12 @@ export const useStore = create<StoreState>()(
         blurLevel: state.blurLevel,
         hotkeys: state.hotkeys,
         captureMode: state.captureMode,
+        transcriptionLanguage: state.transcriptionLanguage,
         templates: state.templates,
         activeTemplateId: state.activeTemplateId,
+        privacyPolicyAccepted: state.privacyPolicyAccepted,
+        privacyPolicyAcceptedAt: state.privacyPolicyAcceptedAt,
+        recordingConsentDismissedPermanently: state.recordingConsentDismissedPermanently,
       }),
       // Seed default templates after rehydration if none exist
       onRehydrateStorage: () => (state) => {
@@ -49,8 +56,8 @@ export const useStore = create<StoreState>()(
           state.seedDefaultTemplates();
         }
       },
-    }
-  )
+    },
+  ),
 );
 
 /**
@@ -106,6 +113,7 @@ export type {
   HotkeyAction,
   SettingsSlice,
   TemplatesSlice,
+  ConsentSlice,
   TemplateUpdate,
   NewTemplate,
 } from './types';

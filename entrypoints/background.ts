@@ -5,21 +5,43 @@ import type {
   StopCaptureMessage,
   StartMicCaptureMessage,
   StopMicCaptureMessage,
-  StartTranscriptionMessage,
+  InternalStartTranscriptionMessage,
   StopTranscriptionMessage,
-  TranscriptUpdateMessage,
-  GetCaptureStateMessage,
   LLMStreamMessage,
   LLMStatusMessage,
-  ConnectionStateMessage,
 } from '../src/types/messages';
 import { buildPrompt, resolveProviderForModel, type LLMProvider } from '../src/services/llm';
 import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
+import {
+  TranscriptBuffer,
+  setTranscriptionActive,
+  wasTranscriptionActive,
+} from '../src/services/transcription/transcriptBuffer';
+import {
+  circuitBreakerManager,
+  setStateChangeCallback,
+} from '../src/services/circuitBreaker/circuitBreakerManager';
+import { CircuitState } from '../src/services/circuitBreaker/types';
+import { encryptionService } from '../src/services/crypto/encryption';
+import { storeReadyPromise } from '../src/store';
+
+// Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
+setStateChangeCallback((serviceId, state) => {
+  const service = serviceId === 'elevenlabs' ? ('stt-tab' as const) : ('llm' as const);
+
+  if (state === CircuitState.OPEN) {
+    sendConnectionState(service, 'error', 'Service temporarily unavailable');
+  } else if (state === CircuitState.HALF_OPEN) {
+    sendConnectionState(service, 'reconnecting', 'Testing service recovery...');
+  } else if (state === CircuitState.CLOSED) {
+    sendConnectionState(service, 'connected');
+  }
+});
 
 // Module state for transcript management
-let mergedTranscript: TranscriptEntry[] = [];
-let interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
+const transcriptBuffer = new TranscriptBuffer();
+const interimEntries: Map<string, { source: 'tab' | 'mic'; text: string; timestamp: number }> =
   new Map();
 
 // Module state for capture tracking
@@ -92,39 +114,74 @@ async function broadcastTranscript(): Promise<void> {
 
   await broadcastToMeetTabs({
     type: 'TRANSCRIPT_UPDATE',
-    entries: [...mergedTranscript, ...interimAsEntries],
+    entries: [...transcriptBuffer.getEntries(), ...interimAsEntries],
   });
 }
 
 /**
  * Add a transcript entry maintaining chronological order.
+ * Delegates insertion to TranscriptBuffer which handles persistence.
  * Broadcasts TRANSCRIPT_UPDATE to content scripts on Google Meet tabs.
  */
 async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
-  // Find correct insertion index to maintain chronological order by timestamp
-  let insertIndex = mergedTranscript.length;
-  for (let i = mergedTranscript.length - 1; i >= 0; i--) {
-    if (mergedTranscript[i].timestamp <= entry.timestamp) {
-      insertIndex = i + 1;
-      break;
-    }
-    if (i === 0) {
-      insertIndex = 0;
-    }
-  }
-
-  // Insert entry at the correct position
-  mergedTranscript.splice(insertIndex, 0, entry);
-
-  // Broadcast updated transcript (logging moved to TRANSCRIPT_FINAL handler)
+  transcriptBuffer.add(entry);
   await broadcastTranscript();
 }
 
-// Initialize store in service worker - required for webext-zustand cross-context sync
-import { storeReadyPromise } from '../src/store';
-storeReadyPromise.then(() => {
-  console.log('Store ready in service worker');
-});
+// Guard: only run init chain in real extension context (skip during Vite pre-rendering)
+const isRealExtension = (() => {
+  try {
+    return !!(typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.());
+  } catch {
+    return false;
+  }
+})();
+
+// Initialize encryption before store rehydration, then initialize store
+(isRealExtension ? encryptionService.initialize() : Promise.resolve())
+  .then(() => (isRealExtension ? circuitBreakerManager.rehydrate() : undefined))
+  .then(() => storeReadyPromise)
+  .then(async () => {
+    // Check if recovering from SW termination during active transcription
+    const wasActive = await wasTranscriptionActive();
+    if (wasActive) {
+      await transcriptBuffer.load();
+      isTranscriptionActive = true;
+      startKeepAlive();
+      console.log(
+        'TranscriptBuffer: Recovered',
+        transcriptBuffer.length,
+        'entries after SW restart',
+      );
+    }
+
+    storeReady = true;
+    console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
+    for (const { message, sender, sendResponse } of messageQueue) {
+      handleMessage(message, sender)
+        .then(sendResponse)
+        .catch((error) => {
+          console.error('Queued message handling error:', error);
+          sendResponse({ error: error.message });
+        });
+    }
+    messageQueue.length = 0;
+  })
+  .catch((error) => {
+    console.error('Initialization failed:', error);
+  });
+
+// Safety net: if store fails to hydrate within 10 seconds, drain queue with errors
+setTimeout(() => {
+  if (!storeReady) {
+    console.error('Store hydration timeout after 10 seconds -- draining queue with errors');
+    storeReady = true; // Prevent further queuing
+    for (const { sendResponse } of messageQueue) {
+      sendResponse({ error: 'Store initialization timeout' });
+    }
+    messageQueue.length = 0;
+  }
+}, 10_000);
 
 /**
  * Send LLM message to all Google Meet content scripts
@@ -139,7 +196,7 @@ async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage
 async function sendConnectionState(
   service: 'stt-tab' | 'stt-mic' | 'llm',
   state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
-  error?: string
+  error?: string,
 ): Promise<void> {
   await broadcastToMeetTabs({
     type: 'CONNECTION_STATE',
@@ -170,7 +227,7 @@ async function streamWithRetry(
   params: StreamWithRetryParams,
   modelType: 'fast' | 'full',
   responseId: string,
-  retryCount = 0
+  retryCount = 0,
 ): Promise<void> {
   try {
     await params.provider.streamResponse({
@@ -222,7 +279,7 @@ async function handleLLMRequest(
   question: string,
   recentContext: string,
   fullTranscript: string,
-  templateId: string
+  templateId: string,
 ): Promise<void> {
   // Get store state for settings and templates
   const state = useStore.getState();
@@ -266,10 +323,7 @@ async function handleLLMRequest(
   }
 
   // Build prompts using the template
-  const prompts = buildPrompt(
-    { question, recentContext, fullTranscript, templateId },
-    template
-  );
+  const prompts = buildPrompt({ question, recentContext, fullTranscript, templateId }, template);
 
   // Create abort controller for cancellation
   const abortController = new AbortController();
@@ -300,43 +354,70 @@ async function handleLLMRequest(
     status: 'pending',
   });
 
-  // Fire fast model request (if provider available)
-  let fastPromise: Promise<void> = Promise.resolve();
-  if (fastResolution) {
-    fastPromise = streamWithRetry(
+  interface ModelRequestConfig {
+    resolution: typeof fastResolution;
+    modelType: 'fast' | 'full';
+    modelId: string;
+    userPrompt: string;
+    maxTokens: number;
+    onDone: () => void;
+  }
+
+  function fireModelRequest(config: ModelRequestConfig): Promise<void> {
+    const { resolution, modelType, modelId, userPrompt, maxTokens, onDone } = config;
+
+    if (!resolution) {
+      onDone();
+      return sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: modelType,
+        status: 'error',
+        error: `Model ${modelId} not available with current API keys`,
+      }).then(() => {});
+    }
+
+    const breaker = circuitBreakerManager.getBreaker(resolution.provider.id);
+    if (!breaker.allowRequest()) {
+      onDone();
+      return sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: modelType,
+        status: 'error',
+        error: `${resolution.provider.id} service temporarily unavailable`,
+      }).then(() => {});
+    }
+
+    return streamWithRetry(
       {
-        provider: fastResolution.provider,
-        model: fastResolution.model,
+        provider: resolution.provider,
+        model: resolution.model,
         systemPrompt: prompts.system,
-        userPrompt: prompts.user,
-        maxTokens: 300, // Short response for fast hint
-        apiKey: fastResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
+        userPrompt,
+        maxTokens,
+        apiKey: resolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
         onToken: (token) => {
-          sendLLMMessageToMeet({
-            type: 'LLM_STREAM',
-            responseId,
-            model: 'fast',
-            token,
-          });
+          sendLLMMessageToMeet({ type: 'LLM_STREAM', responseId, model: modelType, token });
         },
         onComplete: () => {
-          fastComplete = true;
-          console.log('LLM: Fast model complete');
+          onDone();
+          console.log(`LLM: ${modelType} model complete`);
           sendLLMMessageToMeet({
             type: 'LLM_STATUS',
             responseId,
-            model: 'fast',
+            model: modelType,
             status: 'complete',
           });
           checkAllComplete();
         },
         onError: (error) => {
-          fastComplete = true;
-          console.error('LLM: Fast model error:', error.message);
+          onDone();
+          console.error(`LLM: ${modelType} model error:`, error.message);
           sendLLMMessageToMeet({
             type: 'LLM_STATUS',
             responseId,
-            model: 'fast',
+            model: modelType,
             status: 'error',
             error: error.message || 'Unknown error',
           });
@@ -344,79 +425,41 @@ async function handleLLMRequest(
         },
         abortSignal: abortController.signal,
       },
-      'fast',
-      responseId
-    );
-  } else {
-    fastComplete = true;
-    await sendLLMMessageToMeet({
-      type: 'LLM_STATUS',
+      modelType,
       responseId,
-      model: 'fast',
-      status: 'error',
-      error: `Model ${models.fastModel} not available with current API keys`,
-    });
+    )
+      .then(() => {
+        breaker.recordSuccess();
+      })
+      .catch((error) => {
+        breaker.recordFailure();
+        throw error;
+      });
   }
 
-  // Fire full model request (if provider available)
-  let fullPromise: Promise<void> = Promise.resolve();
-  if (fullResolution) {
-    fullPromise = streamWithRetry(
-      {
-        provider: fullResolution.provider,
-        model: fullResolution.model,
-        systemPrompt: prompts.system,
-        userPrompt: prompts.userFull,
-        maxTokens: 2000, // Comprehensive response
-        apiKey: fullResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
-        onToken: (token) => {
-          sendLLMMessageToMeet({
-            type: 'LLM_STREAM',
-            responseId,
-            model: 'full',
-            token,
-          });
-        },
-        onComplete: () => {
-          fullComplete = true;
-          console.log('LLM: Full model complete');
-          sendLLMMessageToMeet({
-            type: 'LLM_STATUS',
-            responseId,
-            model: 'full',
-            status: 'complete',
-          });
-          checkAllComplete();
-        },
-        onError: (error) => {
-          fullComplete = true;
-          console.error('LLM: Full model error:', error.message);
-          sendLLMMessageToMeet({
-            type: 'LLM_STATUS',
-            responseId,
-            model: 'full',
-            status: 'error',
-            error: error.message || 'Unknown error',
-          });
-          checkAllComplete();
-        },
-        abortSignal: abortController.signal,
-      },
-      'full',
-      responseId
-    );
-  } else {
-    fullComplete = true;
-    await sendLLMMessageToMeet({
-      type: 'LLM_STATUS',
-      responseId,
-      model: 'full',
-      status: 'error',
-      error: `Model ${models.fullModel} not available with current API keys`,
-    });
-  }
+  const fastPromise = fireModelRequest({
+    resolution: fastResolution,
+    modelType: 'fast',
+    modelId: models.fastModel,
+    userPrompt: prompts.user,
+    maxTokens: 300,
+    onDone: () => {
+      fastComplete = true;
+    },
+  });
 
-  // Send streaming status for both (only if at least one is streaming)
+  const fullPromise = fireModelRequest({
+    resolution: fullResolution,
+    modelType: 'full',
+    modelId: models.fullModel,
+    userPrompt: prompts.userFull,
+    maxTokens: 2000,
+    onDone: () => {
+      fullComplete = true;
+    },
+  });
+
+  // Send streaming status (only if at least one model is available)
   if (fastResolution || fullResolution) {
     await sendLLMMessageToMeet({
       type: 'LLM_STATUS',
@@ -431,6 +474,29 @@ async function handleLLMRequest(
     console.error('LLM request error:', error);
   });
 }
+
+type MessageResponse =
+  | PongMessage
+  | { type: string }
+  | { received: boolean }
+  | { success: boolean; error?: string }
+  | {
+      isCapturing: boolean;
+      isTranscribing: boolean;
+      hasActiveLLMRequest: boolean;
+      isCaptureStartInProgress: boolean;
+    }
+  | { error: string }
+  | undefined;
+
+// Queue guard for store hydration -- messages arriving before store is ready are queued
+interface QueuedMessage {
+  message: ExtensionMessage;
+  sender: chrome.runtime.MessageSender;
+  sendResponse: (response: MessageResponse) => void;
+}
+const messageQueue: QueuedMessage[] = [];
+let storeReady = false;
 
 // Register message listener synchronously at top level - CRITICAL
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -455,6 +521,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // Queue guard: if store not ready, queue message for processing after hydration
+  if (!storeReady) {
+    console.log('Store not ready, queuing message:', message?.type);
+    messageQueue.push({ message, sender, sendResponse });
+    return true; // Keep channel open for async response
+  }
+
   handleMessage(message, sender)
     .then(sendResponse)
     .catch((error) => {
@@ -471,17 +544,26 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // Message types that should be logged (important events only)
 const LOGGED_MESSAGE_TYPES = [
-  'START_CAPTURE', 'STOP_CAPTURE', 'CAPTURE_STARTED', 'CAPTURE_STOPPED', 'CAPTURE_ERROR',
-  'START_TRANSCRIPTION', 'STOP_TRANSCRIPTION', 'TRANSCRIPTION_STARTED', 'TRANSCRIPTION_STOPPED', 'TRANSCRIPTION_ERROR',
-  'LLM_REQUEST', 'LLM_CANCEL',
+  'START_CAPTURE',
+  'STOP_CAPTURE',
+  'CAPTURE_STARTED',
+  'CAPTURE_STOPPED',
+  'CAPTURE_ERROR',
+  'START_TRANSCRIPTION',
+  'STOP_TRANSCRIPTION',
+  'TRANSCRIPTION_STARTED',
+  'TRANSCRIPTION_STOPPED',
+  'TRANSCRIPTION_ERROR',
+  'LLM_REQUEST',
+  'LLM_CANCEL',
   'CONNECTION_STATE',
 ];
 
 // Async message handler using switch for proper discriminated union narrowing
 async function handleMessage(
   message: ExtensionMessage,
-  sender: chrome.runtime.MessageSender
-): Promise<unknown> {
+  _sender: chrome.runtime.MessageSender,
+): Promise<MessageResponse> {
   // Only log important events to reduce console spam
   if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
     console.log('Background:', message.type);
@@ -516,10 +598,13 @@ async function handleMessage(
         // Check if offscreen thinks capture is active (regardless of our flag)
         try {
           console.log('Ensuring clean state before capture...');
-          await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE', _fromBackground: true } as StopCaptureMessage & { _fromBackground: true });
+          await chrome.runtime.sendMessage({
+            type: 'STOP_CAPTURE',
+            _fromBackground: true,
+          } as StopCaptureMessage & { _fromBackground: true });
           // Wait for Chrome to fully release resources
           await new Promise((resolve) => setTimeout(resolve, 300));
-        } catch (e) {
+        } catch {
           // Offscreen might not exist yet - that's fine
         }
         isTabCaptureActive = false;
@@ -537,7 +622,11 @@ async function handleMessage(
         }
 
         // Validate tab URL - some tabs can't be captured
-        if (!activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('chrome-extension://')) {
+        if (
+          !activeTab.url ||
+          activeTab.url.startsWith('chrome://') ||
+          activeTab.url.startsWith('chrome-extension://')
+        ) {
           throw new Error('Cannot capture this tab. Navigate to a regular webpage first.');
         }
 
@@ -545,20 +634,17 @@ async function handleMessage(
         // Do NOT specify consumerTabId - the stream will be used by extension's offscreen document
         console.log('Requesting stream ID for tab:', activeTab.id);
         const streamId = await new Promise<string>((resolve, reject) => {
-          chrome.tabCapture.getMediaStreamId(
-            { targetTabId: activeTab.id },
-            (id) => {
-              if (chrome.runtime.lastError) {
-                const errMsg = chrome.runtime.lastError.message || 'Tab capture permission denied';
-                console.error('getMediaStreamId error:', errMsg);
-                reject(new Error(errMsg));
-              } else if (!id) {
-                reject(new Error('No stream ID returned - try refreshing the page'));
-              } else {
-                resolve(id);
-              }
+          chrome.tabCapture.getMediaStreamId({ targetTabId: activeTab.id }, (id) => {
+            if (chrome.runtime.lastError) {
+              const errMsg = chrome.runtime.lastError.message || 'Tab capture permission denied';
+              console.error('getMediaStreamId error:', errMsg);
+              reject(new Error(errMsg));
+            } else if (!id) {
+              reject(new Error('No stream ID returned - try refreshing the page'));
+            } else {
+              resolve(id);
             }
-          );
+          });
         });
 
         // Mark capture as starting (will be confirmed by CAPTURE_STARTED)
@@ -584,7 +670,8 @@ async function handleMessage(
         // Reset state on failure
         isTabCaptureActive = false;
         isCaptureStartInProgress = false;
-        const errorMessage = error instanceof Error ? error.message : 'Tab capture failed - try refreshing the page';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Tab capture failed - try refreshing the page';
         console.error('Tab capture error:', errorMessage);
         return { success: false, error: errorMessage };
       }
@@ -612,11 +699,7 @@ async function handleMessage(
     }
 
     case 'TAB_AUDIO_CHUNK':
-      // Audio chunks are processed in offscreen - no logging needed (too frequent)
-      return { received: true };
-
     case 'MIC_AUDIO_CHUNK':
-      // Audio chunks are processed in offscreen - no logging needed (too frequent)
       return { received: true };
 
     case 'GET_CAPTURE_STATE':
@@ -689,9 +772,6 @@ async function handleMessage(
 
     case 'INJECT_UI':
     case 'UI_INJECTED':
-      // Content script communication - no logging needed
-      return { received: true };
-
     case 'PONG':
       return { received: true };
 
@@ -702,18 +782,37 @@ async function handleMessage(
         await ensureOffscreenDocument();
 
         // Clear transcript state for new session
-        mergedTranscript = [];
+        await transcriptBuffer.clear();
         interimEntries.clear();
+        await setTranscriptionActive(true);
 
-        // Forward to offscreen document to initiate WebSocket connections
+        // Read API key from store (SEC-01: never from message)
+        const state = useStore.getState();
+        const elevenLabsKey = state.apiKeys.elevenLabs;
+
+        if (!elevenLabsKey) {
+          return { success: false, error: 'ElevenLabs API key not configured' };
+        }
+
+        // Check ElevenLabs circuit breaker before attempting connection
+        const elevenLabsBreaker = circuitBreakerManager.getBreaker('elevenlabs');
+        if (!elevenLabsBreaker.allowRequest()) {
+          return {
+            success: false,
+            error: 'ElevenLabs service temporarily unavailable. Will retry automatically.',
+          };
+        }
+
+        // Forward to offscreen document with API key from store (internal message)
         await chrome.runtime.sendMessage({
           type: 'START_TRANSCRIPTION',
-          apiKey: message.apiKey,
+          apiKey: elevenLabsKey,
           languageCode: message.languageCode,
           _fromBackground: true,
-        } as StartTranscriptionMessage & { _fromBackground: true });
+        } as InternalStartTranscriptionMessage);
 
         isTranscriptionActive = true;
+        startKeepAlive();
         console.log('Transcription: Starting...');
         return { success: true };
       } catch (error) {
@@ -726,6 +825,9 @@ async function handleMessage(
 
     case 'STOP_TRANSCRIPTION': {
       try {
+        // Flush transcript buffer to storage before stopping
+        await transcriptBuffer.flush();
+
         // Forward to offscreen document to close WebSocket connections
         await chrome.runtime.sendMessage({
           type: 'STOP_TRANSCRIPTION',
@@ -733,6 +835,13 @@ async function handleMessage(
         } as StopTranscriptionMessage & { _fromBackground: true });
 
         isTranscriptionActive = false;
+        await setTranscriptionActive(false);
+
+        // Stop keep-alive only if no active LLM requests
+        if (activeAbortControllers.size === 0) {
+          stopKeepAlive();
+        }
+
         console.log('Transcription: Stopped');
         return { success: true };
       } catch (error) {
@@ -745,6 +854,7 @@ async function handleMessage(
 
     case 'TRANSCRIPTION_STARTED':
       isTranscriptionActive = true;
+      circuitBreakerManager.getBreaker('elevenlabs').recordSuccess();
       console.log('Transcription: Connected');
       return { received: true };
 
@@ -753,6 +863,7 @@ async function handleMessage(
       return { received: true };
 
     case 'TRANSCRIPTION_ERROR':
+      circuitBreakerManager.getBreaker('elevenlabs').recordFailure();
       console.error('Transcription error:', message.source, message.error);
       return { received: true };
 
@@ -787,11 +898,7 @@ async function handleMessage(
     }
 
     case 'TRANSCRIPT_UPDATE':
-      // This is outbound only - no logging
-      return { received: true };
-
     case 'REQUEST_MIC_PERMISSION':
-      // This goes directly to content script
       return { received: true };
 
     // LLM request lifecycle messages
@@ -799,7 +906,7 @@ async function handleMessage(
       // Cancel ALL existing active requests before starting new one
       if (activeAbortControllers.size > 0) {
         console.log('LLM: Cancelling', activeAbortControllers.size, 'previous request(s)');
-        for (const [existingId, controller] of activeAbortControllers) {
+        for (const [, controller] of activeAbortControllers) {
           controller.abort();
         }
         activeAbortControllers.clear();
@@ -811,18 +918,14 @@ async function handleMessage(
         message.question,
         message.recentContext,
         message.fullTranscript,
-        message.templateId
+        message.templateId,
       );
       console.log('LLM: Starting request');
       return { success: true };
     }
 
     case 'LLM_STREAM':
-      // Outbound only - no logging (too frequent)
-      return { received: true };
-
     case 'LLM_STATUS':
-      // Outbound only - no logging
       return { received: true };
 
     case 'LLM_CANCEL': {

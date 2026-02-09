@@ -17,6 +17,8 @@ import type {
   ConnectionStateEventDetail,
 } from '../../entrypoints/content';
 
+type TypedCustomEventHandler<T> = (event: CustomEvent<T>) => void;
+
 interface OverlayProps {
   // Optional response prop for testing (real state comes via events)
   response?: LLMResponse | null;
@@ -26,17 +28,41 @@ interface OverlayProps {
 const MIN_BTN_WIDTH = 56;
 const MIN_BTN_HEIGHT = 44;
 
+// Static Rnd configuration objects - defined outside component to avoid recreation on every render
+const ENABLE_RESIZING = {
+  top: false,
+  right: true,
+  bottom: true,
+  left: false,
+  topRight: false,
+  bottomRight: true,
+  bottomLeft: false,
+  topLeft: false,
+} as const;
+
+const RESIZE_HANDLE_STYLES = {
+  right: { cursor: 'ew-resize' as const },
+  bottom: { cursor: 'ns-resize' as const },
+  bottomRight: { cursor: 'nwse-resize' as const },
+} as const;
+
+const MINIMIZED_SIZE = { width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT };
+
 /**
  * Status indicator component for footer.
  * Memoized to prevent re-renders when other overlay state changes.
  */
-const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMResponse['status'] | null }) {
+const StatusIndicator = memo(function StatusIndicator({
+  status,
+}: {
+  status: LLMResponse['status'] | null;
+}) {
   if (status === 'streaming') {
     return (
       <span className="flex items-center gap-1">
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400"></span>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400"></span>
         </span>
         Streaming...
       </span>
@@ -47,8 +73,8 @@ const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMR
     return (
       <span className="flex items-center gap-1">
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75"></span>
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400"></span>
         </span>
         Processing...
       </span>
@@ -58,7 +84,7 @@ const StatusIndicator = memo(function StatusIndicator({ status }: { status: LLMR
   // Default: Ready (complete, error, or no response)
   return (
     <span className="flex items-center gap-1">
-      <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+      <span className="h-2 w-2 rounded-full bg-green-400"></span>
       Ready
     </span>
   );
@@ -98,96 +124,91 @@ export function Overlay({ response }: OverlayProps) {
   const [captureState, setCaptureState] = useState<CaptureState | null>(null);
 
   // Health issues for status display
-  const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
+  const [connectionIssues, setConnectionIssues] = useState<HealthIssue[]>([]);
 
   // Consolidated event listeners for transcript, LLM response, and capture state
   // Using useCallback to create stable handler references
   useEffect(() => {
-    const handleTranscriptUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<TranscriptUpdateEventDetail>;
-      setTranscript(customEvent.detail.entries);
+    const handleTranscriptUpdate: TypedCustomEventHandler<TranscriptUpdateEventDetail> = (
+      event,
+    ) => {
+      setTranscript(event.detail.entries);
     };
 
-    const handleLLMResponseUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<LLMResponseEventDetail>;
-      setLLMResponse(customEvent.detail.response);
+    const handleLLMResponseUpdate: TypedCustomEventHandler<LLMResponseEventDetail> = (event) => {
+      setLLMResponse(event.detail.response);
     };
 
-    const handleCaptureStateUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<CaptureStateEventDetail>;
-      setCaptureState(customEvent.detail.state);
+    const handleCaptureStateUpdate: TypedCustomEventHandler<CaptureStateEventDetail> = (event) => {
+      setCaptureState(event.detail.state);
     };
 
-    window.addEventListener('transcript-update', handleTranscriptUpdate);
-    window.addEventListener('llm-response-update', handleLLMResponseUpdate);
-    window.addEventListener('capture-state-update', handleCaptureStateUpdate);
+    window.addEventListener('transcript-update', handleTranscriptUpdate as EventListener);
+    window.addEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
+    window.addEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
 
     return () => {
-      window.removeEventListener('transcript-update', handleTranscriptUpdate);
-      window.removeEventListener('llm-response-update', handleLLMResponseUpdate);
-      window.removeEventListener('capture-state-update', handleCaptureStateUpdate);
+      window.removeEventListener('transcript-update', handleTranscriptUpdate as EventListener);
+      window.removeEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
+      window.removeEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
     };
   }, []);
 
   // Listen for connection state updates from background (for HealthIndicator)
   useEffect(() => {
-    function handleConnectionStateUpdate(event: Event) {
-      const customEvent = event as CustomEvent<ConnectionStateEventDetail>;
-      const { service, state, error } = customEvent.detail;
+    const serviceNameMap: Record<ConnectionStateEventDetail['service'], string> = {
+      'stt-tab': 'Tab STT',
+      'stt-mic': 'Mic STT',
+      llm: 'LLM-conn',
+    };
 
-      setHealthIssues((prev) => {
-        // Remove existing issue for this service (keep API key warnings)
-        const filtered = prev.filter(
-          (i) => i.service !== service && i.service !== 'Tab STT' && i.service !== 'Mic STT' && i.service !== 'LLM-conn'
-        );
+    const handleConnectionStateUpdate: TypedCustomEventHandler<ConnectionStateEventDetail> = (
+      event,
+    ) => {
+      const { service, state, error } = event.detail;
+      const serviceName = serviceNameMap[service];
 
-        // Re-add API key warnings (they should persist)
-        const apiKeyIssues = prev.filter((i) => i.service === 'STT' || i.service === 'LLM');
+      setConnectionIssues((prev) => {
+        const remaining = prev.filter((i) => i.service !== serviceName);
 
-        // Only add connection issue if not connected
-        if (state !== 'connected') {
-          const statusMap: Record<string, 'warning' | 'error' | 'reconnecting'> = {
-            disconnected: 'warning',
-            reconnecting: 'reconnecting',
-            error: 'error',
-          };
-          const messageMap: Record<string, string> = {
-            disconnected: 'Disconnected',
-            reconnecting: 'Reconnecting...',
-            error: error || 'Connection error',
-          };
+        if (state === 'connected') return remaining;
 
-          const serviceName =
-            service === 'stt-tab' ? 'Tab STT' : service === 'stt-mic' ? 'Mic STT' : 'LLM-conn';
+        const statusMap: Record<string, HealthIssue['status']> = {
+          disconnected: 'warning',
+          reconnecting: 'reconnecting',
+          error: 'error',
+        };
+        const messageMap: Record<string, string> = {
+          disconnected: 'Disconnected',
+          reconnecting: 'Reconnecting...',
+          error: error || 'Connection error',
+        };
 
-          return [
-            ...apiKeyIssues,
-            {
-              service: serviceName,
-              status: statusMap[state] || 'error',
-              message: messageMap[state] || state,
-            },
-          ];
-        }
-
-        // If connected, just return API key issues (connection issue removed)
-        return apiKeyIssues;
+        return [
+          ...remaining,
+          { service: serviceName, status: statusMap[state], message: messageMap[state] },
+        ];
       });
-    }
+    };
 
-    window.addEventListener('connection-state-update', handleConnectionStateUpdate);
+    window.addEventListener(
+      'connection-state-update',
+      handleConnectionStateUpdate as EventListener,
+    );
     return () => {
-      window.removeEventListener('connection-state-update', handleConnectionStateUpdate);
+      window.removeEventListener(
+        'connection-state-update',
+        handleConnectionStateUpdate as EventListener,
+      );
     };
   }, []);
 
   // Check for missing API keys and build health issues array
   // Per CONTEXT.md: only show issues when there are actual problems
-  useEffect(() => {
+  const apiKeyIssues = useMemo(() => {
     const issues: HealthIssue[] = [];
 
     // Only add issues for missing keys when we want to inform the user
-    // Note: Real-time service status (reconnecting, etc.) will be added in plan 02
     if (!apiKeys.elevenLabs) {
       issues.push({
         service: 'STT',
@@ -205,29 +226,33 @@ export function Overlay({ response }: OverlayProps) {
       });
     }
 
-    setHealthIssues(issues);
+    return issues;
   }, [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI]);
+
+  // Combine API key issues with connection issues, memoized to prevent
+  // new array creation on every render (avoids unnecessary HealthIndicator re-renders)
+  const allHealthIssues = useMemo(
+    () => [...apiKeyIssues, ...connectionIssues],
+    [apiKeyIssues, connectionIssues],
+  );
 
   // Check if BOTH STT and LLM keys are missing (for setup prompt)
   // Memoize to prevent recalculation on every render
   const bothKeysMissing = useMemo(
     () => !apiKeys.elevenLabs && !apiKeys.openRouter && !apiKeys.openAI,
-    [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI]
+    [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI],
   );
 
   // Use prop if provided (for testing), otherwise use event-driven state
   const displayResponse = response ?? llmResponse;
 
   // Memoize backdrop filter style to prevent object recreation
-  const backdropStyle = useMemo(
-    () => ({ backdropFilter: `blur(${blurLevel}px)` }),
-    [blurLevel]
-  );
+  const backdropStyle = useMemo(() => ({ backdropFilter: `blur(${blurLevel}px)` }), [blurLevel]);
 
   // Stable callback references for Rnd handlers using react-draggable types
   const handleDragStop = useCallback(
     (_e: DraggableEvent, d: DraggableData) => setPosition({ x: d.x, y: d.y }),
-    [setPosition]
+    [setPosition],
   );
 
   const handleResizeStop = useCallback(
@@ -236,7 +261,7 @@ export function Overlay({ response }: OverlayProps) {
       _dir: string,
       ref: HTMLElement,
       _delta: { width: number; height: number },
-      pos: { x: number; y: number }
+      pos: { x: number; y: number },
     ) => {
       setSize({
         width: parseInt(ref.style.width, 10),
@@ -244,12 +269,12 @@ export function Overlay({ response }: OverlayProps) {
       });
       setPosition(pos);
     },
-    [setSize, setPosition]
+    [setSize, setPosition],
   );
 
   const handleMinimizedDragStop = useCallback(
     (_e: DraggableEvent, d: DraggableData) => setMinimizedPosition({ x: d.x, y: d.y }),
-    [setMinimizedPosition]
+    [setMinimizedPosition],
   );
 
   const handleExpand = useCallback(() => setMinimized(false), [setMinimized]);
@@ -267,7 +292,7 @@ export function Overlay({ response }: OverlayProps) {
     return (
       <Rnd
         position={minimizedPosition}
-        size={{ width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT }}
+        size={MINIMIZED_SIZE}
         enableResizing={false}
         bounds="window"
         onDragStop={handleMinimizedDragStop}
@@ -275,7 +300,7 @@ export function Overlay({ response }: OverlayProps) {
       >
         <button
           onClick={handleExpand}
-          className="w-full h-full bg-blue-500/80 backdrop-blur-sm text-white rounded-lg shadow-lg hover:bg-blue-600/90 text-sm font-bold flex items-center justify-center transition-colors cursor-move"
+          className="flex h-full w-full cursor-move items-center justify-center rounded-lg bg-blue-500/80 text-sm font-bold text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-blue-600/90"
           title="Expand AI Assistant (drag to move)"
         >
           AI
@@ -295,29 +320,16 @@ export function Overlay({ response }: OverlayProps) {
       minWidth={280}
       minHeight={200}
       bounds="window"
-      enableResizing={{
-        top: false,
-        right: true,
-        bottom: true,
-        left: false,
-        topRight: false,
-        bottomRight: true,
-        bottomLeft: false,
-        topLeft: false,
-      }}
+      enableResizing={ENABLE_RESIZING}
       className="z-[999999]"
-      resizeHandleStyles={{
-        right: { cursor: 'ew-resize' },
-        bottom: { cursor: 'ns-resize' },
-        bottomRight: { cursor: 'nwse-resize' },
-      }}
+      resizeHandleStyles={RESIZE_HANDLE_STYLES}
     >
       <div
-        className="overlay-container relative h-full flex flex-col bg-black/10 rounded-lg shadow-2xl border border-white/20 overflow-hidden"
+        className="overlay-container relative flex h-full flex-col overflow-hidden rounded-lg border border-white/20 bg-black/10 shadow-2xl"
         style={backdropStyle}
       >
         {/* Health indicator at very top (absolute positioned, z-20) */}
-        <HealthIndicator issues={healthIssues} />
+        <HealthIndicator issues={allHealthIssues} />
 
         {/* Capture indicator below health indicator (absolute positioned, z-10) */}
         <CaptureIndicator captureState={captureState} />
@@ -325,27 +337,25 @@ export function Overlay({ response }: OverlayProps) {
         <OverlayHeader onMinimize={handleMinimize} />
 
         {/* Content area with panels */}
-        <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2 relative">
+        <div className="relative flex flex-1 flex-col gap-2 overflow-hidden p-3">
           <TranscriptPanel entries={transcript} />
           <ResponsePanel response={displayResponse} />
 
           {/* Setup prompt overlay when BOTH API keys missing */}
           {bothKeysMissing && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
-              <div className="text-center px-4 py-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 mx-4">
-                <div className="text-white/90 text-sm font-medium mb-1">
+            <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40">
+              <div className="mx-4 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-center backdrop-blur-sm">
+                <div className="mb-1 text-sm font-medium text-white/90">
                   Configure API keys in Settings
                 </div>
-                <div className="text-white/60 text-xs">
-                  to use AI features
-                </div>
+                <div className="text-xs text-white/60">to use AI features</div>
               </div>
             </div>
           )}
         </div>
 
         {/* Footer with status indicator */}
-        <div className="px-3 py-1.5 border-t border-white/10 flex items-center justify-between text-xs text-white/60">
+        <div className="flex items-center justify-between border-t border-white/10 px-3 py-1.5 text-xs text-white/60">
           <span>AI Interview Assistant</span>
           <StatusIndicator status={displayResponse?.status ?? null} />
         </div>

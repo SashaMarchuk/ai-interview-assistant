@@ -27,4 +27,3 @@ export type {
   AuthErrorMessage,
 } from './types';
 
-export { isServerMessage, isServerMessageType } from './types';

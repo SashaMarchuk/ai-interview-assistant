@@ -23,7 +23,7 @@ export function TemplateManager() {
       </div>
 
       {/* Template Editor - bottom section */}
-      <div className="overflow-y-auto">
+      <div>
         <TemplateEditor />
       </div>
     </div>

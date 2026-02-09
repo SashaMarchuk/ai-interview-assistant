@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { DEFAULT_OVERLAY_STATE, type OverlayState } from '../../types/transcript';
 
 const STORAGE_KEY = 'ai-interview-overlay-state';
@@ -46,10 +46,6 @@ export interface UseOverlayPositionReturn {
   setMinimized: (isMinimized: boolean) => void;
   /** Update the minimized button position */
   setMinimizedPosition: (pos: Position) => void;
-  /** Raw state object for advanced use cases */
-  rawState: OverlayState;
-  /** Direct state setter for advanced use cases */
-  setRawState: Dispatch<SetStateAction<OverlayState>>;
 }
 
 /**
@@ -127,7 +123,12 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
           updates.minBtnY = defaultPos.y;
         } else {
           // Manual position - clamp to viewport
-          const clamped = clampToViewport(prev.minBtnX, prev.minBtnY, MIN_BTN_WIDTH, MIN_BTN_HEIGHT);
+          const clamped = clampToViewport(
+            prev.minBtnX,
+            prev.minBtnY,
+            MIN_BTN_WIDTH,
+            MIN_BTN_HEIGHT,
+          );
           if (clamped.x !== prev.minBtnX || clamped.y !== prev.minBtnY) {
             updates.minBtnX = clamped.x;
             updates.minBtnY = clamped.y;
@@ -168,8 +169,9 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
   /**
    * Calculate actual position for the expanded overlay.
    * Handles -1 sentinel value for first-time users (bottom-right default).
+   * Memoized to avoid recalculating on every render when deps haven't changed.
    */
-  const getPosition = useCallback(() => {
+  const position = useMemo(() => {
     if (state.x === -1 || state.y === -1) {
       return {
         x: window.innerWidth - state.width - MARGIN,
@@ -182,8 +184,9 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
   /**
    * Get position for minimized button.
    * Defaults to top-right corner (won't block Meet navigation at bottom).
+   * Memoized to avoid recalculating on every render when deps haven't changed.
    */
-  const getMinimizedPosition = useCallback(() => {
+  const minimizedPosition = useMemo(() => {
     if (state.minBtnX === -1 || state.minBtnY === -1) {
       return getDefaultMinimizedPosition();
     }
@@ -206,17 +209,21 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
     setState((prev) => ({ ...prev, minBtnX: pos.x, minBtnY: pos.y }));
   }, []);
 
+  // Memoize size object to prevent new object creation on every render
+  const size = useMemo(
+    () => ({ width: state.width, height: state.height }),
+    [state.width, state.height],
+  );
+
   return {
-    position: getPosition(),
-    minimizedPosition: getMinimizedPosition(),
-    size: { width: state.width, height: state.height },
+    position,
+    minimizedPosition,
+    size,
     isMinimized: state.isMinimized,
     isLoaded,
     setPosition,
     setSize,
     setMinimized,
     setMinimizedPosition,
-    rawState: state,
-    setRawState: setState,
   };
 }

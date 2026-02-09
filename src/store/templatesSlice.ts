@@ -6,7 +6,13 @@
  */
 
 import type { StateCreator } from 'zustand';
-import type { TemplatesSlice, StoreState, PromptTemplate, NewTemplate, TemplateUpdate } from './types';
+import type {
+  TemplatesSlice,
+  StoreState,
+  PromptTemplate,
+  NewTemplate,
+  TemplateUpdate,
+} from './types';
 import { DEFAULT_TEMPLATES } from './defaultTemplates';
 
 /**
@@ -15,7 +21,10 @@ import { DEFAULT_TEMPLATES } from './defaultTemplates';
  * Provides state and actions for managing prompt templates.
  * Includes automatic seeding of default templates on first install.
  */
-export const createTemplatesSlice: StateCreator<StoreState, [], [], TemplatesSlice> = (set, get) => ({
+export const createTemplatesSlice: StateCreator<StoreState, [], [], TemplatesSlice> = (
+  set,
+  get,
+) => ({
   // State
   templates: [],
   activeTemplateId: null,
@@ -35,7 +44,7 @@ export const createTemplatesSlice: StateCreator<StoreState, [], [], TemplatesSli
   updateTemplate: (id: string, updates: TemplateUpdate) => {
     set((state) => ({
       templates: state.templates.map((template) =>
-        template.id === id ? { ...template, ...updates } : template
+        template.id === id ? { ...template, ...updates } : template,
       ),
     }));
   },

@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** - Phases 1-8 (shipped 2026-02-03)
-- 🚧 **v1.1 Security & Reliability** - Phases 9-13 (in progress)
+- 🚧 **v1.1 Security & Reliability** - Phases 9-14 (in progress)
 
 ## Phases
 
@@ -20,14 +20,15 @@ See MILESTONES.md for details.
 **Milestone Goal:** Harden security, add compliance features, and fix critical reliability bugs before adding new capabilities.
 
 **Phase Numbering:**
-- Integer phases (9, 10, 11, 12, 13): Planned milestone work
+- Integer phases (9, 10, 11, 12, 13, 14): Planned milestone work
 - Decimal phases (e.g., 10.1): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition
-- [ ] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM
-- [ ] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts
-- [ ] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling
-- [ ] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings
+- [x] **Phase 9: Security Foundation** - Remove API keys from messages and fix store race condition (completed 2026-02-08)
+- [x] **Phase 10: Encryption Layer** - Encrypt API keys at rest with AES-GCM (completed 2026-02-08)
+- [x] **Phase 11: Transcript Resilience** - Persist transcript buffer across service worker restarts (completed 2026-02-08)
+- [x] **Phase 12: Circuit Breaker** - Wrap API calls with circuit breaker pattern for graceful failure handling (completed 2026-02-08)
+- [x] **Phase 13: Compliance UI** - Privacy policy, consent modals, and recording warnings (completed 2026-02-08)
+- [x] **Phase 14: Linter & Prettier** - ESLint + Prettier setup, format entire codebase, Claude Code auto-lint hook (completed 2026-02-09)
 
 ## Phase Details
 
@@ -42,7 +43,7 @@ See MILESTONES.md for details.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 09-01-PLAN.md -- Remove API keys from messages + queue guard for store hydration
+- [x] 09-01-PLAN.md -- Remove API keys from messages + queue guard for store hydration
 
 ### Phase 10: Encryption Layer
 **Goal**: API keys stored in chrome.storage.local are encrypted at rest, unreadable without the derived decryption key, with safe migration from plaintext
@@ -53,10 +54,10 @@ Plans:
   2. The extension continues to function normally after encryption migration -- all previously saved API keys still work for API calls
   3. Restarting Chrome (full browser restart) does not break decryption -- keys remain accessible to the extension
   4. Encryption uses WebCrypto AES-GCM with PBKDF2 key derivation from chrome.runtime.id + stored salt (not browser fingerprints or user agent)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 10-01: TBD
+- [x] 10-01-PLAN.md -- Encrypt API keys at rest with AES-GCM + PBKDF2 and wire init chain
 
 ### Phase 11: Transcript Resilience
 **Goal**: Active transcript data survives service worker termination -- no data loss during interviews
@@ -66,10 +67,10 @@ Plans:
   1. During active transcription, killing the service worker (via chrome://serviceworker-internals) and letting it restart preserves all transcript segments captured before termination
   2. Stopping transcription normally flushes the complete transcript to persistent storage with no missing segments
   3. A transcript that was being actively captured survives Chrome's 30-second idle timeout for service workers without data loss
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 11-01: TBD
+- [x] 11-01-PLAN.md -- Create TranscriptBuffer with debounced persistence and wire into background.ts
 
 ### Phase 12: Circuit Breaker
 **Goal**: API calls fail gracefully with automatic recovery instead of hammering unresponsive services
@@ -80,10 +81,10 @@ Plans:
   2. After the recovery timeout elapses, the circuit automatically transitions to HALF_OPEN and allows a test request through
   3. Circuit breaker state persists across service worker restarts -- killing the service worker while circuit is OPEN does not reset it to CLOSED
   4. When the failing service recovers, the circuit transitions back to CLOSED and normal operation resumes automatically
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 12-01: TBD
+- [x] 12-01-PLAN.md -- Circuit breaker service with per-provider instances, persistent state, and background.ts integration
 
 ### Phase 13: Compliance UI
 **Goal**: Users are informed about privacy implications and consent to recording before audio capture begins
@@ -95,10 +96,25 @@ Plans:
   3. Before each recording session, a dismissable recording consent warning appears reminding the user about audio capture
   4. A user who previously dismissed the per-session warning with "don't show again" does not see it on subsequent sessions
   5. A settings option exists to reset all consent acknowledgments (re-trigger first-time and per-session flows)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [x] 13-01-PLAN.md -- Consent state slice + privacy policy content component
+- [x] 13-02-PLAN.md -- Consent UI gates + settings integration in popup
+
+### Phase 14: Linter & Prettier
+**Goal**: All code follows consistent formatting and lint rules, enforced automatically during development and Claude Code sessions
+**Depends on**: Phase 13 (no hard dependency, but should run after all code changes are complete)
+**Requirements**: DX-01
+**Success Criteria** (what must be TRUE):
+  1. `npx eslint .` runs with zero errors across the entire codebase
+  2. `npx prettier --check .` reports all files are formatted
+  3. Claude Code hook auto-runs `eslint --fix` and `prettier --write` after every file Edit/Write
+  4. ESLint config covers TypeScript strict rules appropriate for a Chrome extension + React project
+**Plans**: 1 plan
+
+Plans:
+- [x] 14-01-PLAN.md -- Install ESLint 9 + Prettier, format codebase, fix all lint errors, create Claude Code auto-format hook
 
 ## Progress
 
@@ -109,8 +125,9 @@ Phases 9 → 10 are sequential (hard dependencies). After Phase 10, Phases 11, 1
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 9. Security Foundation | v1.1 | 0/TBD | Not started | - |
-| 10. Encryption Layer | v1.1 | 0/TBD | Not started | - |
-| 11. Transcript Resilience | v1.1 | 0/TBD | Not started | - |
-| 12. Circuit Breaker | v1.1 | 0/TBD | Not started | - |
-| 13. Compliance UI | v1.1 | 0/TBD | Not started | - |
+| 9. Security Foundation | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
+| 10. Encryption Layer | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
+| 11. Transcript Resilience | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
+| 12. Circuit Breaker | v1.1 | 1/1 | ✓ Complete | 2026-02-08 |
+| 13. Compliance UI | v1.1 | 2/2 | ✓ Complete | 2026-02-08 |
+| 14. Linter & Prettier | v1.1 | 1/1 | ✓ Complete | 2026-02-09 |

@@ -31,34 +31,6 @@ export interface ApiKeys {
 }
 
 /**
- * Get a provider by ID
- * @throws Error if provider not found
- */
-export function getProvider(id: ProviderId): LLMProvider {
-  const provider = providers.get(id);
-  if (!provider) {
-    throw new Error(`Unknown provider: ${id}`);
-  }
-  return provider;
-}
-
-/**
- * Resolve the active provider based on available API keys
- * Priority: OpenAI > OpenRouter
- * @returns Provider instance or null if no keys configured
- */
-export function resolveActiveProvider(apiKeys: ApiKeys): LLMProvider | null {
-  // Priority: OpenAI first (direct API), then OpenRouter (aggregator)
-  if (apiKeys.openAI) {
-    return providers.get('openai') ?? null;
-  }
-  if (apiKeys.openRouter) {
-    return providers.get('openrouter') ?? null;
-  }
-  return null;
-}
-
-/**
  * Get all available models for configured providers
  * @returns Union of models from all providers with valid API keys
  */
@@ -89,7 +61,7 @@ export interface ResolvedProvider {
  */
 export function resolveProviderForModel(
   modelId: string,
-  apiKeys: ApiKeys
+  apiKeys: ApiKeys,
 ): ResolvedProvider | null {
   // Check OpenAI first (if configured)
   if (apiKeys.openAI) {
@@ -110,9 +82,3 @@ export function resolveProviderForModel(
   return null;
 }
 
-/**
- * Get all registered providers
- */
-export function getAllProviders(): LLMProvider[] {
-  return Array.from(providers.values());
-}

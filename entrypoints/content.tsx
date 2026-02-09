@@ -10,6 +10,8 @@ import type {
   LLMRequestMessage,
   LLMStreamMessage,
   LLMStatusMessage,
+  ConnectionService,
+  ConnectionStatus,
 } from '../src/types/messages';
 
 // Only inject on active Google Meet meeting pages (not landing/join pages)
@@ -33,8 +35,8 @@ export interface LLMResponseEventDetail {
 
 // Custom event type for connection state updates (for HealthIndicator)
 export interface ConnectionStateEventDetail {
-  service: 'stt-tab' | 'stt-mic' | 'llm';
-  state: 'connected' | 'disconnected' | 'reconnecting' | 'error';
+  service: ConnectionService;
+  state: ConnectionStatus;
   error?: string;
 }
 
@@ -56,7 +58,7 @@ function dispatchLLMResponseUpdate(response: LLMResponse): void {
   window.dispatchEvent(
     new CustomEvent<LLMResponseEventDetail>('llm-response-update', {
       detail: { response },
-    })
+    }),
   );
 }
 
@@ -79,22 +81,20 @@ function initLLMResponse(responseId: string): void {
   dispatchLLMResponseUpdate(response);
 }
 
-/**
- * Handle LLM stream token message.
- * Ignores tokens from cancelled/old requests.
- */
+function ensureLLMResponse(responseId: string): LLMResponse | null {
+  if (activeResponseId && responseId !== activeResponseId) {
+    return null;
+  }
+  if (!currentLLMResponse || currentLLMResponse.id !== responseId) {
+    initLLMResponse(responseId);
+  }
+  return { ...currentLLMResponse! };
+}
+
 function handleLLMStream(message: LLMStreamMessage): void {
-  // Ignore tokens from cancelled/old requests
-  if (activeResponseId && message.responseId !== activeResponseId) {
-    return;
-  }
+  const response = ensureLLMResponse(message.responseId);
+  if (!response) return;
 
-  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
-    // Initialize if response doesn't exist
-    initLLMResponse(message.responseId);
-  }
-
-  const response = { ...currentLLMResponse! };
   response.status = 'streaming';
 
   if (message.model === 'fast') {
@@ -106,24 +106,10 @@ function handleLLMStream(message: LLMStreamMessage): void {
   dispatchLLMResponseUpdate(response);
 }
 
-/**
- * Handle LLM status change message.
- * Ignores status updates from cancelled/old requests.
- */
 function handleLLMStatus(message: LLMStatusMessage): void {
-  // Ignore status updates from cancelled/old requests
-  if (activeResponseId && message.responseId !== activeResponseId) {
-    return;
-  }
+  const response = ensureLLMResponse(message.responseId);
+  if (!response) return;
 
-  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) {
-    // Initialize if response doesn't exist
-    initLLMResponse(message.responseId);
-  }
-
-  const response = { ...currentLLMResponse! };
-
-  // Update status based on which model(s) the status applies to
   if (message.status === 'error') {
     response.status = 'error';
     response.error = message.error;
@@ -138,41 +124,26 @@ function handleLLMStatus(message: LLMStatusMessage): void {
   dispatchLLMResponseUpdate(response);
 }
 
-/**
- * Get transcript entries since a given timestamp, formatted as string
- */
+function formatEntries(entries: TranscriptEntry[]): string {
+  return entries.map((e) => `${e.speaker}: ${e.text}`).join('\n');
+}
+
 function getTranscriptSince(timestamp: number): string {
-  return currentTranscript
-    .filter((e) => e.timestamp >= timestamp && e.isFinal)
-    .map((e) => `${e.speaker}: ${e.text}`)
-    .join('\n');
+  return formatEntries(currentTranscript.filter((e) => e.isFinal && e.timestamp >= timestamp));
 }
 
-/**
- * Get recent transcript (last 5 final entries)
- */
 function getRecentTranscript(): string {
-  return currentTranscript
-    .filter((e) => e.isFinal)
-    .slice(-5)
-    .map((e) => `${e.speaker}: ${e.text}`)
-    .join('\n');
+  return formatEntries(currentTranscript.filter((e) => e.isFinal).slice(-5));
 }
 
-/**
- * Get full transcript formatted as string
- */
 function getFullTranscript(): string {
-  return currentTranscript
-    .filter((e) => e.isFinal)
-    .map((e) => `${e.speaker}: ${e.text}`)
-    .join('\n');
+  return formatEntries(currentTranscript.filter((e) => e.isFinal));
 }
 
 /**
  * Send LLM request to background service worker
  */
-async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Promise<void> {
+async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Promise<void> {
   const state = useStore.getState();
 
   if (!state.activeTemplateId) {
@@ -199,7 +170,10 @@ async function sendLLMRequest(question: string, mode: 'hold' | 'highlight'): Pro
   try {
     const response = await chrome.runtime.sendMessage(message);
     if (!response?.success) {
-      console.error('AI Interview Assistant: LLM request failed:', response?.error || `Unknown - response: ${JSON.stringify(response)}`);
+      console.error(
+        'AI Interview Assistant: LLM request failed:',
+        response?.error || `Unknown - response: ${JSON.stringify(response)}`,
+      );
     }
   } catch (error) {
     console.error('AI Interview Assistant: Failed to send LLM request:', error);
@@ -215,7 +189,7 @@ function dispatchTranscriptUpdate(entries: TranscriptEntry[]): void {
   window.dispatchEvent(
     new CustomEvent<TranscriptUpdateEventDetail>('transcript-update', {
       detail: { entries },
-    })
+    }),
   );
 }
 
@@ -257,13 +231,15 @@ function CaptureProvider({
 
   // Dispatch custom event when capture state changes
   // This allows the Overlay to update its CaptureIndicator
+  /* eslint-disable react-hooks/exhaustive-deps -- intentionally tracking specific fields, not the full object */
   useEffect(() => {
     window.dispatchEvent(
       new CustomEvent<CaptureStateEventDetail>('capture-state-update', {
         detail: { state: captureState },
-      })
+      }),
     );
   }, [captureState.isHolding, captureState.mode]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   return <CaptureContext.Provider value={captureState}>{children}</CaptureContext.Provider>;
 }
@@ -323,7 +299,12 @@ export default defineContentScript({
           // Dispatch custom event for Overlay to consume (for HealthIndicator)
           // Only log non-connected states
           if (message.state !== 'connected') {
-            console.log('AI Interview Assistant:', message.service, message.state, message.error || '');
+            console.log(
+              'AI Interview Assistant:',
+              message.service,
+              message.state,
+              message.error || '',
+            );
           }
           window.dispatchEvent(
             new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
@@ -332,7 +313,7 @@ export default defineContentScript({
                 state: message.state,
                 error: message.error,
               },
-            })
+            }),
           );
           return false;
 
@@ -350,8 +331,11 @@ export default defineContentScript({
       position: 'inline',
       anchor: 'body',
       onMount: (container) => {
-        // Create React root inside shadow DOM
-        const root = createRoot(container);
+        // Create a wrapper div to avoid React warning about rendering on <body>
+        const wrapper = document.createElement('div');
+        wrapper.id = 'ai-interview-root';
+        container.appendChild(wrapper);
+        const root = createRoot(wrapper);
         // Render the overlay wrapped with CaptureProvider for keyboard handling
         root.render(
           <CaptureProvider
@@ -361,7 +345,7 @@ export default defineContentScript({
             getFullTranscript={getFullTranscript}
           >
             <Overlay />
-          </CaptureProvider>
+          </CaptureProvider>,
         );
         return root;
       },

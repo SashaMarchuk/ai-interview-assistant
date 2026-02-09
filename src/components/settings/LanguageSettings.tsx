@@ -76,7 +76,7 @@ export default function LanguageSettings() {
       (lang) =>
         lang.label.toLowerCase().includes(term) ||
         lang.code.toLowerCase().includes(term) ||
-        lang.region.toLowerCase().includes(term)
+        lang.region.toLowerCase().includes(term),
     );
   }, [searchTerm]);
 
@@ -92,10 +92,8 @@ export default function LanguageSettings() {
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Transcription Language
-      </label>
-      <p className="text-xs text-gray-500 mb-2">
+      <label className="mb-1 block text-sm font-medium text-gray-700">Transcription Language</label>
+      <p className="mb-2 text-xs text-gray-500">
         Specify language for better accuracy, or use auto-detect
       </p>
 
@@ -103,13 +101,13 @@ export default function LanguageSettings() {
         {/* Selected value / Search input */}
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg cursor-pointer flex items-center justify-between bg-white hover:border-gray-400 transition-colors"
+          className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 transition-colors hover:border-gray-400"
         >
           <span className={transcriptionLanguage ? 'text-gray-900' : 'text-gray-500'}>
             {displayName}
           </span>
           <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -120,15 +118,15 @@ export default function LanguageSettings() {
 
         {/* Dropdown - z-[100] to ensure it's above other UI elements */}
         {isOpen && (
-          <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+          <div className="absolute z-[100] mt-1 max-h-60 w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-lg">
             {/* Search input */}
-            <div className="p-2 border-b border-gray-200">
+            <div className="border-b border-gray-200 p-2">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search languages..."
-                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 autoFocus
               />
             </div>
@@ -142,14 +140,14 @@ export default function LanguageSettings() {
                   <div
                     key={lang.code || 'auto'}
                     onClick={() => handleSelect(lang.code)}
-                    className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between ${
-                      lang.code === transcriptionLanguage ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm hover:bg-blue-50 ${
+                      lang.code === transcriptionLanguage
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-700'
                     }`}
                   >
                     <span>{lang.label}</span>
-                    {lang.code && (
-                      <span className="text-xs text-gray-400">{lang.code}</span>
-                    )}
+                    {lang.code && <span className="text-xs text-gray-400">{lang.code}</span>}
                   </div>
                 ))
               )}

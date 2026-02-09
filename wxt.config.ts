@@ -2,13 +2,23 @@ import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { resolve } from 'path';
+import { version } from './package.json';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  imports: {
+    eslintrc: {
+      enabled: 9,
+    },
+  },
   vite: () => ({
     // Note: Tailwind type cast is needed due to WXT/Vite plugin type incompatibility.
     // The @tailwindcss/vite plugin returns a Vite plugin but WXT's types don't match exactly.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WXT/Vite plugin type mismatch requires cast
     plugins: [tailwindcss() as any, tsconfigPaths()],
+    define: {
+      __APP_VERSION__: JSON.stringify(version),
+    },
     resolve: {
       alias: {
         '@': resolve(__dirname, './src'),
@@ -19,7 +29,7 @@ export default defineConfig({
     name: 'AI Interview Assistant',
     version: '0.1.0',
     description: 'Real-time AI assistance for technical interviews',
-    permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage', 'scripting'],
+    permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage', 'scripting', 'alarms'],
     host_permissions: ['https://meet.google.com/*'],
     content_security_policy: {
       extension_pages:
