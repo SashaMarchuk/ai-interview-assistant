@@ -5,23 +5,28 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15 (Markdown Rendering) ready to plan
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 15 complete, Phase 16 in progress
 
 ## Current Position
 
-Phase: 15 of 21 (Markdown Rendering)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-02-09 -- v2.0 roadmap created (7 phases, 23 requirements)
+Phase: 15+16 of 21 (Markdown Rendering + Reasoning Models) -- parallel
+Plan: 15-02 complete, 16-01 complete
+Status: Executing
+Last activity: 2026-02-09 -- Plan 15-02 (Markdown Integration) complete
 
-Progress: [░░░░░░░░░░] 0% (v2.0)
+Progress: [█░░░░░░░░░] 14% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 37 (30 v1.0 + 7 v1.1)
+- Total plans completed: 41 (30 v1.0 + 7 v1.1 + 4 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 15-01 | Markdown Components | 5min | 2 | 6 |
+| 15-02 | Markdown Integration | 5min | 2 | 2 |
 
 ## Accumulated Context
 
@@ -38,6 +43,7 @@ Recent decisions affecting current work:
 - [v2.0 roadmap]: Phases 15+16 parallel, then 17 sequential, then 18+19+20 parallel, then 21 sequential
 - [15-01]: CodeBlock props typed with react-markdown ExtraProps for type safety
 - [15-01]: highlight.js CSS via @import in app.css (Vite resolves node_modules) with transparent background override
+- [15-02]: No new decisions -- plan executed exactly as specified
 
 ### Pending Todos
 
@@ -52,5 +58,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: v2.0 roadmap created -- ready to plan Phase 15 (Markdown Rendering)
-Resume file: .planning/ROADMAP.md
+Stopped at: Completed 15-02-PLAN.md (Markdown Integration) -- Phase 15 fully complete
+Resume file: .planning/phases/16-reasoning-models/16-02-PLAN.md
