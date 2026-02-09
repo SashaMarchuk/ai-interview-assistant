@@ -80,6 +80,30 @@ export async function streamSSE(
     throw new Error(`${providerName} error ${response.status}: ${errorText || 'Unknown error'}`);
   }
 
+  // Non-streaming fallback: some reasoning models return JSON instead of SSE.
+  // Detect by checking content-type header and handle gracefully.
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json') && !contentType.includes('text/event-stream')) {
+    try {
+      const json = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+        error?: { message: string };
+      };
+      if (json.error) {
+        onError(new Error(json.error.message));
+        return;
+      }
+      const content = json.choices?.[0]?.message?.content;
+      if (content) {
+        onToken(content);
+      }
+      onComplete();
+      return;
+    } catch {
+      throw new Error(`${providerName}: failed to parse non-streaming JSON response`);
+    }
+  }
+
   // Get response body reader
   const reader = response.body?.getReader();
   if (!reader) {

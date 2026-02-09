@@ -7,7 +7,7 @@
 
 import { streamSSE } from './streamSSE';
 import type { LLMProvider, ProviderId, ProviderStreamOptions, ModelInfo } from './LLMProvider';
-import { isReasoningModel } from './LLMProvider';
+import { isReasoningModel, MIN_REASONING_TOKEN_BUDGET } from './LLMProvider';
 
 /** OpenAI API endpoint */
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
@@ -55,10 +55,30 @@ export class OpenAIProvider implements LLMProvider {
     const { model, systemPrompt, userPrompt, maxTokens, apiKey } = options;
     const reasoning = isReasoningModel(model);
 
-    // Reasoning models (o1, o3) use max_completion_tokens; standard models use max_tokens
+    // Reasoning models use 'developer' role; standard models use 'system'
+    const messages = [
+      { role: reasoning ? 'developer' : 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+
+    // Reasoning models use max_completion_tokens with minimum 25K budget;
+    // standard models use max_tokens as-is
     const tokenLimit = reasoning
-      ? { max_completion_tokens: maxTokens }
+      ? { max_completion_tokens: Math.max(maxTokens, MIN_REASONING_TOKEN_BUDGET) }
       : { max_tokens: maxTokens };
+
+    // Build request body -- reasoning models exclude temperature/top_p
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      ...tokenLimit,
+      stream: true,
+    };
+
+    // Add reasoning_effort when specified for reasoning models
+    if (reasoning && options.reasoningEffort) {
+      body.reasoning_effort = options.reasoningEffort;
+    }
 
     await streamSSE(
       {
@@ -66,15 +86,7 @@ export class OpenAIProvider implements LLMProvider {
         headers: {
           Authorization: `Bearer ${apiKey}`,
         },
-        body: {
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          ...tokenLimit,
-          stream: true,
-        },
+        body,
         providerName: 'OpenAI',
       },
       options,
