@@ -3,6 +3,11 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { Overlay } from '../src/overlay';
 import { storeReadyPromise, useStore } from '../src/store';
 import { useCaptureMode, type CaptureState } from '../src/hooks';
+import {
+  safeSendMessage,
+  isExtensionContextValid,
+  safeMessageListener,
+} from '../src/utils/messaging';
 import '../src/assets/app.css';
 import type { TranscriptEntry, LLMResponse } from '../src/types/transcript';
 import type {
@@ -219,7 +224,12 @@ async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Pr
   };
 
   try {
-    const response = await chrome.runtime.sendMessage(message);
+    const result = await safeSendMessage(message);
+    if (result.contextInvalid) {
+      window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
+      return;
+    }
+    const response = result.data as { success?: boolean; error?: string } | undefined;
     if (!response?.success) {
       console.error(
         'AI Interview Assistant: LLM request failed:',
@@ -262,7 +272,12 @@ async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<
   };
 
   try {
-    const response = await chrome.runtime.sendMessage(message);
+    const result = await safeSendMessage(message);
+    if (result.contextInvalid) {
+      window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
+      return;
+    }
+    const response = result.data as { success?: boolean; error?: string } | undefined;
     if (!response?.success) {
       console.error(
         'AI Interview Assistant: Reasoning request failed:',
@@ -353,68 +368,71 @@ export default defineContentScript({
     console.log('AI Interview Assistant: Content script loaded on Meet page');
 
     // Set up message listener for messages from Service Worker/Popup
-    chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-      switch (message.type) {
-        case 'TRANSCRIPT_UPDATE':
-          dispatchTranscriptUpdate(message.entries);
-          return false;
+    chrome.runtime.onMessage.addListener(
+      safeMessageListener((_message, _sender, sendResponse) => {
+        const message = _message as ExtensionMessage;
+        switch (message.type) {
+          case 'TRANSCRIPT_UPDATE':
+            dispatchTranscriptUpdate(message.entries);
+            return false;
 
-        case 'LLM_STREAM':
-          handleLLMStream(message);
-          return false;
+          case 'LLM_STREAM':
+            handleLLMStream(message);
+            return false;
 
-        case 'LLM_STATUS':
-          // Only log errors
-          if (message.status === 'error') {
-            console.error('AI Interview Assistant: LLM error:', message.error);
-          }
-          handleLLMStatus(message);
-          return false;
+          case 'LLM_STATUS':
+            // Only log errors
+            if (message.status === 'error') {
+              console.error('AI Interview Assistant: LLM error:', message.error);
+            }
+            handleLLMStatus(message);
+            return false;
 
-        case 'REQUEST_MIC_PERMISSION':
-          // Handle mic permission request from popup
-          // Content scripts run in the web page context, so permission prompts work properly here
-          console.log('AI Interview Assistant: Requesting mic permission from page context');
-          navigator.mediaDevices
-            .getUserMedia({ audio: true })
-            .then((stream) => {
-              // Permission granted - immediately stop the stream (we just needed the permission)
-              stream.getTracks().forEach((track) => track.stop());
-              console.log('AI Interview Assistant: Mic permission granted');
-              sendResponse({ success: true });
-            })
-            .catch((error) => {
-              console.error('AI Interview Assistant: Mic permission denied', error);
-              sendResponse({ success: false, error: error.message || 'Permission denied' });
-            });
-          return true; // Keep channel open for async response
+          case 'REQUEST_MIC_PERMISSION':
+            // Handle mic permission request from popup
+            // Content scripts run in the web page context, so permission prompts work properly here
+            console.log('AI Interview Assistant: Requesting mic permission from page context');
+            navigator.mediaDevices
+              .getUserMedia({ audio: true })
+              .then((stream) => {
+                // Permission granted - immediately stop the stream (we just needed the permission)
+                stream.getTracks().forEach((track) => track.stop());
+                console.log('AI Interview Assistant: Mic permission granted');
+                sendResponse({ success: true });
+              })
+              .catch((error) => {
+                console.error('AI Interview Assistant: Mic permission denied', error);
+                sendResponse({ success: false, error: error.message || 'Permission denied' });
+              });
+            return true; // Keep channel open for async response
 
-        case 'CONNECTION_STATE':
-          // Dispatch custom event for Overlay to consume (for HealthIndicator)
-          // Only log non-connected states
-          if (message.state !== 'connected') {
-            console.log(
-              'AI Interview Assistant:',
-              message.service,
-              message.state,
-              message.error || '',
+          case 'CONNECTION_STATE':
+            // Dispatch custom event for Overlay to consume (for HealthIndicator)
+            // Only log non-connected states
+            if (message.state !== 'connected') {
+              console.log(
+                'AI Interview Assistant:',
+                message.service,
+                message.state,
+                message.error || '',
+              );
+            }
+            window.dispatchEvent(
+              new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
+                detail: {
+                  service: message.service,
+                  state: message.state,
+                  error: message.error,
+                },
+              }),
             );
-          }
-          window.dispatchEvent(
-            new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
-              detail: {
-                service: message.service,
-                state: message.state,
-                error: message.error,
-              },
-            }),
-          );
-          return false;
+            return false;
 
-        default:
-          return false;
-      }
-    });
+          default:
+            return false;
+        }
+      }) as Parameters<typeof chrome.runtime.onMessage.addListener>[0],
+    );
 
     // Wait for store to sync before rendering (for blur level, hotkey settings, etc.)
     await storeReadyPromise;
@@ -459,7 +477,7 @@ export default defineContentScript({
 
     // Notify background that UI is ready
     try {
-      await chrome.runtime.sendMessage({
+      await safeSendMessage({
         type: 'UI_INJECTED',
         success: true,
       });

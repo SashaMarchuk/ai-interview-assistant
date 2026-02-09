@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
+import { safeSendMessage } from '../../src/utils/messaging';
 import { useStore } from '../../src/store';
 import { PrivacyConsentModal } from '../../src/components/consent/PrivacyConsentModal';
 import { RecordingConsentWarning } from '../../src/components/consent/RecordingConsentWarning';
@@ -78,9 +79,21 @@ function App() {
       }
 
       try {
-        const response = await chrome.runtime.sendMessage({
+        const result = await safeSendMessage<{
+          isCapturing?: boolean;
+          isTranscribing?: boolean;
+          hasActiveLLMRequest?: boolean;
+          isCaptureStartInProgress?: boolean;
+        }>({
           type: 'GET_CAPTURE_STATE',
-        } as ExtensionMessage);
+        } as unknown as Record<string, unknown>);
+
+        if (result.contextInvalid) {
+          setCaptureStatus('Extension updated - reopen popup');
+          return;
+        }
+
+        const response = result.data;
 
         // Also skip if background reports capture start in progress
         // This handles the case where background is still processing START_CAPTURE
@@ -213,27 +226,35 @@ function App() {
 
       // Step 2: Start tab audio capture
       setCaptureStatus('Starting tab capture...');
-      const tabResponse = await chrome.runtime.sendMessage({
+      const tabResult = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_CAPTURE',
-      } as ExtensionMessage);
+      } as unknown as Record<string, unknown>);
 
-      if (!tabResponse?.success) {
+      if (tabResult.contextInvalid) {
+        throw new Error('Extension was updated. Please close and reopen this popup.');
+      }
+      if (!tabResult.data?.success) {
         const errorMsg =
-          typeof tabResponse?.error === 'string' ? tabResponse.error : 'Tab capture failed';
+          typeof tabResult.data?.error === 'string' ? tabResult.data.error : 'Tab capture failed';
         throw new Error(errorMsg);
       }
 
       // Step 3: Start microphone capture
       setCaptureStatus('Starting mic capture...');
-      const micResponse = await chrome.runtime.sendMessage({
+      const micResult = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_MIC_CAPTURE',
-      } as ExtensionMessage);
+      } as unknown as Record<string, unknown>);
 
-      if (!micResponse?.success) {
+      if (micResult.contextInvalid) {
+        throw new Error('Extension was updated. Please close and reopen this popup.');
+      }
+      if (!micResult.data?.success) {
         // Tab capture succeeded but mic failed - stop tab capture for clean state
-        await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } as ExtensionMessage);
+        await safeSendMessage({ type: 'STOP_CAPTURE' } as unknown as Record<string, unknown>);
         const errorMsg =
-          typeof micResponse?.error === 'string' ? micResponse.error : 'Microphone capture failed';
+          typeof micResult.data?.error === 'string'
+            ? micResult.data.error
+            : 'Microphone capture failed';
         throw new Error(errorMsg);
       }
 
@@ -302,14 +323,26 @@ function App() {
       }
 
       // Stop tab capture
-      await chrome.runtime.sendMessage({
+      const stopTabResult = await safeSendMessage({
         type: 'STOP_CAPTURE',
-      } as ExtensionMessage);
+      } as unknown as Record<string, unknown>);
+
+      if (stopTabResult.contextInvalid) {
+        setCaptureError('Extension was updated. Please close and reopen this popup.');
+        setCaptureStatus('Error');
+        return;
+      }
 
       // Stop microphone capture
-      await chrome.runtime.sendMessage({
+      const stopMicResult = await safeSendMessage({
         type: 'STOP_MIC_CAPTURE',
-      } as ExtensionMessage);
+      } as unknown as Record<string, unknown>);
+
+      if (stopMicResult.contextInvalid) {
+        setCaptureError('Extension was updated. Please close and reopen this popup.');
+        setCaptureStatus('Error');
+        return;
+      }
 
       setIsCapturing(false);
       setCaptureStatus('Idle');
@@ -338,13 +371,16 @@ function App() {
     setTranscriptionStatus('Starting...');
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const result = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_TRANSCRIPTION',
         languageCode: transcriptionLanguage || undefined,
-      } as ExtensionMessage);
+      } as unknown as Record<string, unknown>);
 
-      if (!response?.success) {
-        throw new Error(response?.error || 'Failed to start transcription');
+      if (result.contextInvalid) {
+        throw new Error('Extension was updated. Please close and reopen this popup.');
+      }
+      if (!result.data?.success) {
+        throw new Error(result.data?.error || 'Failed to start transcription');
       }
 
       setIsTranscribing(true);
@@ -362,9 +398,14 @@ function App() {
    */
   async function handleStopTranscription() {
     try {
-      await chrome.runtime.sendMessage({
+      const result = await safeSendMessage({
         type: 'STOP_TRANSCRIPTION',
-      } as ExtensionMessage);
+      } as unknown as Record<string, unknown>);
+
+      if (result.contextInvalid) {
+        setTranscriptionStatus('Extension was updated. Please close and reopen this popup.');
+        return;
+      }
 
       setIsTranscribing(false);
       setTranscriptionStatus('Stopped');

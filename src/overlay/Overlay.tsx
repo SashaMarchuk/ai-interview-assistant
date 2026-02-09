@@ -145,6 +145,9 @@ export function Overlay({ response }: OverlayProps) {
   // Use ref to track reasoning state in event listener without stale closures
   const isReasoningPendingRef = useRef(false);
 
+  // Extension context invalidated state
+  const [contextInvalid, setContextInvalid] = useState(false);
+
   // Health issues for status display
   const [connectionIssues, setConnectionIssues] = useState<HealthIssue[]>([]);
 
@@ -182,6 +185,13 @@ export function Overlay({ response }: OverlayProps) {
       window.removeEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
       window.removeEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
     };
+  }, []);
+
+  // Listen for extension context invalidation (extension updated/reloaded)
+  useEffect(() => {
+    const handler = () => setContextInvalid(true);
+    window.addEventListener('extension-context-invalidated', handler);
+    return () => window.removeEventListener('extension-context-invalidated', handler);
   }, []);
 
   // Listen for connection state updates from background (for HealthIndicator)
@@ -369,6 +379,16 @@ export function Overlay({ response }: OverlayProps) {
         className="overlay-container relative flex h-full flex-col overflow-hidden rounded-lg border border-white/20 bg-black/10 shadow-2xl"
         style={backdropStyle}
       >
+        {/* Context-invalidated banner */}
+        {contextInvalid && (
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-amber-500/90 px-3 py-1.5 text-center text-xs font-medium text-black hover:bg-amber-400/90"
+          >
+            Extension updated — click to refresh
+          </button>
+        )}
+
         {/* Health indicator at very top (absolute positioned, z-20) */}
         <HealthIndicator issues={allHealthIssues} />
 
