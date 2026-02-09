@@ -15,8 +15,18 @@ import type { StateStorage } from 'zustand/middleware';
 import { chromeStorage } from '../../store/chromeStorage';
 import { encryptionService } from './encryption';
 
+type EncryptedFieldName = 'elevenLabs' | 'openRouter' | 'openAI';
+
 /** API key field names that should be encrypted */
-const ENCRYPTED_FIELDS = ['elevenLabs', 'openRouter', 'openAI'] as const;
+const ENCRYPTED_FIELDS: readonly EncryptedFieldName[] = ['elevenLabs', 'openRouter', 'openAI'];
+
+interface PersistedStoreData {
+  state?: {
+    apiKeys?: Record<string, string>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 
 /**
  * Decrypt apiKeys values in parsed state, with plaintext fallback for migration.
@@ -78,7 +88,7 @@ export const encryptedChromeStorage: StateStorage = {
     if (raw === null) return null;
 
     try {
-      const parsed = JSON.parse(raw);
+      const parsed: PersistedStoreData = JSON.parse(raw);
 
       if (parsed.state?.apiKeys) {
         parsed.state.apiKeys = await decryptApiKeys(parsed.state.apiKeys);
@@ -96,7 +106,7 @@ export const encryptedChromeStorage: StateStorage = {
    */
   setItem: async (name: string, value: string): Promise<void> => {
     try {
-      const parsed = JSON.parse(value);
+      const parsed: PersistedStoreData = JSON.parse(value);
 
       if (parsed.state?.apiKeys) {
         parsed.state.apiKeys = await encryptApiKeys(parsed.state.apiKeys);

@@ -10,6 +10,8 @@ import type {
   LLMRequestMessage,
   LLMStreamMessage,
   LLMStatusMessage,
+  ConnectionService,
+  ConnectionStatus,
 } from '../src/types/messages';
 
 // Only inject on active Google Meet meeting pages (not landing/join pages)
@@ -33,8 +35,8 @@ export interface LLMResponseEventDetail {
 
 // Custom event type for connection state updates (for HealthIndicator)
 export interface ConnectionStateEventDetail {
-  service: 'stt-tab' | 'stt-mic' | 'llm';
-  state: 'connected' | 'disconnected' | 'reconnecting' | 'error';
+  service: ConnectionService;
+  state: ConnectionStatus;
   error?: string;
 }
 

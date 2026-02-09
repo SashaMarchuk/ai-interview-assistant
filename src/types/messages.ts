@@ -309,6 +309,8 @@ export type ExtensionMessage =
   | LLMCancelMessage
   | ConnectionStateMessage;
 
+export type InternalMessage = ExtensionMessage & { _fromBackground?: true };
+
 // Type guard for message checking (constraint widened to support internal message types)
 export function isMessage<T extends { type: string }>(
   message: unknown,

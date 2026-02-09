@@ -519,11 +519,20 @@ async function handleLLMRequest(
   });
 }
 
+type MessageResponse =
+  | PongMessage
+  | { type: string }
+  | { received: boolean }
+  | { success: boolean; error?: string }
+  | { isCapturing: boolean; isTranscribing: boolean; hasActiveLLMRequest: boolean; isCaptureStartInProgress: boolean }
+  | { error: string }
+  | undefined;
+
 // Queue guard for store hydration -- messages arriving before store is ready are queued
 interface QueuedMessage {
   message: ExtensionMessage;
   sender: chrome.runtime.MessageSender;
-  sendResponse: (response: unknown) => void;
+  sendResponse: (response: MessageResponse) => void;
 }
 const messageQueue: QueuedMessage[] = [];
 let storeReady = false;
@@ -593,7 +602,7 @@ const LOGGED_MESSAGE_TYPES = [
 async function handleMessage(
   message: ExtensionMessage,
   _sender: chrome.runtime.MessageSender,
-): Promise<unknown> {
+): Promise<MessageResponse> {
   // Only log important events to reduce console spam
   if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
     console.log('Background:', message.type);

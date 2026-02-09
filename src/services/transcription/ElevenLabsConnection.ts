@@ -64,7 +64,7 @@ export class ElevenLabsConnection {
    * Get the speaker label based on audio source.
    * @returns 'You' for microphone, 'Interviewer' for tab audio
    */
-  get speakerLabel(): string {
+  get speakerLabel(): 'You' | 'Interviewer' {
     return this.config.source === 'mic' ? 'You' : 'Interviewer';
   }
 
@@ -227,10 +227,7 @@ export class ElevenLabsConnection {
     const chunkSize = 8192;
     for (let i = 0; i < len; i += chunkSize) {
       const end = Math.min(i + chunkSize, len);
-      binaryString += String.fromCharCode.apply(
-        null,
-        uint8Array.subarray(i, end) as unknown as number[],
-      );
+      binaryString += String.fromCharCode(...Array.from(uint8Array.subarray(i, end)));
     }
     const base64 = btoa(binaryString);
 

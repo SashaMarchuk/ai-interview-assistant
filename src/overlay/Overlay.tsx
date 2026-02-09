@@ -17,6 +17,8 @@ import type {
   ConnectionStateEventDetail,
 } from '../../entrypoints/content';
 
+type TypedCustomEventHandler<T> = (event: CustomEvent<T>) => void;
+
 interface OverlayProps {
   // Optional response prop for testing (real state comes via events)
   response?: LLMResponse | null;
@@ -127,37 +129,37 @@ export function Overlay({ response }: OverlayProps) {
   // Consolidated event listeners for transcript, LLM response, and capture state
   // Using useCallback to create stable handler references
   useEffect(() => {
-    const handleTranscriptUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<TranscriptUpdateEventDetail>;
-      setTranscript(customEvent.detail.entries);
+    const handleTranscriptUpdate: TypedCustomEventHandler<TranscriptUpdateEventDetail> = (
+      event,
+    ) => {
+      setTranscript(event.detail.entries);
     };
 
-    const handleLLMResponseUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<LLMResponseEventDetail>;
-      setLLMResponse(customEvent.detail.response);
+    const handleLLMResponseUpdate: TypedCustomEventHandler<LLMResponseEventDetail> = (event) => {
+      setLLMResponse(event.detail.response);
     };
 
-    const handleCaptureStateUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<CaptureStateEventDetail>;
-      setCaptureState(customEvent.detail.state);
+    const handleCaptureStateUpdate: TypedCustomEventHandler<CaptureStateEventDetail> = (event) => {
+      setCaptureState(event.detail.state);
     };
 
-    window.addEventListener('transcript-update', handleTranscriptUpdate);
-    window.addEventListener('llm-response-update', handleLLMResponseUpdate);
-    window.addEventListener('capture-state-update', handleCaptureStateUpdate);
+    window.addEventListener('transcript-update', handleTranscriptUpdate as EventListener);
+    window.addEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
+    window.addEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
 
     return () => {
-      window.removeEventListener('transcript-update', handleTranscriptUpdate);
-      window.removeEventListener('llm-response-update', handleLLMResponseUpdate);
-      window.removeEventListener('capture-state-update', handleCaptureStateUpdate);
+      window.removeEventListener('transcript-update', handleTranscriptUpdate as EventListener);
+      window.removeEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
+      window.removeEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
     };
   }, []);
 
   // Listen for connection state updates from background (for HealthIndicator)
   useEffect(() => {
-    function handleConnectionStateUpdate(event: Event) {
-      const customEvent = event as CustomEvent<ConnectionStateEventDetail>;
-      const { service, state, error } = customEvent.detail;
+    const handleConnectionStateUpdate: TypedCustomEventHandler<ConnectionStateEventDetail> = (
+      event,
+    ) => {
+      const { service, state, error } = event.detail;
 
       setConnectionIssues((prev) => {
         // Remove existing issue for this service
@@ -167,37 +169,49 @@ export function Overlay({ response }: OverlayProps) {
 
         // Only add connection issue if not connected
         if (state !== 'connected') {
-          const statusMap: Record<string, 'warning' | 'error' | 'reconnecting'> = {
+          type NonConnectedState = 'disconnected' | 'reconnecting' | 'error';
+          const statusMap: Record<NonConnectedState, HealthIssue['status']> = {
             disconnected: 'warning',
             reconnecting: 'reconnecting',
             error: 'error',
           };
-          const messageMap: Record<string, string> = {
+          const messageMap: Record<NonConnectedState, string> = {
             disconnected: 'Disconnected',
             reconnecting: 'Reconnecting...',
             error: error || 'Connection error',
           };
 
-          const serviceName =
-            service === 'stt-tab' ? 'Tab STT' : service === 'stt-mic' ? 'Mic STT' : 'LLM-conn';
+          const serviceNameMap: Record<ConnectionStateEventDetail['service'], string> = {
+            'stt-tab': 'Tab STT',
+            'stt-mic': 'Mic STT',
+            llm: 'LLM-conn',
+          };
+          const serviceName = serviceNameMap[service];
 
+          const nonConnectedState = state as NonConnectedState;
           return [
             ...remaining,
             {
               service: serviceName,
-              status: statusMap[state] || 'error',
-              message: messageMap[state] || state,
+              status: statusMap[nonConnectedState],
+              message: messageMap[nonConnectedState],
             },
           ];
         }
 
         return remaining;
       });
-    }
+    };
 
-    window.addEventListener('connection-state-update', handleConnectionStateUpdate);
+    window.addEventListener(
+      'connection-state-update',
+      handleConnectionStateUpdate as EventListener,
+    );
     return () => {
-      window.removeEventListener('connection-state-update', handleConnectionStateUpdate);
+      window.removeEventListener(
+        'connection-state-update',
+        handleConnectionStateUpdate as EventListener,
+      );
     };
   }, []);
 

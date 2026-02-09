@@ -118,11 +118,10 @@ class EncryptionService {
     );
 
     // Derive AES-GCM-256 key (non-extractable)
-    // Cast salt to BufferSource to satisfy TS 5.x strict ArrayBuffer typing
     this.key = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt: salt as BufferSource,
+        salt: salt.buffer as ArrayBuffer,
         iterations: PBKDF2_ITERATIONS,
         hash: 'SHA-256',
       },

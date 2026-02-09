@@ -15,6 +15,7 @@ import type {
   TranscriptPartialMessage,
   TranscriptFinalMessage,
   ConnectionStateMessage,
+  InternalMessage,
 } from '../../src/types/messages';
 import { isMessage } from '../../src/types/messages';
 import { ElevenLabsConnection } from '../../src/services/transcription';
@@ -70,7 +71,17 @@ async function startTabCapture(streamId: string): Promise<void> {
   try {
     // Get MediaStream using Chrome's tab capture API
     // Note: mandatory syntax is deprecated but REQUIRED for chromeMediaSource
-    const constraints = {
+    interface ChromeTabCaptureConstraints {
+      audio: {
+        mandatory: {
+          chromeMediaSource: string;
+          chromeMediaSourceId: string;
+        };
+      };
+      video: boolean;
+    }
+
+    const constraints: ChromeTabCaptureConstraints = {
       audio: {
         mandatory: {
           chromeMediaSource: 'tab',
@@ -81,7 +92,7 @@ async function startTabCapture(streamId: string): Promise<void> {
     };
 
     tabStream = await (
-      navigator.mediaDevices.getUserMedia as (constraints: unknown) => Promise<MediaStream>
+      navigator.mediaDevices.getUserMedia as (constraints: ChromeTabCaptureConstraints) => Promise<MediaStream>
     )(constraints);
 
     // Create AudioContext at 16kHz for STT
@@ -472,7 +483,7 @@ const LOGGED_MESSAGE_TYPES = [
 ];
 
 // Register message listener
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResponse) => {
   // Only log important events
   if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
     console.log('Offscreen:', message.type);
