@@ -128,10 +128,18 @@ async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
   await broadcastTranscript();
 }
 
+// Guard: only run init chain in real extension context (skip during Vite pre-rendering)
+const isRealExtension = (() => {
+  try {
+    return !!(typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.());
+  } catch {
+    return false;
+  }
+})();
+
 // Initialize encryption before store rehydration, then initialize store
-encryptionService
-  .initialize()
-  .then(() => circuitBreakerManager.rehydrate())
+(isRealExtension ? encryptionService.initialize() : Promise.resolve())
+  .then(() => (isRealExtension ? circuitBreakerManager.rehydrate() : undefined))
   .then(() => storeReadyPromise)
   .then(async () => {
     // Check if recovering from SW termination during active transcription

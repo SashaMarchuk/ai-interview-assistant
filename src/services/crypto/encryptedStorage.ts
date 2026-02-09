@@ -28,22 +28,37 @@ interface PersistedStoreData {
   [key: string]: unknown;
 }
 
+/** Check if chrome.storage APIs are available (false during Vite pre-rendering) */
+function hasChromeStorage(): boolean {
+  try {
+    return !!(typeof chrome !== 'undefined' && chrome.storage?.local);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure encryption service is initialized. Returns false if not possible
+ * (non-extension context like Vite pre-rendering).
+ */
+async function ensureEncryption(): Promise<boolean> {
+  if (!hasChromeStorage()) return false;
+  try {
+    await encryptionService.initialize();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Decrypt apiKeys values in parsed state, with plaintext fallback for migration.
- * If encryption service is not initialized (non-background context), passes through as-is.
+ * Waits for encryption service to be ready to prevent race conditions.
  */
 async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
   const result = { ...apiKeys };
 
-  // Wait for encryption service to be ready before attempting decryption.
-  // This prevents a race condition where store hydration runs before
-  // the encryption key is derived, returning encrypted garbage as-is.
-  try {
-    await encryptionService.initialize();
-  } catch {
-    // Non-background context or init failed -- pass through as-is
-    return result;
-  }
+  if (!(await ensureEncryption())) return result;
 
   for (const field of ENCRYPTED_FIELDS) {
     const value = result[field];
@@ -62,17 +77,12 @@ async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<s
 
 /**
  * Encrypt apiKeys values in parsed state.
- * If encryption service is not initialized (non-background context), passes through as-is.
+ * Waits for encryption service to be ready.
  */
 async function encryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
   const result = { ...apiKeys };
 
-  try {
-    await encryptionService.initialize();
-  } catch {
-    // Non-background context or init failed -- pass through as-is
-    return result;
-  }
+  if (!(await ensureEncryption())) return result;
 
   for (const field of ENCRYPTED_FIELDS) {
     const value = result[field];
