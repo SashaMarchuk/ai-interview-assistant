@@ -12,6 +12,25 @@ import type { LLMProvider, ProviderId, ProviderStreamOptions, ModelInfo } from '
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 /**
+ * OpenAI reasoning models (o-series) that require different API parameters:
+ * - Use `max_completion_tokens` instead of `max_tokens`
+ * - Do not support `temperature`, `top_p`, or `system` role messages in some API versions
+ */
+const OPENAI_REASONING_MODEL_PREFIXES = ['o1', 'o3'];
+
+/**
+ * Check if a model ID is an OpenAI reasoning model (o-series).
+ * Matches: o1, o1-mini, o1-preview, o1-pro, o3-mini, etc.
+ */
+function isReasoningModel(modelId: string): boolean {
+  // Strip provider prefix if present (e.g. "openai/o1" -> "o1")
+  const bareModel = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
+  return OPENAI_REASONING_MODEL_PREFIXES.some(
+    (prefix) => bareModel === prefix || bareModel.startsWith(`${prefix}-`),
+  );
+}
+
+/**
  * Available models on OpenAI
  * Includes all current frontend models as of 2025
  */
@@ -52,6 +71,12 @@ export class OpenAIProvider implements LLMProvider {
 
   async streamResponse(options: ProviderStreamOptions): Promise<void> {
     const { model, systemPrompt, userPrompt, maxTokens, apiKey } = options;
+    const reasoning = isReasoningModel(model);
+
+    // Reasoning models (o1, o3) use max_completion_tokens; standard models use max_tokens
+    const tokenLimit = reasoning
+      ? { max_completion_tokens: maxTokens }
+      : { max_tokens: maxTokens };
 
     await streamSSE(
       {
@@ -65,7 +90,7 @@ export class OpenAIProvider implements LLMProvider {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          max_tokens: maxTokens,
+          ...tokenLimit,
           stream: true,
         },
         providerName: 'OpenAI',

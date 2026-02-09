@@ -381,7 +381,7 @@ function App() {
   }
 
   return (
-    <div className="w-96 bg-white">
+    <div className="flex max-h-[600px] w-96 flex-col bg-white">
       {/* Header */}
       <div className="border-b border-gray-200 px-4 pt-4 pb-2">
         <h1 className="text-lg font-bold text-gray-900">AI Interview Assistant</h1>
@@ -405,7 +405,7 @@ function App() {
       </div>
 
       {/* Tab Content */}
-      <div className="max-h-[500px] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {activeTab === 'capture' && (
           <div className="space-y-4 p-4">
             {/* Audio Capture Section */}
