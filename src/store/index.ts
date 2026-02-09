@@ -43,6 +43,7 @@ export const useStore = create<StoreState>()(
         blurLevel: state.blurLevel,
         hotkeys: state.hotkeys,
         captureMode: state.captureMode,
+        transcriptionLanguage: state.transcriptionLanguage,
         templates: state.templates,
         activeTemplateId: state.activeTemplateId,
         privacyPolicyAccepted: state.privacyPolicyAccepted,

@@ -625,7 +625,7 @@ function App() {
 
       {/* Footer */}
       <div className="border-t border-gray-200 px-4 py-2">
-        <div className="text-xs text-gray-400">v0.2.0 - Audio Capture</div>
+        <div className="text-xs text-gray-400">v{__APP_VERSION__} - Audio Capture</div>
       </div>
     </div>
   );

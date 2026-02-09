@@ -254,7 +254,7 @@ async function startMicCapture(): Promise<void> {
     // NOTE: Do NOT connect to destination - we don't want to hear ourselves
 
     // Load AudioWorklet processor (same as tab capture)
-    await micAudioContext.audioWorklet.addModule('/pcm-processor.js');
+    await micAudioContext.audioWorklet.addModule(chrome.runtime.getURL('pcm-processor.js'));
 
     // Create worklet node for PCM conversion
     micWorkletNode = new AudioWorkletNode(micAudioContext, 'pcm-processor');

@@ -87,15 +87,22 @@ export async function streamSSE(
   }
 
   const decoder = new TextDecoder('utf-8');
-  let isComplete = false;
+  let completed = false;
+
+  /** Guard against double onComplete invocation (e.g., [DONE] marker + reader done) */
+  function completeOnce(): void {
+    if (!completed) {
+      completed = true;
+      onComplete();
+    }
+  }
 
   // Create SSE parser
   const parser: EventSourceParser = createParser({
     onEvent: (event: EventSourceMessage) => {
       // Check for stream completion marker
       if (event.data === '[DONE]') {
-        isComplete = true;
-        onComplete();
+        completeOnce();
         return;
       }
 
@@ -136,10 +143,8 @@ export async function streamSSE(
       const { done, value } = await reader.read();
 
       if (done) {
-        // Stream ended without [DONE] marker
-        if (!isComplete) {
-          onComplete();
-        }
+        // Stream ended without [DONE] marker - complete if not already done
+        completeOnce();
         break;
       }
 

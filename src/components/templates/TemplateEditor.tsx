@@ -34,6 +34,12 @@ const TYPE_OPTIONS: { value: TemplateType; label: string }[] = [
  */
 function useDebouncedCallback<T>(callback: (value: T) => void, delay: number): (value: T) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const callbackRef = useRef(callback);
+
+  // Always keep the ref pointing to the latest callback to avoid stale closures
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   // Clean up pending timeout on unmount to prevent stale callback execution
   useEffect(() => {
@@ -50,10 +56,10 @@ function useDebouncedCallback<T>(callback: (value: T) => void, delay: number): (
         clearTimeout(timeoutRef.current);
       }
       timeoutRef.current = setTimeout(() => {
-        callback(value);
+        callbackRef.current(value);
       }, delay);
     },
-    [callback, delay],
+    [delay],
   );
 }
 

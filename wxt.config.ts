@@ -2,6 +2,7 @@ import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { resolve } from 'path';
+import { version } from './package.json';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
@@ -15,6 +16,9 @@ export default defineConfig({
     // The @tailwindcss/vite plugin returns a Vite plugin but WXT's types don't match exactly.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WXT/Vite plugin type mismatch requires cast
     plugins: [tailwindcss() as any, tsconfigPaths()],
+    define: {
+      __APP_VERSION__: JSON.stringify(version),
+    },
     resolve: {
       alias: {
         '@': resolve(__dirname, './src'),

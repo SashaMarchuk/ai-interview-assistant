@@ -23,6 +23,8 @@ import {
   setStateChangeCallback,
 } from '../src/services/circuitBreaker/circuitBreakerManager';
 import { CircuitState } from '../src/services/circuitBreaker/types';
+import { encryptionService } from '../src/services/crypto/encryption';
+import { storeReadyPromise } from '../src/store';
 
 // Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
 setStateChangeCallback((serviceId, state) => {
@@ -127,9 +129,6 @@ async function addTranscriptEntry(entry: TranscriptEntry): Promise<void> {
 }
 
 // Initialize encryption before store rehydration, then initialize store
-import { encryptionService } from '../src/services/crypto/encryption';
-import { storeReadyPromise } from '../src/store';
-
 encryptionService
   .initialize()
   .then(() => circuitBreakerManager.rehydrate())
