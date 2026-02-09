@@ -5,6 +5,7 @@
  * Dynamically fetches available models from provider layer based on configured API keys.
  */
 
+import { useMemo } from 'react';
 import { useStore } from '../../store';
 import type { ModelType } from '../../store';
 import { getAvailableModels, type ModelInfo } from '../../services/llm';
@@ -21,21 +22,23 @@ function ModelSelect({ label, description, modelType, category }: ModelSelectPro
   const setModel = useStore((state) => state.setModel);
   const apiKeys = useStore((state) => state.apiKeys);
 
-  // Get available models from provider layer based on configured API keys
-  const allModels = getAvailableModels({
-    openAI: apiKeys.openAI,
-    openRouter: apiKeys.openRouter,
-  });
-
-  // Filter by category (fast/full)
-  const availableOptions = allModels.filter((model: ModelInfo) => model.category === category);
-
-  // Group models by provider for optgroups
-  const openaiModels = availableOptions.filter((m: ModelInfo) => m.provider === 'openai');
-  const openrouterModels = availableOptions.filter((m: ModelInfo) => m.provider === 'openrouter');
-
   const currentValue = models[modelType];
-  const isCurrentAvailable = availableOptions.some((m: ModelInfo) => m.id === currentValue);
+
+  // Memoize model lists to avoid re-filtering on every render
+  // Only recompute when API keys or category change
+  const { availableOptions, openaiModels, openrouterModels, isCurrentAvailable } = useMemo(() => {
+    const allModels = getAvailableModels({
+      openAI: apiKeys.openAI,
+      openRouter: apiKeys.openRouter,
+    });
+    const available = allModels.filter((model: ModelInfo) => model.category === category);
+    return {
+      availableOptions: available,
+      openaiModels: available.filter((m: ModelInfo) => m.provider === 'openai'),
+      openrouterModels: available.filter((m: ModelInfo) => m.provider === 'openrouter'),
+      isCurrentAvailable: available.some((m: ModelInfo) => m.id === currentValue),
+    };
+  }, [apiKeys.openAI, apiKeys.openRouter, category, currentValue]);
 
   return (
     <div>

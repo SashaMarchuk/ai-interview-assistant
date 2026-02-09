@@ -30,9 +30,19 @@ const TYPE_OPTIONS: { value: TemplateType; label: string }[] = [
  *
  * Note: delay is included in deps for correctness - if delay ever changes,
  * the callback will use the new value. This is intentional.
+ * Cleans up pending timeout on unmount to prevent memory leaks and stale calls.
  */
 function useDebouncedCallback<T>(callback: (value: T) => void, delay: number): (value: T) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Clean up pending timeout on unmount to prevent stale callback execution
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return useCallback(
     (value: T) => {

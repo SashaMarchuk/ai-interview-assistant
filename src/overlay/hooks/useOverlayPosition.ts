@@ -2,6 +2,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   type Dispatch,
   type SetStateAction,
@@ -180,8 +181,9 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
   /**
    * Calculate actual position for the expanded overlay.
    * Handles -1 sentinel value for first-time users (bottom-right default).
+   * Memoized to avoid recalculating on every render when deps haven't changed.
    */
-  const getPosition = useCallback(() => {
+  const position = useMemo(() => {
     if (state.x === -1 || state.y === -1) {
       return {
         x: window.innerWidth - state.width - MARGIN,
@@ -194,8 +196,9 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
   /**
    * Get position for minimized button.
    * Defaults to top-right corner (won't block Meet navigation at bottom).
+   * Memoized to avoid recalculating on every render when deps haven't changed.
    */
-  const getMinimizedPosition = useCallback(() => {
+  const minimizedPosition = useMemo(() => {
     if (state.minBtnX === -1 || state.minBtnY === -1) {
       return getDefaultMinimizedPosition();
     }
@@ -218,10 +221,16 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
     setState((prev) => ({ ...prev, minBtnX: pos.x, minBtnY: pos.y }));
   }, []);
 
+  // Memoize size object to prevent new object creation on every render
+  const size = useMemo(
+    () => ({ width: state.width, height: state.height }),
+    [state.width, state.height],
+  );
+
   return {
-    position: getPosition(),
-    minimizedPosition: getMinimizedPosition(),
-    size: { width: state.width, height: state.height },
+    position,
+    minimizedPosition,
+    size,
     isMinimized: state.isMinimized,
     isLoaded,
     setPosition,

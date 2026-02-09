@@ -26,6 +26,26 @@ interface OverlayProps {
 const MIN_BTN_WIDTH = 56;
 const MIN_BTN_HEIGHT = 44;
 
+// Static Rnd configuration objects - defined outside component to avoid recreation on every render
+const ENABLE_RESIZING = {
+  top: false,
+  right: true,
+  bottom: true,
+  left: false,
+  topRight: false,
+  bottomRight: true,
+  bottomLeft: false,
+  topLeft: false,
+} as const;
+
+const RESIZE_HANDLE_STYLES = {
+  right: { cursor: 'ew-resize' as const },
+  bottom: { cursor: 'ns-resize' as const },
+  bottomRight: { cursor: 'nwse-resize' as const },
+} as const;
+
+const MINIMIZED_SIZE = { width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT };
+
 /**
  * Status indicator component for footer.
  * Memoized to prevent re-renders when other overlay state changes.
@@ -207,6 +227,13 @@ export function Overlay({ response }: OverlayProps) {
     return issues;
   }, [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI]);
 
+  // Combine API key issues with connection issues, memoized to prevent
+  // new array creation on every render (avoids unnecessary HealthIndicator re-renders)
+  const allHealthIssues = useMemo(
+    () => [...apiKeyIssues, ...connectionIssues],
+    [apiKeyIssues, connectionIssues],
+  );
+
   // Check if BOTH STT and LLM keys are missing (for setup prompt)
   // Memoize to prevent recalculation on every render
   const bothKeysMissing = useMemo(
@@ -263,7 +290,7 @@ export function Overlay({ response }: OverlayProps) {
     return (
       <Rnd
         position={minimizedPosition}
-        size={{ width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT }}
+        size={MINIMIZED_SIZE}
         enableResizing={false}
         bounds="window"
         onDragStop={handleMinimizedDragStop}
@@ -291,29 +318,16 @@ export function Overlay({ response }: OverlayProps) {
       minWidth={280}
       minHeight={200}
       bounds="window"
-      enableResizing={{
-        top: false,
-        right: true,
-        bottom: true,
-        left: false,
-        topRight: false,
-        bottomRight: true,
-        bottomLeft: false,
-        topLeft: false,
-      }}
+      enableResizing={ENABLE_RESIZING}
       className="z-[999999]"
-      resizeHandleStyles={{
-        right: { cursor: 'ew-resize' },
-        bottom: { cursor: 'ns-resize' },
-        bottomRight: { cursor: 'nwse-resize' },
-      }}
+      resizeHandleStyles={RESIZE_HANDLE_STYLES}
     >
       <div
         className="overlay-container relative flex h-full flex-col overflow-hidden rounded-lg border border-white/20 bg-black/10 shadow-2xl"
         style={backdropStyle}
       >
         {/* Health indicator at very top (absolute positioned, z-20) */}
-        <HealthIndicator issues={[...apiKeyIssues, ...connectionIssues]} />
+        <HealthIndicator issues={allHealthIssues} />
 
         {/* Capture indicator below health indicator (absolute positioned, z-10) */}
         <CaptureIndicator captureState={captureState} />

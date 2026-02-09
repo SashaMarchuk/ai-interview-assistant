@@ -7,7 +7,7 @@
  * - Highlight-to-send: Select text and press hotkey to send immediately
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 
 /**
@@ -128,8 +128,8 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
   const isHoldingRef = useRef(false);
   const captureStartTimeRef = useRef<number | null>(null);
 
-  // Parse hotkey once when it changes
-  const parsedHotkey = parseHotkey(captureHotkey);
+  // Parse hotkey once when it changes (memoized to avoid re-parsing on every render)
+  const parsedHotkey = useMemo(() => parseHotkey(captureHotkey), [captureHotkey]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
