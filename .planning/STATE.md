@@ -2,49 +2,24 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-08)
+See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Phase 14 complete. Ready for /polish-milestone then /gsd:complete-milestone to close v1.1.
+**Current focus:** Milestone v2.0 Enhanced Experience — defining requirements
 
 ## Current Position
 
-Phase: 14 of 14 (Linter & Prettier)
-Plan: 1 of 1 in current phase
-Status: Phase complete
-Last activity: 2026-02-09 -- Completed 14-01-PLAN.md
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-09 — Milestone v2.0 started
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 37 (30 v1.0 + 7 v1.1)
-- Average duration: see v1.0 metrics
-- Total execution time: v1.0 shipped in 6 days
-
-**By Phase (v1.1):**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 9. Security Foundation | 1/1 | 4min | 4min |
-| 10. Encryption Layer | 1/1 | 3min | 3min |
-| 11. Transcript Resilience | 1/1 | 2min | 2min |
-| 12. Circuit Breaker | 1/1 | 4min | 4min |
-| 13. Compliance UI | 2/2 | 6min | 3min |
-| 14. Linter & Prettier | 1/1 | 9min | 9min |
-
-**Recent Trend:**
-- 09-01: 4min (message security + queue guard)
-- 10-01: 3min (AES-GCM encryption + storage adapter)
-- 11-01: 2min (transcript buffer + SW recovery)
-- 12-01: 4min (circuit breaker + alarm recovery + background integration)
-- 13-01: 3min (consent state slice + privacy policy component)
-- 13-02: 3min (consent UI gates + privacy modal + recording warning + settings reset)
-- 14-01: 9min (ESLint 9 + Prettier + format codebase + Claude Code hook)
-- Trend: Fast execution
-
-*Updated after each plan completion*
+- v1.0 shipped in 6 days (8 phases, 30 plans)
+- v1.1 shipped in ~1 day (6 phases, 7 plans)
 
 ## Accumulated Context
 
@@ -87,10 +62,10 @@ See .planning/todos/pending/ for captured ideas.
 
 ### Blockers/Concerns
 
-- None -- All phases complete. Ready for /polish-milestone -> /gsd:complete-milestone
+- None
 
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Phase 14 complete -- all v1.1 phases done
+Stopped at: Milestone v2.0 initialization — defining requirements
 Resume file: .planning/ROADMAP.md

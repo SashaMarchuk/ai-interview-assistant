@@ -30,22 +30,28 @@ When a question is captured, get something useful on screen fast enough to start
 - Settings panel for configuration — v1.0
 - Health indicators for service issues — v1.0
 - Graceful degradation when API keys missing — v1.0
+- Secure message passing (no API keys in runtime messages) — v1.1
+- AES-GCM encryption for API keys at rest — v1.1
+- Privacy policy + in-app consent notice — v1.1
+- Recording consent legal warnings (first-time + per-session) — v1.1
+- Store sync race condition fix (queue guard pattern) — v1.1
+- Transcript buffer with service worker recovery — v1.1
+- Circuit breaker pattern with alarm-based recovery — v1.1
+- ESLint 9 + Prettier code formatting — v1.1
 
 ### Active
 
-## Current Milestone: v1.1 Security & Reliability
+## Current Milestone: v2.0 Enhanced Experience
 
-**Goal:** Harden security, add compliance features, and fix critical reliability bugs before adding new capabilities.
+**Goal:** Transform from a basic transcription+LLM tool into a personalized, intelligent interview companion with file context, reasoning models, cost visibility, rich formatting, and transcript editing.
 
 **Target features:**
-- Remove API keys from Chrome runtime messages
-- Encrypt API keys at rest with WebCrypto AES-GCM
-- Privacy policy document + in-app consent notice
-- Recording consent legal warnings (first-time + per-session)
-- Fix store sync race condition in background script
-- Fix transcript state loss on service worker termination
-- Circuit breaker pattern with retry logic for API calls
-- Persistent transcripts with IndexedDB session history
+- File personalization (upload resume/JD, inject context into LLM prompts via OpenAI Files API)
+- Cost tracking dashboard (per-provider usage, charts, session costs)
+- Reasoning models support (o-series) + dedicated reasoning button/panel
+- Markdown rendering for LLM responses (code blocks, lists, headers)
+- Enhanced text selection -> LLM (floating tooltip, custom quick prompts)
+- Transcript editing (inline corrections, comments, soft delete)
 
 ### Out of Scope
 
@@ -59,11 +65,12 @@ When a question is captured, get something useful on screen fast enough to start
 
 ## Context
 
-**Current state (v1.0 shipped):**
-- 4,847 lines TypeScript across 148 files
+**Current state (v1.1 shipped):**
 - Tech stack: WXT 0.19.x, React 18, Tailwind v4, Zustand, Chrome MV3
-- All 48 v1 requirements delivered
+- v1.0: 48 requirements delivered (8 phases, 30 plans)
+- v1.1: 8 security & reliability requirements (6 phases, 7 plans)
 - Human verified on Google Meet
+- ESLint 9 + Prettier configured
 
 **Audio pipeline:**
 - tabCapture API → AudioWorklet → PCM 16-bit 16kHz → Offscreen Document → ElevenLabs WebSocket
@@ -113,4 +120,4 @@ See: `.planning/SKILLS.md`
 | webext-zustand for state | Cross-context sync with chrome.storage | ✓ Good — state persists correctly |
 
 ---
-*Last updated: 2026-02-08 after v1.1 milestone start*
+*Last updated: 2026-02-09 after v2.0 milestone start*
