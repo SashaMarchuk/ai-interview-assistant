@@ -5,6 +5,11 @@ import { resolve } from 'path';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  imports: {
+    eslintrc: {
+      enabled: 9,
+    },
+  },
   vite: () => ({
     // Note: Tailwind type cast is needed due to WXT/Vite plugin type incompatibility.
     // The @tailwindcss/vite plugin returns a Vite plugin but WXT's types don't match exactly.
