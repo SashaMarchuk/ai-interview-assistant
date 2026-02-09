@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 16 of 21 (Reasoning Models) -- in progress in parallel terminal
-Plan: Phase 15 complete (2/2), Phase 16 in progress
-Status: Phase 15 verified, Phase 16 executing
-Last activity: 2026-02-09 -- Phase 15 (Markdown Rendering) complete and verified
+Plan: Phase 15 complete (2/2), Phase 16 plan 2 of 3 complete
+Status: Phase 16 executing (plans 01, 02 done; plan 03 remaining)
+Last activity: 2026-02-09 -- Phase 16 Plan 02 (Message Types & Background Handler) complete
 
 Progress: [██░░░░░░░░] 14% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41 (30 v1.0 + 7 v1.1 + 4 v2.0)
+- Total plans completed: 42 (30 v1.0 + 7 v1.1 + 5 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -27,6 +27,8 @@ Progress: [██░░░░░░░░] 14% (v2.0)
 |-------|------|----------|-------|-------|
 | 15-01 | Markdown Components | 5min | 2 | 6 |
 | 15-02 | ResponsePanel Integration | 5min | 2 | 2 |
+| 16-01 | Provider Foundation | 8min | 3 | 4 |
+| 16-02 | Message Types & Background Handler | 11min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -47,6 +49,9 @@ Recent decisions affecting current work:
 - [15-01]: highlight.js CSS via @import in app.css (Vite resolves node_modules) with transparent background override
 - [15-02]: MemoizedMarkdown integrated into ResponsePanel for both fastHint and fullAnswer
 - [15-02]: requestAnimationFrame token batching (~16ms windows) for streaming performance
+- [16-02]: reasoningEffort passed as string from message, cast to ReasoningEffort at streamWithRetry boundary (safe because UI constrains valid values)
+- [16-02]: Fast model gets immediate complete status in reasoning mode (UI state machine needs events for both models)
+- [16-02]: Reasoning mode sends streaming status for model:'full' only (not 'both') for accurate UI feedback
 
 ### Pending Todos
 
@@ -61,5 +66,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Phase 15 (Markdown Rendering) complete and verified -- Phase 16 running in parallel terminal
+Stopped at: Completed 16-02-PLAN.md (Message Types & Background Handler) -- Plan 03 (UI Controls) remaining
 Resume file: .planning/ROADMAP.md
