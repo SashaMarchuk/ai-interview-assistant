@@ -49,6 +49,13 @@ let currentLLMResponse: LLMResponse | null = null;
 // Track the currently active responseId to ignore tokens from cancelled requests
 let activeResponseId: string | null = null;
 
+// Token batching for streaming performance
+// Accumulates tokens and flushes on animation frame to reduce React re-renders
+
+let pendingFastTokens = '';
+let pendingFullTokens = '';
+let tokenBatchRafId: number | null = null;
+
 /**
  * Dispatch LLM response update to the React overlay via custom event.
  * The overlay listens for this event to update its response state.
@@ -70,6 +77,14 @@ function initLLMResponse(responseId: string): void {
   // Set this as the active response - all other responses will be ignored
   activeResponseId = responseId;
 
+  // Reset token batching state
+  if (tokenBatchRafId !== null) {
+    cancelAnimationFrame(tokenBatchRafId);
+    tokenBatchRafId = null;
+  }
+  pendingFastTokens = '';
+  pendingFullTokens = '';
+
   // Clear any existing response state
   const response: LLMResponse = {
     id: responseId,
@@ -78,6 +93,28 @@ function initLLMResponse(responseId: string): void {
     fullAnswer: null,
     status: 'pending',
   };
+  dispatchLLMResponseUpdate(response);
+}
+
+/**
+ * Flush accumulated streaming tokens to the React overlay.
+ * Called on each animation frame during streaming and before status transitions.
+ */
+function flushPendingTokens(): void {
+  tokenBatchRafId = null;
+  if (!pendingFastTokens && !pendingFullTokens) return;
+  if (!currentLLMResponse) return;
+
+  const response = { ...currentLLMResponse };
+  if (pendingFastTokens) {
+    response.fastHint = (response.fastHint || '') + pendingFastTokens;
+    pendingFastTokens = '';
+  }
+  if (pendingFullTokens) {
+    response.fullAnswer = (response.fullAnswer || '') + pendingFullTokens;
+    pendingFullTokens = '';
+  }
+  response.status = 'streaming';
   dispatchLLMResponseUpdate(response);
 }
 
@@ -92,21 +129,30 @@ function ensureLLMResponse(responseId: string): LLMResponse | null {
 }
 
 function handleLLMStream(message: LLMStreamMessage): void {
+  // Ensure response exists (initializes if needed, returns null if stale)
   const response = ensureLLMResponse(message.responseId);
   if (!response) return;
 
-  response.status = 'streaming';
-
+  // Accumulate tokens into pending buffers
   if (message.model === 'fast') {
-    response.fastHint = (response.fastHint || '') + message.token;
+    pendingFastTokens += message.token;
   } else if (message.model === 'full') {
-    response.fullAnswer = (response.fullAnswer || '') + message.token;
+    pendingFullTokens += message.token;
   }
 
-  dispatchLLMResponseUpdate(response);
+  // Schedule a flush on the next animation frame (if not already scheduled)
+  if (tokenBatchRafId === null) {
+    tokenBatchRafId = requestAnimationFrame(flushPendingTokens);
+  }
 }
 
 function handleLLMStatus(message: LLMStatusMessage): void {
+  // Flush any pending tokens before status transition
+  if (tokenBatchRafId !== null) {
+    cancelAnimationFrame(tokenBatchRafId);
+    flushPendingTokens();
+  }
+
   const response = ensureLLMResponse(message.responseId);
   if (!response) return;
 
