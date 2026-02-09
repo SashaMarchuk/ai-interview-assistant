@@ -3,6 +3,7 @@ import type { LLMResponse } from '../types/transcript';
 
 interface ResponsePanelProps {
   response: LLMResponse | null;
+  isReasoningPending?: boolean;
 }
 
 /**
@@ -11,9 +12,21 @@ interface ResponsePanelProps {
  */
 const StatusIndicator = memo(function StatusIndicator({
   status,
+  isReasoningPending,
 }: {
   status: LLMResponse['status'];
+  isReasoningPending?: boolean;
 }) {
+  // Show purple reasoning indicator when reasoning mode is active
+  if (isReasoningPending && (status === 'pending' || status === 'streaming')) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-purple-300">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-purple-400"></span>
+        Reasoning...
+      </span>
+    );
+  }
+
   switch (status) {
     case 'pending':
       return (
@@ -52,12 +65,17 @@ const StatusIndicator = memo(function StatusIndicator({
  * quick guidance immediately, with comprehensive answer streaming in.
  * Memoized to prevent re-renders when transcript updates but response unchanged.
  */
-export const ResponsePanel = memo(function ResponsePanel({ response }: ResponsePanelProps) {
+export const ResponsePanel = memo(function ResponsePanel({
+  response,
+  isReasoningPending,
+}: ResponsePanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-1 flex items-center justify-between text-xs font-medium text-white/60">
         <span>AI Response</span>
-        {response && <StatusIndicator status={response.status} />}
+        {response && (
+          <StatusIndicator status={response.status} isReasoningPending={isReasoningPending} />
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto rounded p-2">
@@ -102,7 +120,7 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
             {/* Pending state with no content yet */}
             {response.status === 'pending' && !response.fastHint && !response.fullAnswer && (
               <div className="py-4 text-center text-sm text-white/40 italic">
-                Processing your question...
+                {isReasoningPending ? 'Reasoning deeply...' : 'Processing your question...'}
               </div>
             )}
           </div>
