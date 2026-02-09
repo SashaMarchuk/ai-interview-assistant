@@ -53,7 +53,7 @@ Phase 16 (Reasoning) ──┘                      │
 
 - [x] **Phase 15: Markdown Rendering** - Rich formatting for LLM responses inside Shadow DOM overlay
 - [x] **Phase 16: Reasoning Models** - o-series and GPT-5 model support with reasoning controls
-- [ ] **Phase 17: Cost Tracking Capture** - Token usage extraction, per-request cost display, session totals
+- [x] **Phase 17: Cost Tracking Capture** - Token usage extraction, per-request cost display, session totals
 - [ ] **Phase 18: Cost Dashboard** - IndexedDB persistence and popup charts with historical usage
 - [ ] **Phase 19: File Personalization** - Resume/JD upload, client-side extraction, LLM prompt injection
 - [ ] **Phase 20: Transcript Editing** - Inline edit, soft delete, undo, and LLM context integration
@@ -106,8 +106,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 17-01-PLAN.md -- Types, pricing module, streaming pipeline usage extraction, and background cost broadcasting
-- [ ] 17-02-PLAN.md -- Content script LLM_COST handler, ResponsePanel cost badge, Overlay session cost footer
+- [x] 17-01-PLAN.md -- Types, pricing module, streaming pipeline usage extraction, and background cost broadcasting
+- [x] 17-02-PLAN.md -- Content script LLM_COST handler, ResponsePanel cost badge, Overlay session cost footer
 
 ### Phase 18: Cost Dashboard
 **Goal**: Historical cost data is persisted to IndexedDB and visualized in a popup dashboard with per-provider and per-session charts
@@ -180,7 +180,7 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 |-------|-----------|----------------|--------|-----------|
 | 15. Markdown Rendering | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 16. Reasoning Models | v2.0 | 3/3 | ✓ Complete | 2026-02-09 |
-| 17. Cost Tracking Capture | v2.0 | 0/TBD | Not started | - |
+| 17. Cost Tracking Capture | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 18. Cost Dashboard | v2.0 | 0/TBD | Not started | - |
 | 19. File Personalization | v2.0 | 0/TBD | Not started | - |
 | 20. Transcript Editing | v2.0 | 0/TBD | Not started | - |
