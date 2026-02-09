@@ -551,8 +551,11 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendRes
     return true; // Keep channel open for async response
   }
 
-  // Handle START_TRANSCRIPTION
-  if (isMessage<InternalStartTranscriptionMessage>(message, 'START_TRANSCRIPTION')) {
+  // Handle START_TRANSCRIPTION (only from background, which attaches the API key)
+  if (
+    isMessage<InternalStartTranscriptionMessage>(message, 'START_TRANSCRIPTION') &&
+    message._fromBackground
+  ) {
     // Guard against duplicate messages (popup and background both send this)
     if (transcriptionStarting || transcriptionApiKey) {
       sendResponse({ success: true, alreadyStarting: true });
