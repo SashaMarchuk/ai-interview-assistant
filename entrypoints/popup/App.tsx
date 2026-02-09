@@ -5,7 +5,7 @@
  * Includes audio capture controls and settings interface.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import type { ExtensionMessage } from '../../src/types/messages';
 import { safeSendMessage } from '../../src/utils/messaging';
 import { useStore } from '../../src/store';
@@ -19,7 +19,9 @@ import LanguageSettings from '../../src/components/settings/LanguageSettings';
 import ConsentSettings from '../../src/components/settings/ConsentSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
-type Tab = 'capture' | 'settings' | 'templates';
+const CostDashboard = lazy(() => import('../../src/components/cost/CostDashboard'));
+
+type Tab = 'capture' | 'settings' | 'templates' | 'cost';
 
 // Polling interval for state sync (increased to reduce flickering)
 const SYNC_INTERVAL_MS = 2000;
@@ -430,7 +432,7 @@ function App() {
 
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200">
-        {(['capture', 'settings', 'templates'] as const).map((tab) => (
+        {(['capture', 'settings', 'templates', 'cost'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -661,6 +663,16 @@ function App() {
           <div className="p-4">
             <TemplateManager />
           </div>
+        )}
+
+        {activeTab === 'cost' && (
+          <Suspense
+            fallback={
+              <div className="p-4 text-center text-sm text-gray-500">Loading cost data...</div>
+            }
+          >
+            <CostDashboard />
+          </Suspense>
         )}
       </div>
 
