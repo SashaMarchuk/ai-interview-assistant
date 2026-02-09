@@ -134,11 +134,11 @@ Plans:
   2. User can paste or upload a job description via popup settings
   3. Uploaded file content is stored in IndexedDB (not Zustand) and persists across browser restarts
   4. When resume and/or JD are uploaded, LLM responses demonstrate awareness of the user's background and the target role (file context is injected into prompts via PromptBuilder)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 19-01: TBD
-- [ ] 19-02: TBD
+- [ ] 19-01-PLAN.md -- Storage + extraction foundation (IndexedDB with idb, PDF extraction with pdfjs-dist)
+- [ ] 19-02-PLAN.md -- UI + prompt integration (FileUploadSettings component, PromptBuilder file context injection, background IndexedDB read)
 
 ### Phase 20: Transcript Editing
 **Goal**: Users can correct transcription errors inline, hide irrelevant entries, and undo changes -- with edits flowing into subsequent LLM context
