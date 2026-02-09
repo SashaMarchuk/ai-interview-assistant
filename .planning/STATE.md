@@ -42,6 +42,8 @@ Recent decisions affecting current work:
 - [v2.0 roadmap]: Phases 15+16 parallel, then 17 sequential, then 18+19+20 parallel, then 21 sequential
 - [16-01]: ReasoningEffort type defined independently in LLMProvider.ts and store/types.ts to avoid circular dependency
 - [16-01]: Non-streaming JSON fallback in streamSSE for reasoning models that don't support SSE
+- [15-01]: CodeBlock props typed with react-markdown ExtraProps for type safety
+- [15-01]: highlight.js CSS via @import in app.css (Vite resolves node_modules) with transparent background override
 
 ### Pending Todos
 
