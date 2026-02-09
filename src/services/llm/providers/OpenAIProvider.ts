@@ -73,6 +73,7 @@ export class OpenAIProvider implements LLMProvider {
       messages,
       ...tokenLimit,
       stream: true,
+      stream_options: { include_usage: true },
     };
 
     // Add reasoning_effort when specified for reasoning models

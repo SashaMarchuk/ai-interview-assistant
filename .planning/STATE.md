@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phases 15 and 16 complete (merged), Phase 17 next
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 17 complete, Phase 18 next
 
 ## Current Position
 
-Phase: 15+16 of 21 (Markdown Rendering + Reasoning Models) -- MERGED
-Plan: Phase 15 complete (2/2), Phase 16 complete (3/3)
-Status: Both phases merged into milestone/v2.0-phase-15-16. Ready for Phase 17 (Cost Tracking Capture).
-Last activity: 2026-02-09 -- Phases 15+16 merged, reasoning bug fixed, Phase 21 scope updated
+Phase: 17 of 21 (Cost Tracking Capture) -- COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 17 fully complete. All cost tracking implemented: data pipeline (Plan 01) + UI display (Plan 02). Ready for Phase 18.
+Last activity: 2026-02-09 -- Phase 17 Plan 02 complete
 
-Progress: [███░░░░░░░] 21% (v2.0)
+Progress: [███░░░░░░░] 30% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43 (30 v1.0 + 7 v1.1 + 6 v2.0)
+- Total plans completed: 45 (30 v1.0 + 7 v1.1 + 8 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -30,6 +30,8 @@ Progress: [███░░░░░░░] 21% (v2.0)
 | 16-01 | Provider Foundation | 8min | 3 | 4 |
 | 16-02 | Message Types & Background Handler | 11min | 2 | 3 |
 | 16-03 | UI Controls & Reasoning Button | 4min | 2 | 5 |
+| 17-01 | Types, Pricing & Streaming Pipeline | 3min | 2 | 9 |
+| 17-02 | Cost Display UI | 2min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -57,6 +59,12 @@ Recent decisions affecting current work:
 - [16-03]: Purple theme (bg-purple-500/20, text-purple-300) for all reasoning UI elements
 - [16-03]: Model grouping in ModelSettings uses isReasoningModel utility from LLM service layer
 - [merge]: Reasoning budget only applied for actual reasoning models (isReasoningModel check) to prevent 400 errors on standard models
+- [17-01]: OpenAI cost calculated client-side from static pricing table; OpenRouter cost from API response (providerCost)
+- [17-01]: onUsage callback threaded through all pipeline layers (streamSSE -> ProviderStreamOptions -> streamWithRetry -> fireModelRequest)
+- [17-01]: stream_options: { include_usage: true } added to all OpenAI requests for streaming usage data
+- [17-02]: SessionCostEventDetail defined locally in content.tsx to avoid circular imports
+- [17-02]: Session cost tracked in-memory (module-level variable), resets on page reload -- matches interview session scope
+- [17-02]: Cost badge uses title attribute for fast/full breakdown tooltip -- lightweight, no extra UI complexity
 
 ### Pending Todos
 
@@ -71,5 +79,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Phases 15+16 merged, reasoning bug fixed, Phase 21 scope updated
-Resume file: .planning/ROADMAP.md
+Stopped at: Completed 17-02-PLAN.md (Cost Display UI) -- Phase 17 fully complete
+Resume file: Phase 18 next (cost analytics/IndexedDB)

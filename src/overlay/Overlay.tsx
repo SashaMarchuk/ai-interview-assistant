@@ -145,6 +145,9 @@ export function Overlay({ response }: OverlayProps) {
   // Use ref to track reasoning state in event listener without stale closures
   const isReasoningPendingRef = useRef(false);
 
+  // Session cost total from content script
+  const [sessionCost, setSessionCost] = useState(0);
+
   // Extension context invalidated state
   const [contextInvalid, setContextInvalid] = useState(false);
 
@@ -192,6 +195,17 @@ export function Overlay({ response }: OverlayProps) {
     const handler = () => setContextInvalid(true);
     window.addEventListener('extension-context-invalidated', handler);
     return () => window.removeEventListener('extension-context-invalidated', handler);
+  }, []);
+
+  // Listen for session cost updates from content script
+  useEffect(() => {
+    const handleSessionCostUpdate = (event: CustomEvent<{ sessionCost: number }>) => {
+      setSessionCost(event.detail.sessionCost);
+    };
+    window.addEventListener('session-cost-update', handleSessionCostUpdate as EventListener);
+    return () => {
+      window.removeEventListener('session-cost-update', handleSessionCostUpdate as EventListener);
+    };
   }, []);
 
   // Listen for connection state updates from background (for HealthIndicator)
@@ -423,10 +437,17 @@ export function Overlay({ response }: OverlayProps) {
         {/* Footer with status indicator */}
         <div className="flex items-center justify-between border-t border-white/10 px-3 py-1.5 text-xs text-white/60">
           <span>AI Interview Assistant</span>
-          <StatusIndicator
-            status={displayResponse?.status ?? null}
-            isReasoningPending={isReasoningPending}
-          />
+          <div className="flex items-center gap-2">
+            {sessionCost > 0 && (
+              <span className="text-white/40" title="Session total cost">
+                Session: ${sessionCost < 0.01 ? sessionCost.toFixed(4) : sessionCost.toFixed(3)}
+              </span>
+            )}
+            <StatusIndicator
+              status={displayResponse?.status ?? null}
+              isReasoningPending={isReasoningPending}
+            />
+          </div>
         </div>
       </div>
     </Rnd>

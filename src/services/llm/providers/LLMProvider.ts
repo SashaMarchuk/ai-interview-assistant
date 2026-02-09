@@ -6,6 +6,8 @@
  * for consistent streaming behavior across different backends.
  */
 
+import type { TokenUsage } from '../types';
+
 /**
  * Reasoning effort levels for o-series and GPT-5 reasoning models.
  * Controls the depth of reasoning the model performs before answering.
@@ -94,6 +96,8 @@ export interface ProviderStreamOptions {
   abortSignal?: AbortSignal;
   /** Optional reasoning effort for reasoning models (o-series, GPT-5) */
   reasoningEffort?: ReasoningEffort;
+  /** Optional callback for token usage data from final chunk */
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 /**

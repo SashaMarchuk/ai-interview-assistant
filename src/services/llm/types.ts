@@ -9,6 +9,19 @@
 export type { ProviderId as LLMProviderId } from './providers/LLMProvider';
 
 /**
+ * Token usage data extracted from LLM API responses.
+ * Used for cost calculation and tracking.
+ */
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  /** OpenRouter returns cost directly; undefined for OpenAI */
+  providerCost?: number;
+}
+
+/**
  * Options for streaming an LLM response
  */
 export interface StreamOptions {

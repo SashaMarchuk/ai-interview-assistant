@@ -75,7 +75,16 @@ export const ResponsePanel = memo(function ResponsePanel({
       <div className="mb-1 flex items-center justify-between text-xs font-medium text-white/60">
         <span>AI Response</span>
         {response && (
-          <StatusIndicator status={response.status} isReasoningPending={isReasoningPending} />
+          <div className="flex items-center gap-2">
+            {response.totalCostUSD != null && response.totalCostUSD > 0 && (
+              <span className="text-xs text-white/40" title={`Fast: $${(response.fastCostUSD ?? 0).toFixed(4)} | Full: $${(response.fullCostUSD ?? 0).toFixed(4)}`}>
+                ${response.totalCostUSD < 0.01
+                  ? response.totalCostUSD.toFixed(4)
+                  : response.totalCostUSD.toFixed(3)}
+              </span>
+            )}
+            <StatusIndicator status={response.status} isReasoningPending={isReasoningPending} />
+          </div>
         )}
       </div>
 

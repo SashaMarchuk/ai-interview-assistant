@@ -9,14 +9,17 @@ import type {
   StopTranscriptionMessage,
   LLMStreamMessage,
   LLMStatusMessage,
+  LLMCostMessage,
 } from '../src/types/messages';
 import {
   buildPrompt,
   resolveProviderForModel,
   isReasoningModel,
   MIN_REASONING_TOKEN_BUDGET,
+  calculateCost,
   type LLMProvider,
   type ReasoningEffort,
+  type TokenUsage,
 } from '../src/services/llm';
 import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
@@ -193,7 +196,9 @@ setTimeout(() => {
 /**
  * Send LLM message to all Google Meet content scripts
  */
-async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage): Promise<void> {
+async function sendLLMMessageToMeet(
+  message: LLMStreamMessage | LLMStatusMessage | LLMCostMessage,
+): Promise<void> {
   await broadcastToMeetTabs(message);
 }
 
@@ -230,6 +235,8 @@ interface StreamWithRetryParams {
   abortSignal?: AbortSignal;
   /** Optional reasoning effort for reasoning models */
   reasoningEffort?: ReasoningEffort;
+  /** Optional callback for token usage data */
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 async function streamWithRetry(
@@ -250,6 +257,7 @@ async function streamWithRetry(
       onError: params.onError,
       abortSignal: params.abortSignal,
       reasoningEffort: params.reasoningEffort,
+      onUsage: params.onUsage,
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -464,6 +472,24 @@ async function handleLLMRequest(
         },
         abortSignal: abortController.signal,
         reasoningEffort: effort,
+        onUsage: (usage: TokenUsage) => {
+          const costUSD = calculateCost(
+            modelId,
+            usage.promptTokens,
+            usage.completionTokens,
+            usage.providerCost,
+          );
+          sendLLMMessageToMeet({
+            type: 'LLM_COST',
+            responseId,
+            model: modelType,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            reasoningTokens: usage.reasoningTokens,
+            totalTokens: usage.totalTokens,
+            costUSD,
+          } as LLMCostMessage);
+        },
       },
       modelType,
       responseId,
@@ -1018,6 +1044,7 @@ async function handleMessage(
 
     case 'LLM_STREAM':
     case 'LLM_STATUS':
+    case 'LLM_COST':
       return { received: true };
 
     case 'LLM_CANCEL': {
