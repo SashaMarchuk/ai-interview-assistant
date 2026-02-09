@@ -150,10 +150,11 @@ Plans:
   2. User can soft-delete a transcript entry (it disappears from the visible list and is excluded from LLM context)
   3. After editing a transcript entry, subsequent LLM requests use the edited text instead of the original transcription
   4. User can undo any edit or soft-delete to restore the original transcript text
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 20-01: TBD
+- [ ] 20-01-PLAN.md -- Data layer: TranscriptEdit type, edit overlay map, applyEdits, event listeners, hotkey guard
+- [ ] 20-02-PLAN.md -- UI layer: Inline edit, soft-delete, undo, visual indicators, auto-scroll suppression
 
 ### Phase 21: Enhanced Text Selection
 **Goal**: Selecting **any** text in the overlay (transcripts or AI responses) shows a floating tooltip with quick prompt actions that send selected text to the LLM
