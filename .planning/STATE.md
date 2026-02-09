@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 17 complete, Phase 18 next
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 20 Plan 01 complete, Plan 02 next
 
 ## Current Position
 
-Phase: 17 of 21 (Cost Tracking Capture) -- COMPLETE
-Plan: 2 of 2 complete
-Status: Phase 17 fully complete. All cost tracking implemented: data pipeline (Plan 01) + UI display (Plan 02). Ready for Phase 18.
-Last activity: 2026-02-09 -- Phase 17 Plan 02 complete
+Phase: 20 of 21 (Transcript Editing) -- IN PROGRESS
+Plan: 1 of 2 complete
+Status: Phase 20 Plan 01 (data layer) complete. TranscriptEdit type, edit overlay map, applyEdits, event listeners, and hotkey guard all wired. Plan 02 (UI components) next.
+Last activity: 2026-02-09 -- Phase 20 Plan 01 complete
 
-Progress: [███░░░░░░░] 30% (v2.0)
+Progress: [████░░░░░░] 40% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45 (30 v1.0 + 7 v1.1 + 8 v2.0)
+- Total plans completed: 46 (30 v1.0 + 7 v1.1 + 9 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -32,6 +32,7 @@ Progress: [███░░░░░░░] 30% (v2.0)
 | 16-03 | UI Controls & Reasoning Button | 4min | 2 | 5 |
 | 17-01 | Types, Pricing & Streaming Pipeline | 3min | 2 | 9 |
 | 17-02 | Cost Display UI | 2min | 2 | 3 |
+| 20-01 | Transcript Editing Data Layer | 6min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - [17-02]: SessionCostEventDetail defined locally in content.tsx to avoid circular imports
 - [17-02]: Session cost tracked in-memory (module-level variable), resets on page reload -- matches interview session scope
 - [17-02]: Cost badge uses title attribute for fast/full breakdown tooltip -- lightweight, no extra UI complexity
+- [20-01]: Edit overlay stored as module-level Map in content.tsx, not in Zustand -- session-scoped, no sync needed
+- [20-01]: applyEdits uses reduce to both filter (soft-delete) and transform (edit text) in single pass
+- [20-01]: e.target used for input guard instead of document.activeElement -- Shadow DOM boundary makes activeElement unreliable
 
 ### Pending Todos
 
@@ -79,5 +83,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Completed 17-02-PLAN.md (Cost Display UI) -- Phase 17 fully complete
-Resume file: Phase 18 next (cost analytics/IndexedDB)
+Stopped at: Completed 20-01-PLAN.md (Transcript Editing Data Layer)
+Resume file: Phase 20 Plan 02 next (Transcript Editing UI components)
