@@ -84,6 +84,16 @@ When running phases in parallel across terminals:
 # This keeps individual branch history intact while main stays clean
 ```
 
+### Manual Testing Instructions
+
+**After every phase completion and after polishing**, Claude MUST send the user a "How to Test" message with:
+
+1. **Build command** (`npm run dev` or `npm run build` + load instructions)
+2. **Phase-specific test steps** — concrete actions the user can take in the browser to verify the feature works
+3. **What to look for** — expected UI changes, console output, or behavior
+
+This is mandatory. Never skip it. The user should always know how to verify what was just built.
+
 ### GSD Workflow Integration
 
 ```

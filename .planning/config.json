@@ -46,7 +46,13 @@
       "title_pattern": "feat: Milestone vX.Y - {milestone_name}",
       "includes": "All phase changes + polish commits in single consolidated PR to main"
     },
-    "notes": "Run /polish-milestone after each milestone. Steps must run sequentially to avoid conflicts. Final step creates consolidated milestone PR to main."
+    "notes": "Run /polish-milestone after each milestone. Steps must run sequentially to avoid conflicts. Final step creates consolidated milestone PR to main.",
+    "post_phase_testing": {
+      "required": true,
+      "when": ["after each phase completion", "after polish completion"],
+      "must_include": ["build command", "phase-specific test steps", "expected behavior"],
+      "notes": "Claude MUST send manual testing instructions after every phase and after polishing. Never skip."
+    }
   },
   "todos": {
     "support_raw_prompts": true,
