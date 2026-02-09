@@ -57,7 +57,7 @@ Phase 16 (Reasoning) ──┘                      │
 - [ ] **Phase 18: Cost Dashboard** - IndexedDB persistence and popup charts with historical usage
 - [ ] **Phase 19: File Personalization** - Resume/JD upload, client-side extraction, LLM prompt injection
 - [ ] **Phase 20: Transcript Editing** - Inline edit, soft delete, undo, and LLM context integration
-- [ ] **Phase 21: Enhanced Text Selection** - Floating tooltip with quick prompts on transcript selection
+- [ ] **Phase 21: Enhanced Text Selection** - Floating tooltip with quick prompts on any overlay text selection
 
 ## Phase Details
 
@@ -155,11 +155,11 @@ Plans:
 - [ ] 20-01: TBD
 
 ### Phase 21: Enhanced Text Selection
-**Goal**: Selecting transcript text shows a floating tooltip with quick prompt actions that send selected text to the LLM
-**Depends on**: Phase 20 (both modify TranscriptPanel; transcript editing must be stable before adding selection behaviors on top)
+**Goal**: Selecting **any** text in the overlay (transcripts or AI responses) shows a floating tooltip with quick prompt actions that send selected text to the LLM
+**Depends on**: Phase 15 (markdown rendering must be stable since users will select rendered markdown text in responses)
 **Requirements**: SEL-01, SEL-02, SEL-03
 **Success Criteria** (what must be TRUE):
-  1. Selecting text in the transcript panel causes a floating tooltip to appear near the selection with action buttons
+  1. Selecting text in either the transcript panel or the response panel causes a floating tooltip to appear near the selection with action buttons
   2. Clicking a quick prompt button (e.g., "Explain", "Elaborate", "Correct") sends the selected text plus the chosen prompt to the LLM and displays the response
   3. User can customize which quick prompt actions appear in the tooltip via popup settings
 **Plans**: TBD
