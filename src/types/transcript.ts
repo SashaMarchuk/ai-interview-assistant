@@ -43,6 +43,12 @@ export interface LLMResponse {
   status: LLMResponseStatus;
   /** Error message if status is 'error' */
   error?: string;
+  /** Cost of fast model response in USD */
+  fastCostUSD?: number;
+  /** Cost of full model response in USD */
+  fullCostUSD?: number;
+  /** Total combined cost in USD (fast + full) */
+  totalCostUSD?: number;
 }
 
 /**

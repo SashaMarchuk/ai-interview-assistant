@@ -1018,6 +1018,7 @@ async function handleMessage(
 
     case 'LLM_STREAM':
     case 'LLM_STATUS':
+    case 'LLM_COST':
       return { received: true };
 
     case 'LLM_CANCEL': {

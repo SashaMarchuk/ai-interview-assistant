@@ -8,7 +8,7 @@
  */
 
 // Re-export all types
-export type { DualLLMRequest } from './types';
+export type { DualLLMRequest, TokenUsage } from './types';
 
 // Re-export prompt builder
 export { buildPrompt, type BuildPromptResult } from './PromptBuilder';
@@ -36,3 +36,6 @@ export {
 // Re-export provider implementations (for direct access if needed)
 export { OpenRouterProvider, OPENROUTER_MODELS } from './providers/OpenRouterProvider';
 export { OpenAIProvider, OPENAI_MODELS } from './providers/OpenAIProvider';
+
+// Re-export pricing module
+export { calculateCost, OPENAI_PRICING } from './pricing';

@@ -69,6 +69,7 @@ export type MessageType =
   | 'LLM_STREAM'
   | 'LLM_STATUS'
   | 'LLM_CANCEL'
+  | 'LLM_COST'
   // Connection state updates
   | 'CONNECTION_STATE';
 
@@ -257,6 +258,18 @@ export interface LLMCancelMessage extends BaseMessage {
   responseId: string;
 }
 
+// Cost data from a completed LLM model request
+export interface LLMCostMessage extends BaseMessage {
+  type: 'LLM_COST';
+  responseId: string;
+  model: LLMModelType;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  costUSD: number;
+}
+
 // Connection state updates from offscreen to background to content
 export interface ConnectionStateMessage extends BaseMessage {
   type: 'CONNECTION_STATE';
@@ -308,6 +321,7 @@ export type ExtensionMessage =
   | LLMStreamMessage
   | LLMStatusMessage
   | LLMCancelMessage
+  | LLMCostMessage
   | ConnectionStateMessage;
 
 export type InternalMessage = ExtensionMessage & { _fromBackground?: true };
