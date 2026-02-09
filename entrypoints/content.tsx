@@ -15,6 +15,7 @@ import type {
   LLMRequestMessage,
   LLMStreamMessage,
   LLMStatusMessage,
+  LLMCostMessage,
   ConnectionService,
   ConnectionStatus,
 } from '../src/types/messages';
@@ -50,6 +51,11 @@ export interface ConnectionStateEventDetail {
   error?: string;
 }
 
+// Custom event type for session cost updates
+export interface SessionCostEventDetail {
+  sessionCost: number;
+}
+
 // Module-level transcript state
 let currentTranscript: TranscriptEntry[] = [];
 
@@ -58,6 +64,9 @@ let currentLLMResponse: LLMResponse | null = null;
 
 // Track the currently active responseId to ignore tokens from cancelled requests
 let activeResponseId: string | null = null;
+
+// Session cost tracking (in-memory, resets on page reload)
+let sessionCostUSD = 0;
 
 // Token batching for streaming performance
 // Accumulates tokens and flushes on animation frame to reduce React re-renders
@@ -178,6 +187,35 @@ function handleLLMStatus(message: LLMStatusMessage): void {
   }
 
   dispatchLLMResponseUpdate(response);
+}
+
+function handleLLMCost(message: LLMCostMessage): void {
+  if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) return;
+  if (activeResponseId && message.responseId !== activeResponseId) return;
+
+  const response = { ...currentLLMResponse };
+
+  // Update cost for the specific model
+  if (message.model === 'fast') {
+    response.fastCostUSD = message.costUSD;
+  } else if (message.model === 'full') {
+    response.fullCostUSD = message.costUSD;
+  }
+
+  // Calculate total (sum of whichever costs have arrived)
+  response.totalCostUSD = (response.fastCostUSD ?? 0) + (response.fullCostUSD ?? 0);
+
+  // Accumulate into session total
+  sessionCostUSD += message.costUSD;
+
+  dispatchLLMResponseUpdate(response);
+
+  // Dispatch session cost update event for Overlay footer
+  window.dispatchEvent(
+    new CustomEvent<SessionCostEventDetail>('session-cost-update', {
+      detail: { sessionCost: sessionCostUSD },
+    }),
+  );
 }
 
 function formatEntries(entries: TranscriptEntry[]): string {
@@ -386,6 +424,10 @@ export default defineContentScript({
               console.error('AI Interview Assistant: LLM error:', message.error);
             }
             handleLLMStatus(message);
+            return false;
+
+          case 'LLM_COST':
+            handleLLMCost(message as LLMCostMessage);
             return false;
 
           case 'REQUEST_MIC_PERMISSION':
