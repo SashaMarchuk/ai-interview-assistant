@@ -10,7 +10,13 @@ import type {
   LLMStreamMessage,
   LLMStatusMessage,
 } from '../src/types/messages';
-import { buildPrompt, resolveProviderForModel, type LLMProvider } from '../src/services/llm';
+import {
+  buildPrompt,
+  resolveProviderForModel,
+  MIN_REASONING_TOKEN_BUDGET,
+  type LLMProvider,
+  type ReasoningEffort,
+} from '../src/services/llm';
 import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
 import {
@@ -221,6 +227,8 @@ interface StreamWithRetryParams {
   onComplete: () => void;
   onError: (error: Error) => void;
   abortSignal?: AbortSignal;
+  /** Optional reasoning effort for reasoning models */
+  reasoningEffort?: ReasoningEffort;
 }
 
 async function streamWithRetry(
@@ -240,6 +248,7 @@ async function streamWithRetry(
       onComplete: params.onComplete,
       onError: params.onError,
       abortSignal: params.abortSignal,
+      reasoningEffort: params.reasoningEffort,
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -270,9 +279,10 @@ async function streamWithRetry(
 }
 
 /**
- * Handle LLM_REQUEST by firing dual parallel streaming requests
- * Fast model provides quick hints, full model provides comprehensive answers
- * Automatically selects provider based on model ID and configured API keys
+ * Handle LLM_REQUEST by firing streaming requests.
+ * Normal mode: dual parallel streams (fast hint + full answer).
+ * Reasoning mode: single stream (full model only) with 25K+ token budget.
+ * Automatically selects provider based on model ID and configured API keys.
  */
 async function handleLLMRequest(
   responseId: string,
@@ -280,6 +290,8 @@ async function handleLLMRequest(
   recentContext: string,
   fullTranscript: string,
   templateId: string,
+  isReasoningRequest?: boolean,
+  reasoningEffort?: string,
 ): Promise<void> {
   // Get store state for settings and templates
   const state = useStore.getState();
@@ -298,7 +310,7 @@ async function handleLLMRequest(
     return;
   }
 
-  // Resolve provider for fast model
+  // Resolve provider for fast model (not needed in reasoning mode, but resolve for error checking)
   const fastResolution = resolveProviderForModel(models.fastModel, {
     openAI: apiKeys.openAI,
     openRouter: apiKeys.openRouter,
@@ -310,16 +322,32 @@ async function handleLLMRequest(
     openRouter: apiKeys.openRouter,
   });
 
-  // Check if either model couldn't be resolved
-  if (!fastResolution && !fullResolution) {
-    await sendLLMMessageToMeet({
-      type: 'LLM_STATUS',
-      responseId,
-      model: 'both',
-      status: 'error',
-      error: 'No LLM provider configured. Add an OpenAI or OpenRouter API key in settings.',
-    });
-    return;
+  // Check if models couldn't be resolved
+  if (isReasoningRequest) {
+    // Reasoning mode only needs the full model
+    if (!fullResolution) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'both',
+        status: 'error',
+        error:
+          'No LLM provider configured for full model. Add an OpenAI or OpenRouter API key in settings.',
+      });
+      return;
+    }
+  } else {
+    // Normal dual-stream mode needs at least one model
+    if (!fastResolution && !fullResolution) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'both',
+        status: 'error',
+        error: 'No LLM provider configured. Add an OpenAI or OpenRouter API key in settings.',
+      });
+      return;
+    }
   }
 
   // Build prompts using the template
@@ -361,10 +389,20 @@ async function handleLLMRequest(
     userPrompt: string;
     maxTokens: number;
     onDone: () => void;
+    /** Optional reasoning effort for reasoning models */
+    reasoningEffort?: ReasoningEffort;
   }
 
   function fireModelRequest(config: ModelRequestConfig): Promise<void> {
-    const { resolution, modelType, modelId, userPrompt, maxTokens, onDone } = config;
+    const {
+      resolution,
+      modelType,
+      modelId,
+      userPrompt,
+      maxTokens,
+      onDone,
+      reasoningEffort: effort,
+    } = config;
 
     if (!resolution) {
       onDone();
@@ -424,6 +462,7 @@ async function handleLLMRequest(
           checkAllComplete();
         },
         abortSignal: abortController.signal,
+        reasoningEffort: effort,
       },
       modelType,
       responseId,
@@ -437,42 +476,85 @@ async function handleLLMRequest(
       });
   }
 
-  const fastPromise = fireModelRequest({
-    resolution: fastResolution,
-    modelType: 'fast',
-    modelId: models.fastModel,
-    userPrompt: prompts.user,
-    maxTokens: 300,
-    onDone: () => {
-      fastComplete = true;
-    },
-  });
+  if (isReasoningRequest) {
+    // Reasoning mode: single-stream (full model only)
+    // Skip fast model entirely -- reasoning models are expensive, no dual-stream
+    fastComplete = true;
 
-  const fullPromise = fireModelRequest({
-    resolution: fullResolution,
-    modelType: 'full',
-    modelId: models.fullModel,
-    userPrompt: prompts.userFull,
-    maxTokens: 2000,
-    onDone: () => {
-      fullComplete = true;
-    },
-  });
-
-  // Send streaming status (only if at least one model is available)
-  if (fastResolution || fullResolution) {
+    // Send fast model status as complete immediately (nothing to show)
     await sendLLMMessageToMeet({
       type: 'LLM_STATUS',
       responseId,
-      model: 'both',
+      model: 'fast',
+      status: 'complete',
+    });
+
+    // Enforce minimum 25K token budget for reasoning models (defense in depth -- provider also enforces)
+    const fullMaxTokens = Math.max(2000, MIN_REASONING_TOKEN_BUDGET);
+
+    const fullPromise = fireModelRequest({
+      resolution: fullResolution,
+      modelType: 'full',
+      modelId: models.fullModel,
+      userPrompt: prompts.userFull,
+      maxTokens: fullMaxTokens,
+      onDone: () => {
+        fullComplete = true;
+      },
+      reasoningEffort: reasoningEffort as ReasoningEffort | undefined,
+    });
+
+    // Send streaming status
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId,
+      model: 'full',
       status: 'streaming',
     });
-  }
 
-  // Wait for both to complete (but don't block message handler return)
-  Promise.all([fastPromise, fullPromise]).catch((error) => {
-    console.error('LLM request error:', error);
-  });
+    // Wait for full model to complete (but don't block message handler return)
+    fullPromise.catch((error) => {
+      console.error('LLM reasoning request error:', error);
+    });
+  } else {
+    // Normal dual-stream mode: fire both fast and full models in parallel
+    const fastPromise = fireModelRequest({
+      resolution: fastResolution,
+      modelType: 'fast',
+      modelId: models.fastModel,
+      userPrompt: prompts.user,
+      maxTokens: 300,
+      onDone: () => {
+        fastComplete = true;
+      },
+    });
+
+    const fullPromise = fireModelRequest({
+      resolution: fullResolution,
+      modelType: 'full',
+      modelId: models.fullModel,
+      userPrompt: prompts.userFull,
+      maxTokens: 2000,
+      onDone: () => {
+        fullComplete = true;
+      },
+    });
+
+    // Send streaming status (only if at least one model is available)
+    if (fastResolution || fullResolution) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'both',
+        status: 'streaming',
+      });
+    }
+
+    // Wait for both to complete (but don't block message handler return)
+    Promise.all([fastPromise, fullPromise]).catch((error) => {
+      console.error('LLM request error:', error);
+    });
+  }
 }
 
 type MessageResponse =
@@ -912,15 +994,21 @@ async function handleMessage(
         activeAbortControllers.clear();
       }
 
-      // Fire dual parallel LLM requests (non-blocking)
+      // Fire LLM request (reasoning=single-stream, normal=dual-stream, non-blocking)
       handleLLMRequest(
         message.responseId,
         message.question,
         message.recentContext,
         message.fullTranscript,
         message.templateId,
+        message.isReasoningRequest,
+        message.reasoningEffort,
       );
-      console.log('LLM: Starting request');
+      console.log(
+        'LLM: Starting',
+        message.isReasoningRequest ? 'reasoning' : 'standard',
+        'request',
+      );
       return { success: true };
     }
 

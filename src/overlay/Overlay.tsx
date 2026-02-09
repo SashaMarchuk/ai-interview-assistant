@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { Rnd } from 'react-rnd';
 import type { DraggableEvent, DraggableData } from 'react-draggable';
 import { useOverlayPosition } from './hooks/useOverlayPosition';
@@ -54,9 +54,24 @@ const MINIMIZED_SIZE = { width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT };
  */
 const StatusIndicator = memo(function StatusIndicator({
   status,
+  isReasoningPending,
 }: {
   status: LLMResponse['status'] | null;
+  isReasoningPending?: boolean;
 }) {
+  // Show purple reasoning indicator when reasoning mode is active
+  if (isReasoningPending && (status === 'streaming' || status === 'pending')) {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75"></span>
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-400"></span>
+        </span>
+        Reasoning...
+      </span>
+    );
+  }
+
   if (status === 'streaming') {
     return (
       <span className="flex items-center gap-1">
@@ -110,9 +125,11 @@ export function Overlay({ response }: OverlayProps) {
     setMinimizedPosition,
   } = useOverlayPosition();
 
-  // Get blur level and API keys from settings store
+  // Get blur level, API keys, and reasoning effort from settings store
   const blurLevel = useStore((state) => state.blurLevel);
   const apiKeys = useStore((state) => state.apiKeys);
+  const reasoningEffort = useStore((state) => state.reasoningEffort);
+  const setReasoningEffort = useStore((state) => state.setReasoningEffort);
 
   // Real transcript state - populated by transcript-update events
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -122,6 +139,11 @@ export function Overlay({ response }: OverlayProps) {
 
   // Capture state for visual indicator
   const [captureState, setCaptureState] = useState<CaptureState | null>(null);
+
+  // Track whether a reasoning request is in progress (for purple indicator)
+  const [isReasoningPending, setIsReasoningPending] = useState(false);
+  // Use ref to track reasoning state in event listener without stale closures
+  const isReasoningPendingRef = useRef(false);
 
   // Health issues for status display
   const [connectionIssues, setConnectionIssues] = useState<HealthIssue[]>([]);
@@ -137,6 +159,14 @@ export function Overlay({ response }: OverlayProps) {
 
     const handleLLMResponseUpdate: TypedCustomEventHandler<LLMResponseEventDetail> = (event) => {
       setLLMResponse(event.detail.response);
+      // Reset reasoning pending when response completes or errors
+      if (
+        isReasoningPendingRef.current &&
+        (event.detail.response.status === 'complete' || event.detail.response.status === 'error')
+      ) {
+        setIsReasoningPending(false);
+        isReasoningPendingRef.current = false;
+      }
     };
 
     const handleCaptureStateUpdate: TypedCustomEventHandler<CaptureStateEventDetail> = (event) => {
@@ -280,6 +310,17 @@ export function Overlay({ response }: OverlayProps) {
   const handleExpand = useCallback(() => setMinimized(false), [setMinimized]);
   const handleMinimize = useCallback(() => setMinimized(true), [setMinimized]);
 
+  const handleReasoningRequest = useCallback(() => {
+    setIsReasoningPending(true);
+    isReasoningPendingRef.current = true;
+    // Dispatch a custom event that content.tsx will pick up
+    window.dispatchEvent(
+      new CustomEvent('reasoning-request', {
+        detail: { effort: reasoningEffort },
+      }),
+    );
+  }, [reasoningEffort]);
+
   // Don't render until initial position loaded from storage
   // This prevents flash of default position
   if (!isLoaded) {
@@ -334,12 +375,17 @@ export function Overlay({ response }: OverlayProps) {
         {/* Capture indicator below health indicator (absolute positioned, z-10) */}
         <CaptureIndicator captureState={captureState} />
 
-        <OverlayHeader onMinimize={handleMinimize} />
+        <OverlayHeader
+          onMinimize={handleMinimize}
+          onReasoningRequest={handleReasoningRequest}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={setReasoningEffort}
+        />
 
         {/* Content area with panels */}
         <div className="relative flex flex-1 flex-col gap-2 overflow-hidden p-3">
           <TranscriptPanel entries={transcript} />
-          <ResponsePanel response={displayResponse} />
+          <ResponsePanel response={displayResponse} isReasoningPending={isReasoningPending} />
 
           {/* Setup prompt overlay when BOTH API keys missing */}
           {bothKeysMissing && (
@@ -357,7 +403,10 @@ export function Overlay({ response }: OverlayProps) {
         {/* Footer with status indicator */}
         <div className="flex items-center justify-between border-t border-white/10 px-3 py-1.5 text-xs text-white/60">
           <span>AI Interview Assistant</span>
-          <StatusIndicator status={displayResponse?.status ?? null} />
+          <StatusIndicator
+            status={displayResponse?.status ?? null}
+            isReasoningPending={isReasoningPending}
+          />
         </div>
       </div>
     </Rnd>
