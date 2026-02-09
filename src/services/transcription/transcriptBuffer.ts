@@ -25,7 +25,6 @@ export class TranscriptBuffer {
       const stored = result[STORAGE_KEY];
       if (Array.isArray(stored)) {
         this.entries = stored;
-        console.log('TranscriptBuffer: Loaded', this.entries.length, 'entries from storage');
       } else {
         this.entries = [];
       }

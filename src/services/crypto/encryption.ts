@@ -131,7 +131,6 @@ class EncryptionService {
       ['encrypt', 'decrypt'],
     );
 
-    console.log('EncryptionService: initialized');
   }
 
   /**

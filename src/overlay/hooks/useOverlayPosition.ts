@@ -1,12 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { DEFAULT_OVERLAY_STATE, type OverlayState } from '../../types/transcript';
 
 const STORAGE_KEY = 'ai-interview-overlay-state';
@@ -54,10 +46,6 @@ export interface UseOverlayPositionReturn {
   setMinimized: (isMinimized: boolean) => void;
   /** Update the minimized button position */
   setMinimizedPosition: (pos: Position) => void;
-  /** Raw state object for advanced use cases */
-  rawState: OverlayState;
-  /** Direct state setter for advanced use cases */
-  setRawState: Dispatch<SetStateAction<OverlayState>>;
 }
 
 /**
@@ -237,7 +225,5 @@ export function useOverlayPosition(): UseOverlayPositionReturn {
     setSize,
     setMinimized,
     setMinimizedPosition,
-    rawState: state,
-    setRawState: setState,
   };
 }

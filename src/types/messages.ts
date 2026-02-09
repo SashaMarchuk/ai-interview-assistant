@@ -145,9 +145,6 @@ export interface MicAudioChunkMessage extends BaseMessage {
   timestamp: number;
 }
 
-// Union type for audio chunks (backwards compatibility)
-export type AudioChunkMessage = TabAudioChunkMessage | MicAudioChunkMessage;
-
 // Microphone capture message interfaces
 export interface StartMicCaptureMessage extends BaseMessage {
   type: 'START_MIC_CAPTURE';

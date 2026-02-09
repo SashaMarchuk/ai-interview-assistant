@@ -483,7 +483,7 @@ const LOGGED_MESSAGE_TYPES = [
 ];
 
 // Register message listener
-chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendResponse) => {
   // Only log important events
   if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
     console.log('Offscreen:', message.type);
