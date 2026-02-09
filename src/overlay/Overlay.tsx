@@ -133,6 +133,8 @@ export function Overlay({ response }: OverlayProps) {
 
   // Real transcript state - populated by transcript-update events
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [editedIds, setEditedIds] = useState<string[]>([]);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
 
   // Real LLM response state - populated by llm-response-update events
   const [llmResponse, setLLMResponse] = useState<LLMResponse | null>(null);
@@ -161,6 +163,8 @@ export function Overlay({ response }: OverlayProps) {
       event,
     ) => {
       setTranscript(event.detail.entries);
+      setEditedIds(event.detail.editedIds ?? []);
+      setDeletedIds(event.detail.deletedIds ?? []);
     };
 
     const handleLLMResponseUpdate: TypedCustomEventHandler<LLMResponseEventDetail> = (event) => {
@@ -418,7 +422,7 @@ export function Overlay({ response }: OverlayProps) {
 
         {/* Content area with panels */}
         <div className="relative flex flex-1 flex-col gap-2 overflow-hidden p-3">
-          <TranscriptPanel entries={transcript} />
+          <TranscriptPanel entries={transcript} editedIds={editedIds} deletedIds={deletedIds} />
           <ResponsePanel response={displayResponse} isReasoningPending={isReasoningPending} />
 
           {/* Setup prompt overlay when BOTH API keys missing */}

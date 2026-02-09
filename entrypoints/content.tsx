@@ -3,13 +3,9 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { Overlay } from '../src/overlay';
 import { storeReadyPromise, useStore } from '../src/store';
 import { useCaptureMode, type CaptureState } from '../src/hooks';
-import {
-  safeSendMessage,
-  isExtensionContextValid,
-  safeMessageListener,
-} from '../src/utils/messaging';
+import { safeSendMessage, safeMessageListener } from '../src/utils/messaging';
 import '../src/assets/app.css';
-import type { TranscriptEntry, LLMResponse } from '../src/types/transcript';
+import type { TranscriptEntry, LLMResponse, TranscriptEdit } from '../src/types/transcript';
 import type {
   ExtensionMessage,
   LLMRequestMessage,
@@ -32,6 +28,8 @@ export interface ReasoningRequestEventDetail {
 // Custom event type for transcript updates
 export interface TranscriptUpdateEventDetail {
   entries: TranscriptEntry[];
+  editedIds: string[]; // IDs of entries that have been edited (for UI indicators)
+  deletedIds: string[]; // IDs of soft-deleted entries (for undo UI)
 }
 
 // Custom event type for capture state updates (for visual indicator)
@@ -58,6 +56,9 @@ export interface SessionCostEventDetail {
 
 // Module-level transcript state
 let currentTranscript: TranscriptEntry[] = [];
+
+// Edit overlay map: session-scoped edits layered on top of raw transcript
+const transcriptEdits = new Map<string, TranscriptEdit>();
 
 // Module-level LLM response state
 let currentLLMResponse: LLMResponse | null = null;
@@ -218,20 +219,44 @@ function handleLLMCost(message: LLMCostMessage): void {
   );
 }
 
+/**
+ * Apply edit overlay to raw transcript entries.
+ * Filters out soft-deleted entries and replaces text for edited entries.
+ * Creates new objects (spread) so React.memo detects changes.
+ */
+function applyEdits(entries: TranscriptEntry[]): TranscriptEntry[] {
+  return entries.reduce<TranscriptEntry[]>((acc, entry) => {
+    const edit = transcriptEdits.get(entry.id);
+    if (edit?.isDeleted) return acc; // Skip soft-deleted
+    if (edit?.editedText != null) {
+      acc.push({ ...entry, text: edit.editedText });
+    } else {
+      acc.push(entry);
+    }
+    return acc;
+  }, []);
+}
+
 function formatEntries(entries: TranscriptEntry[]): string {
   return entries.map((e) => `${e.speaker}: ${e.text}`).join('\n');
 }
 
 function getTranscriptSince(timestamp: number): string {
-  return formatEntries(currentTranscript.filter((e) => e.isFinal && e.timestamp >= timestamp));
+  return formatEntries(
+    applyEdits(currentTranscript).filter((e) => e.isFinal && e.timestamp >= timestamp),
+  );
 }
 
 function getRecentTranscript(): string {
-  return formatEntries(currentTranscript.filter((e) => e.isFinal).slice(-5));
+  return formatEntries(
+    applyEdits(currentTranscript)
+      .filter((e) => e.isFinal)
+      .slice(-5),
+  );
 }
 
 function getFullTranscript(): string {
-  return formatEntries(currentTranscript.filter((e) => e.isFinal));
+  return formatEntries(applyEdits(currentTranscript).filter((e) => e.isFinal));
 }
 
 /**
@@ -329,13 +354,28 @@ async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<
 
 /**
  * Dispatch transcript update to the React overlay via custom event.
- * The overlay listens for this event to update its state.
+ * Raw entries are stored in currentTranscript (needed for undo original text lookup).
+ * Display entries: apply text edits but keep deleted entries visible for undo UI.
+ * The applyEdits function (which filters deleted) is only used by LLM context getters.
  */
 function dispatchTranscriptUpdate(entries: TranscriptEntry[]): void {
-  currentTranscript = entries;
+  currentTranscript = entries; // Keep raw for undo reference
+  // For display: apply text edits but keep deleted entries visible (marked for UI rendering)
+  const displayEntries = entries.map((entry) => {
+    const edit = transcriptEdits.get(entry.id);
+    if (edit?.editedText != null) {
+      return { ...entry, text: edit.editedText };
+    }
+    return entry;
+  });
+  const editedIds = Array.from(transcriptEdits.keys());
+  const deletedIds: string[] = [];
+  transcriptEdits.forEach((edit, id) => {
+    if (edit.isDeleted) deletedIds.push(id);
+  });
   window.dispatchEvent(
     new CustomEvent<TranscriptUpdateEventDetail>('transcript-update', {
-      detail: { entries },
+      detail: { entries: displayEntries, editedIds, deletedIds },
     }),
   );
 }
@@ -389,6 +429,50 @@ function CaptureProvider({
   /* eslint-enable react-hooks/exhaustive-deps */
 
   return <CaptureContext.Provider value={captureState}>{children}</CaptureContext.Provider>;
+}
+
+/**
+ * Set up listeners for transcript edit events from the overlay.
+ * The overlay dispatches these events; content.tsx applies them to the edit map
+ * and re-dispatches the transformed transcript.
+ */
+function setupTranscriptEditListeners(): void {
+  window.addEventListener('transcript-edit', ((
+    e: CustomEvent<{ id: string; editedText: string }>,
+  ) => {
+    const { id, editedText } = e.detail;
+    const entry = currentTranscript.find((t) => t.id === id);
+    if (!entry) return;
+
+    const existing = transcriptEdits.get(id);
+    transcriptEdits.set(id, {
+      editedText,
+      isDeleted: existing?.isDeleted ?? false,
+      originalText: existing?.originalText ?? entry.text,
+    });
+    // Re-dispatch with edits applied
+    dispatchTranscriptUpdate(currentTranscript);
+  }) as EventListener);
+
+  window.addEventListener('transcript-delete', ((e: CustomEvent<{ id: string }>) => {
+    const { id } = e.detail;
+    const entry = currentTranscript.find((t) => t.id === id);
+    if (!entry) return;
+
+    const existing = transcriptEdits.get(id);
+    transcriptEdits.set(id, {
+      editedText: existing?.editedText ?? null,
+      isDeleted: true,
+      originalText: existing?.originalText ?? entry.text,
+    });
+    dispatchTranscriptUpdate(currentTranscript);
+  }) as EventListener);
+
+  window.addEventListener('transcript-undo', ((e: CustomEvent<{ id: string }>) => {
+    const { id } = e.detail;
+    transcriptEdits.delete(id);
+    dispatchTranscriptUpdate(currentTranscript);
+  }) as EventListener);
 }
 
 export default defineContentScript({
@@ -475,6 +559,9 @@ export default defineContentScript({
         }
       }) as Parameters<typeof chrome.runtime.onMessage.addListener>[0],
     );
+
+    // Set up transcript edit event listeners (edit/delete/undo from overlay)
+    setupTranscriptEditListeners();
 
     // Wait for store to sync before rendering (for blur level, hotkey settings, etc.)
     await storeReadyPromise;

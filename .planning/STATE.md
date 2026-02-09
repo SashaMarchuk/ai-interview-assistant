@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 
 ## Current Position
 
-Phase: 20 of 21 (Transcript Editing) -- COMPLETE (awaiting phase 20 merge)
-Plan: All parallel phases (18, 19, 20) complete
-Status: Phases 18+19 integrated into milestone branch. Phase 20 merge pending. Phase 21 (Text Selection) is next.
-Last activity: 2026-02-09 -- Integrating phases 18+19+20
+Phase: 20 of 21 -- All parallel phases (18, 19, 20) COMPLETE and integrated
+Plan: 6/6 plans across phases 18-20 complete
+Status: Phases 18+19+20 integrated into milestone/v2.0-phase-18-19-20. Phase 21 (Text Selection) is next.
+Last activity: 2026-02-09 -- Integration merge complete
 
 Progress: [████████░░] 80% (v2.0)
 
@@ -36,6 +36,8 @@ Progress: [████████░░] 80% (v2.0)
 | 18-02 | Cost Dashboard UI | 13min | 2 | 6 |
 | 19-01 | File Storage & PDF Extraction | 10min | 2 | 5 |
 | 19-02 | File Upload UI & Prompt Injection | 7min | 2 | 5 |
+| 20-01 | Transcript Editing Data Layer | 6min | 2 | 3 |
+| 20-02 | Transcript Editing UI | 3min | 2 | 4 |
 
 ## Accumulated Context
 
@@ -84,6 +86,12 @@ Recent decisions affecting current work:
 - [19-02]: Resume 8K chars, JD 4K chars -- fits within typical context windows
 - [19-02]: File context appended as system prompt sections (## Candidate Background, ## Target Role) -- persistent context
 - [19-02]: Parallel IndexedDB reads (Promise.all) for resume + JD in background -- non-blocking
+- [20-01]: Edit overlay stored as module-level Map in content.tsx, not in Zustand -- session-scoped, no sync needed
+- [20-01]: applyEdits uses reduce to both filter (soft-delete) and transform (edit text) in single pass
+- [20-01]: e.target used for input guard instead of document.activeElement -- Shadow DOM boundary makes activeElement unreliable
+- [20-02]: Display pipeline keeps deleted entries visible (greyed) for undo UI; LLM context pipeline (applyEdits) filters them
+- [20-02]: editedIds/deletedIds passed via transcript-update event detail, not separate listeners in overlay
+- [20-02]: Sets for O(1) lookup of editedIds/deletedIds in render loop instead of array .includes()
 
 ### Pending Todos
 
@@ -98,5 +106,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: Integrating phases 18+19+20 into milestone/v2.0-phase-18-19-20
-Resume file: Phases 18+19 merged. Phase 20 merge next. Then Phase 21 planning.
+Stopped at: Integration of phases 18+19+20 into milestone/v2.0-phase-18-19-20 complete
+Resume file: All parallel phases integrated. Phase 21 (Text Selection) next.

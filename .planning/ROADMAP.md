@@ -153,8 +153,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 20-01-PLAN.md -- Data layer: TranscriptEdit type, edit overlay map, applyEdits, event listeners, hotkey guard
-- [ ] 20-02-PLAN.md -- UI layer: Inline edit, soft-delete, undo, visual indicators, auto-scroll suppression
+- [x] 20-01-PLAN.md -- Data layer: TranscriptEdit type, edit overlay map, applyEdits, event listeners, hotkey guard
+- [x] 20-02-PLAN.md -- UI layer: Inline edit, soft-delete, undo, visual indicators, auto-scroll suppression
 
 ### Phase 21: Enhanced Text Selection
 **Goal**: Selecting **any** text in the overlay (transcripts or AI responses) shows a floating tooltip with quick prompt actions that send selected text to the LLM
@@ -184,5 +184,5 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 | 17. Cost Tracking Capture | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 18. Cost Dashboard | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 19. File Personalization | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
-| 20. Transcript Editing | v2.0 | 0/TBD | Not started | - |
+| 20. Transcript Editing | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 21. Enhanced Text Selection | v2.0 | 0/TBD | Not started | - |
