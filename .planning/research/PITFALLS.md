@@ -1,217 +1,197 @@
-# Domain Pitfalls: v1.1 Security, Reliability & Compliance
+# Domain Pitfalls: v2.0 Enhanced Experience
 
-**Domain:** Adding encryption, IndexedDB storage, circuit breaker, compliance features to existing Chrome MV3 extension
-**Researched:** 2026-02-08
-**Confidence:** HIGH (verified against codebase + official documentation + community reports)
+**Domain:** Adding file personalization, cost tracking, reasoning models, markdown rendering, text selection tooltips, and transcript editing to existing Chrome MV3 interview assistant extension
+**Researched:** 2026-02-09
+**Confidence:** HIGH (verified against codebase analysis + official documentation + community reports)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause data loss, broken encryption, or security regressions.
+Mistakes that cause broken features, data loss, or require architectural rewrites.
 
 ---
 
-### Pitfall 1: Browser Fingerprint Key Derivation Breaks in Service Worker
+### Pitfall 1: Reasoning Models Return Empty Responses When max_completion_tokens Is Too Low
 
-**What goes wrong:** The proposed encryption todo (`20260208-security-encrypt-api-keys.md`) derives the encryption key from a "browser fingerprint" that includes `screen.width`, `screen.height`, and `navigator.userAgent`. The `screen` object does **not exist in service workers** -- service workers have no access to `window` or DOM-related APIs. This means the encryption service will throw a `ReferenceError` when initialized in the background service worker.
+**What goes wrong:** The current `OpenAIProvider.ts` (line 77-79) sets `max_completion_tokens` for reasoning models. But reasoning models (o1, o3, o4-mini) consume reasoning tokens from the same `max_completion_tokens` budget before producing visible output. If the budget is too small, ALL tokens are consumed by internal reasoning, and the response contains zero visible content. The user sees a blank "Full Answer" panel.
 
-**Why it happens:** The todo was written assuming all encryption code runs in a context with full browser APIs. But in Chrome MV3, the background script IS a service worker. `navigator.userAgent` is available via `WorkerNavigator`, but `screen.width`, `screen.height`, `new Date().getTimezoneOffset()` work, while `screen` does not.
+**Why it happens:** The current code uses `maxTokens: 300` for fast hints and `maxTokens: 2000` for full answers (background.ts lines 445-458). For standard models, 2000 tokens is generous. For reasoning models, o4-mini can consume 5000-20000+ tokens just for reasoning, leaving nothing for visible output. The `finish_reason` will be `"length"` with empty content.
 
 **Consequences:**
-- Encryption service fails to initialize in the service worker
-- API keys cannot be encrypted or decrypted
-- Extension becomes non-functional if encryption is required before key access
-- If the fingerprint approach works in popup (where `screen` exists) but not in the service worker, you get mismatched keys -- data encrypted in one context cannot be decrypted in another
+- Users select o3-mini as their "fast model" (it is listed as `category: 'fast'` in `OPENAI_MODELS` at line 52) and get blank responses every time
+- Users select o1 or o3 as "full model" and get blank or truncated responses
+- The error is silent -- status shows "complete" but content is empty
+- Users blame the extension, not the token budget
 
 **Prevention:**
-- Use ONLY APIs available in `ServiceWorkerGlobalScope` for key derivation: `chrome.runtime.id` (stable per installation), `self.navigator.userAgent`, and `Date().getTimezoneOffset()`
-- Better approach: generate a random key on first install, store the CryptoKey object directly in IndexedDB (IndexedDB can store structured-cloneable CryptoKey objects natively)
-- If deriving from a passphrase/entropy, derive in one canonical context and cache the CryptoKey in IndexedDB
-- Test encryption init in the actual service worker, not in a page context
+- Set minimum `max_completion_tokens` of 25,000 for reasoning models (OpenAI's own recommendation)
+- Override the `maxTokens: 300` fast hint budget when the model is a reasoning model -- reasoning models should NOT be used as fast hint models at all
+- Add a UI warning when a reasoning model is selected for the "fast model" slot: "Reasoning models are slow and expensive -- use GPT-4o-mini or GPT-4.1-nano for fast hints"
+- Detect empty responses with `finish_reason: "length"` and show a specific error: "Response truncated -- increase token budget or use a non-reasoning model"
+- Track `completion_tokens_details.reasoning_tokens` from the API response to show users how much budget reasoning consumed
 
-**Detection:** Error in service worker console: `ReferenceError: screen is not defined` on first key derivation attempt
+**Detection:** Empty `fullAnswer` with status "complete". The `usage.completion_tokens_details.reasoning_tokens` in the API response will show tokens were consumed but `usage.completion_tokens - usage.completion_tokens_details.reasoning_tokens` is near zero.
 
-**Codebase reference:** The current background.ts (`entrypoints/background.ts`) runs as a service worker. Line 228 calls `useStore.getState()` to read API keys -- after encryption, this will need the encryption service initialized first.
+**Codebase reference:** `src/services/llm/providers/OpenAIProvider.ts:77-79` (token limit), `entrypoints/background.ts:440-458` (maxTokens values)
 
 **Sources:**
-- [WorkerGlobalScope: navigator property (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/navigator)
-- [Window is not defined in service workers (Workbox #1482)](https://github.com/GoogleChrome/workbox/issues/1482)
+- [O4-mini returns empty response because reasoning token used all completion tokens (OpenAI Community)](https://community.openai.com/t/o4-mini-returns-empty-response-because-reasoning-token-used-all-the-completion-token/1359002)
+- [Reasoning models (OpenAI API Guide)](https://platform.openai.com/docs/guides/reasoning)
 
 ---
 
-### Pitfall 2: Plaintext-to-Encrypted Migration Causes Permanent Key Loss
+### Pitfall 2: Reasoning Models Silently Reject System Messages on Older Model Versions
 
-**What goes wrong:** During migration from plaintext to encrypted storage, if the encryption service fails to initialize (see Pitfall 1), or if the migration runs partially (encrypts some keys, removes plaintext, crashes before completing), users permanently lose their API keys.
+**What goes wrong:** The current `OpenAIProvider.streamResponse` (line 89) always sends `{ role: 'system', content: systemPrompt }`. For older reasoning model versions (o1-preview, o1-mini), system messages are NOT supported and will cause an API error. For newer versions (o1, o3, o3-mini, o4-mini), system messages are accepted but silently converted to developer messages. You must NOT send both a system message and a developer message in the same request.
 
-**Why it happens:** The proposed migration in the todo does: (1) read plaintext, (2) encrypt each key, (3) remove plaintext. If step 2 fails for any key, step 3 has already removed the plaintext for previously-processed keys. Also, `chrome.runtime.onInstalled` only fires once per install/update -- if migration fails silently, there is no retry mechanism.
-
-**Consequences:**
-- Users must re-enter all API keys after extension update
-- If they don't notice, transcription and LLM features silently fail
-- Support tickets spike after v1.1 release
-- Worst case: users blame the extension and uninstall
-
-**Prevention:**
-- Implement atomic migration: read ALL plaintext keys, encrypt ALL keys, verify ALL decryption works, THEN remove plaintext
-- Keep a migration version flag in storage: `{ migration_v: 2, completed: true }`
-- If migration fails, leave plaintext in place and retry on next service worker restart (not just onInstalled)
-- Add a migration health check: on every service worker startup, verify that stored encrypted keys can be decrypted successfully
-- Never remove plaintext until encrypted versions are verified working
-- Log migration results for debugging
-
-**Detection:** Users report "API keys disappeared" or "Please reconfigure your settings" after updating to v1.1
-
-**Codebase reference:** Current store persists API keys via Zustand persist middleware to `chrome.storage.local` under key `ai-interview-settings` (see `src/store/index.ts:33`). Migration must account for this specific storage structure, not raw key-value pairs.
-
----
-
-### Pitfall 3: WebCrypto Key Regenerated on Browser Update Changes User Agent
-
-**What goes wrong:** If the encryption key is derived from `navigator.userAgent` and the browser auto-updates (e.g., Chrome 130 to Chrome 131), the user agent string changes. PBKDF2 derives a different key. All previously encrypted data becomes undecryptable.
-
-**Why it happens:** The user agent string includes the Chrome version number (e.g., `Chrome/130.0.6723.69`). Chrome auto-updates frequently. Any fingerprint-based key derivation that includes version-specific strings is inherently fragile.
+**Why it happens:** OpenAI evolved reasoning model API support across versions. o1-preview and o1-mini do not support system messages at all. The newer o1 (not o1-preview) and o3/o4-mini accept system messages by treating them as developer messages. The codebase already has `isReasoningModel()` detection (line 25-31) but only uses it for `max_completion_tokens` -- it does not adjust the message format.
 
 **Consequences:**
-- After every Chrome update, all encrypted API keys become garbage
-- Users must re-enter API keys every 2-4 weeks (Chrome's update cycle)
-- Extension appears broken with no clear error message
+- API returns 400 error for o1-preview/o1-mini with system messages
+- The circuit breaker trips after repeated failures, blocking ALL LLM requests
+- Users who select o1-preview or o1-mini get persistent errors with no clear explanation
 
 **Prevention:**
-- Do NOT derive encryption keys from browser fingerprints. This is a fundamentally flawed approach for data that must persist across browser updates
-- Instead, generate a random 256-bit AES-GCM key using `crypto.getRandomValues()` on first install
-- Store the CryptoKey in IndexedDB (CryptoKey is structured-cloneable and can be stored with `extractable: false` for security)
-- Alternatively, use a random salt stored in IndexedDB + a static extension-specific passphrase (like `chrome.runtime.id`) for PBKDF2 derivation -- `chrome.runtime.id` is stable across updates
-- If you must use PBKDF2, use ONLY stable inputs: `chrome.runtime.id` + stored salt
+- For reasoning models, send `{ role: 'developer', content: systemPrompt }` instead of `{ role: 'system', content: systemPrompt }`
+- For o1-preview and o1-mini specifically, omit the system/developer message entirely and prepend context to the user message
+- Update `isReasoningModel()` to also detect o4-mini (`bareModel.startsWith('o4')`)
+- Remove `temperature` from the request body for reasoning models (it is fixed at 1 and sending it may cause errors)
+- Add `reasoning_effort` parameter support ('low', 'medium', 'high') for reasoning models
 
-**Detection:** After Chrome auto-update, encrypted API keys fail to decrypt. Console shows `DOMException: OperationError` from `crypto.subtle.decrypt`
+**Detection:** API returns `400 Bad Request` with error about unsupported parameters or message roles.
+
+**Codebase reference:** `src/services/llm/providers/OpenAIProvider.ts:25-31` (`isReasoningModel`), `src/services/llm/providers/OpenAIProvider.ts:86-95` (request body construction)
 
 **Sources:**
-- [Web Crypto API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
-- [Saving Web Crypto Keys using IndexedDB (GitHub Gist)](https://gist.github.com/saulshanabrook/b74984677bccd08b028b30d9968623f5)
+- [Reasoning models API guide (OpenAI)](https://platform.openai.com/docs/guides/reasoning)
+- [Azure OpenAI reasoning models (Microsoft Learn)](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning)
 
 ---
 
-### Pitfall 4: Store Race Condition Fix Breaks Message Handling on Service Worker Restart
+### Pitfall 3: Markdown Rendering in Shadow DOM Gets No Styles
 
-**What goes wrong:** The todo (`20260208-fix-store-race-condition.md`) proposes awaiting `storeReadyPromise` before registering message listeners. But Chrome MV3 requires ALL event listeners to be registered synchronously at the top level of the service worker script. If you register `chrome.runtime.onMessage.addListener` inside an async function after an await, Chrome may miss events that arrive during the async gap.
+**What goes wrong:** The overlay renders inside a Shadow DOM (`createShadowRootUi` in content.tsx line 329). Markdown rendering libraries like `react-markdown` produce standard HTML elements (`<h1>`, `<code>`, `<pre>`, `<blockquote>`, `<ul>`, `<li>`, etc.). These elements receive no styling because:
+1. Tailwind's `@tailwindcss/typography` (`prose` class) generates styles that target the document's `<head>`, which does NOT penetrate the Shadow DOM
+2. Any global CSS or imported stylesheets are injected into the main document, not the shadow root
+3. The shadow boundary blocks ALL inherited styles except CSS custom properties
 
-**Why it happens:** When a service worker is terminated and re-awakened by an incoming message, Chrome replays the event to registered listeners. If the listener is not yet registered (because it's inside an async init that hasn't completed), the message is dropped silently. The current codebase CORRECTLY registers the listener synchronously at line 436 of `background.ts`.
+**Why it happens:** WXT's `createShadowRootUi` with `cssInjectionMode: 'ui'` handles injecting the extension's own CSS into the shadow root (the `app.css` import at content.tsx line 6). However, dynamically loaded plugin CSS (like highlight.js themes or typography prose styles) may not be captured by this injection mechanism. The rendered markdown HTML will appear as unstyled plain text with no visual hierarchy.
 
 **Consequences:**
-- Messages sent during store initialization are silently dropped
-- Popup sends START_CAPTURE but background never receives it
-- Users click buttons that appear to do nothing
-- Problem is intermittent and hard to reproduce (depends on service worker wake-up timing)
+- Code blocks appear as inline text with no background, no monospace font, no syntax highlighting
+- Headers, lists, blockquotes all render at the same size as body text
+- The "Full Answer" panel becomes an unreadable wall of text
+- Users cannot distinguish code from prose, headers from paragraphs
 
 **Prevention:**
-- Keep the current pattern: register `chrome.runtime.onMessage.addListener` synchronously at the top level
-- Inside the handler, await `storeReadyPromise` before accessing store state (lazy store access pattern)
-- Alternatively, use the message queuing pattern: register handler immediately, queue messages if store not ready, process queue after store initializes
-- The correct fix is NOT to delay listener registration but to delay store-dependent logic inside the handler
+- Define explicit Tailwind utility classes for each markdown element type using `react-markdown`'s `components` prop -- map each HTML element to a React component with Tailwind classes applied directly:
+  ```tsx
+  <ReactMarkdown components={{
+    h1: ({children}) => <h1 className="text-lg font-bold text-white/90 mb-2">{children}</h1>,
+    code: ({children, className}) => className?.includes('language-')
+      ? <pre className="bg-black/30 rounded p-2 overflow-x-auto"><code className="text-sm text-green-300">{children}</code></pre>
+      : <code className="bg-white/10 rounded px-1 text-sm text-green-300">{children}</code>,
+    // ... etc for all elements
+  }} />
+  ```
+- Do NOT rely on `@tailwindcss/typography` prose classes -- they will not work inside Shadow DOM without explicit injection
+- For syntax highlighting, use `react-syntax-highlighter` with inline styles (not CSS classes) since inline styles work inside Shadow DOM
+- Test markdown rendering inside the Shadow DOM on the Google Meet page, not in isolation
 
-```typescript
-// CORRECT: Register synchronously, await store inside handler
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handleMessage(message, sender).then(sendResponse);
-  return true;
-});
+**Detection:** Rendered markdown appears as a flat wall of unstyled text. Code blocks are indistinguishable from regular text. No visual hierarchy.
 
-async function handleMessage(message, sender) {
-  // Wait for store only when we need it
-  if (needsStore(message.type)) {
-    await storeReadyPromise;
-  }
-  // Now safe to access store
-  const state = useStore.getState();
-}
-```
-
-**Detection:** Intermittent failures where popup actions do nothing. Console may show no errors at all (message simply never arrives).
-
-**Codebase reference:** Current `entrypoints/background.ts:436` correctly registers the listener synchronously. The proposed fix in the todo would break this.
+**Codebase reference:** `entrypoints/content.tsx:329` (`createShadowRootUi`), `src/overlay/ResponsePanel.tsx:83-98` (current plain text rendering that needs to become markdown)
 
 **Sources:**
-- [Handle events with service workers (Chrome)](https://developer.chrome.com/docs/extensions/get-started/tutorial/service-worker-events)
-- [MV3 Extension Service Worker Async Init Discussion](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/bnH_zx2LjQY)
+- [CSS Shadow DOM Pitfalls (PixelFreeStudio)](https://blog.pixelfreestudio.com/css-shadow-dom-pitfalls-styling-web-components-correctly/)
+- [Shadow DOM style encapsulation (CSS-Tricks)](https://css-tricks.com/encapsulating-style-and-structure-with-shadow-dom/)
 
 ---
 
-### Pitfall 5: IndexedDB Salt Storage Fails Silently on Version Mismatch
+### Pitfall 4: File Upload from Content Script Cannot Use Service Worker for FormData
 
-**What goes wrong:** The encryption todo opens IndexedDB with version 1 and creates a `salt` object store in `onupgradeneeded`. But if a future feature (like persistent transcripts) also opens an IndexedDB database -- possibly the same one with a different version -- the version mismatch triggers `onupgradeneeded` again, potentially with code that doesn't know about the `salt` store, leading to data loss.
+**What goes wrong:** To upload files to OpenAI's Files API, you need to send `multipart/form-data` with the file blob. The natural architecture would be: user picks file in overlay (content script) -> sends file to service worker -> service worker uploads to OpenAI. But transferring large file blobs (PDF resumes, 5-10MB) between content script and service worker via `chrome.runtime.sendMessage` is problematic:
+1. Message passing serializes data -- large blobs become base64-encoded strings, doubling memory usage
+2. Chrome's message passing has no official size limit but performance degrades sharply above 1-2MB
+3. The service worker's 30-second idle timeout can kill the upload mid-transfer
 
-**Why it happens:** IndexedDB's `onupgradeneeded` fires when opening a database with a higher version number. If two separate features independently manage database versions, one can overwrite or fail to preserve the other's stores. Additionally, if the encryption service opens the DB with version 1, but the persistent transcripts feature later opens the same DB with version 2, the `onupgradeneeded` handler for version 2 may not include code to preserve the `salt` store.
+**Why it happens:** Chrome extension message passing uses structured cloning, which converts `ArrayBuffer`/`Blob` to serialized data. For a 5MB PDF, this means ~6.5MB of base64 in memory on both sides, plus serialization/deserialization overhead. Combined with the service worker's ephemeral lifecycle, large file operations are unreliable.
 
 **Consequences:**
-- Encryption salt is lost during a database upgrade triggered by another feature
-- All encrypted data becomes permanently undecryptable (same effect as Pitfall 3)
-- Data corruption happens silently -- no error is thrown
+- File uploads for large PDFs silently fail or timeout
+- Memory spikes cause the Google Meet tab to lag during upload
+- Service worker terminates mid-upload, losing the file data
 
 **Prevention:**
-- Use SEPARATE IndexedDB databases for separate concerns: `encryption-db` for encryption salt/keys, `transcripts-db` for persistent transcripts
-- Never share a database between features that have independent version lifecycles
-- In `onupgradeneeded`, always use `event.oldVersion` to incrementally apply migrations rather than unconditionally creating stores
-- Add a check: if the `salt` store already exists, do not recreate it
-- Consider storing the encryption salt in `chrome.storage.local` instead of IndexedDB (simpler, fewer moving parts, and the salt is not secret -- it just needs to be stable)
+- Upload files directly from the content script context (or popup), NOT through the service worker. The content script runs in the page context and can make `fetch` calls to `https://api.openai.com` (already allowed by CSP `connect-src` in manifest)
+- Read the file with `FileReader` in the content script, create `FormData`, and `fetch` directly to OpenAI's Files API
+- Store only the returned `file_id` string (not the file blob) in the Zustand store for the service worker to use in subsequent API calls
+- Add `https://api.openai.com` to `connect-src` in manifest CSP if not already present (it IS present at wxt.config.ts line 36)
+- Keep file size validation client-side: reject files >512MB (OpenAI's limit), warn at >20MB
+- For the file picker UI: `<input type="file">` works inside Shadow DOM -- the browser's native file picker is NOT affected by Shadow DOM isolation
 
-**Detection:** After updating the extension with new IndexedDB schema, encrypted keys silently fail to decrypt. Console shows `NotFoundError: Failed to execute 'transaction' on 'IDBDatabase': One of the specified object stores was not found.`
+**Detection:** Upload appears to hang. Console shows large serialization warnings or the service worker terminates with active fetch in flight.
+
+**Codebase reference:** `wxt.config.ts:36` (CSP connect-src already includes `https://api.openai.com`), `entrypoints/background.ts` (service worker lifecycle)
 
 **Sources:**
-- [Using IndexedDB (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB)
-- [Handling IndexedDB Upgrade Version Conflict](https://dev.to/ivandotv/handling-indexeddb-upgrade-version-conflict-368a)
+- [Files API Reference (OpenAI)](https://platform.openai.com/docs/api-reference/files)
+- [Extension service worker lifecycle (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
 
 ---
 
-### Pitfall 6: Circuit Breaker State Lost on Service Worker Termination
+### Pitfall 5: Chart.js Canvas Requires unsafe-inline Style-src in CSP
 
-**What goes wrong:** The circuit breaker todo implements the circuit breaker as an in-memory JavaScript object with `failureCount`, `successCount`, `state`, and `nextAttempt` fields. When Chrome terminates the service worker (after 30 seconds of inactivity), ALL this state is wiped. The circuit breaker effectively resets to CLOSED after every idle period, defeating its purpose.
+**What goes wrong:** Chart.js sets `width` and `height` on the `<canvas>` element via inline `style` attributes. Chrome extensions enforce a Content Security Policy that, by default for extension pages, does not allow `style-src 'unsafe-inline'`. However, the overlay runs as a content script inside the Google Meet page, not as an extension page. Content scripts inherit the page's CSP for their DOM context. Google Meet's CSP may block inline styles too. Additionally, if running inside Shadow DOM, Chart.js may fail to detect the canvas dimensions correctly because the canvas is not in the main document flow.
 
-**Why it happens:** Chrome MV3 service workers are ephemeral. Any `let`, `const`, `class` instance, or `Map` stored in module scope is destroyed when the worker terminates. The circuit breaker pattern assumes a long-running process, which is the opposite of how MV3 service workers work.
+**Why it happens:** Chart.js internally does `canvas.style.width = '...'` and `canvas.style.height = '...'`. If the CSP blocks this, the canvas renders at 0x0 or throws a CSP violation. Even if CSP allows it, Chart.js uses `getComputedStyle()` and `getBoundingClientRect()` on the canvas to determine responsive sizing, which may return unexpected values inside Shadow DOM.
 
 **Consequences:**
-- Circuit breaker never actually opens: after 5 failures the worker goes idle, restarts, and the failure count is zero
-- The extension keeps hammering a failing API endpoint instead of backing off
-- Wasted API credits and poor user experience
-- During rate limiting, the extension makes things worse by continuing to send requests
+- Charts render as invisible 0x0 canvases
+- CSP violation errors flood the console
+- Chart.js responsive mode breaks because it cannot read the container dimensions inside Shadow DOM
 
 **Prevention:**
-- Persist circuit breaker state to `chrome.storage.session` (cleared on browser close, which is appropriate for circuit breaker state)
-- On service worker startup, rehydrate circuit breaker state from storage
-- Debounce state persistence (write at most once per second, not on every failure/success)
-- Use `chrome.alarms` API instead of `setTimeout` for the OPEN-to-HALF_OPEN transition timer -- `setTimeout` is cleared when the worker terminates, but alarms survive
-- Alternative: keep the circuit breaker stateless and use exponential backoff only (simpler, fewer persistence concerns)
+- Use a lightweight SVG-based charting library instead of Chart.js -- SVG elements are styled via attributes (not inline CSS) and work better inside Shadow DOM. Recommended: `recharts` (React-native, SVG-based, no CSP issues) or `lightweight-charts`
+- If Chart.js is required, disable responsive mode (`responsive: false`) and set explicit pixel dimensions via Canvas element attributes (`width="300" height="200"`) rather than CSS
+- Test chart rendering inside the Shadow DOM overlay on Google Meet, not in a standalone page
+- For cost tracking charts specifically, consider a simple custom SVG bar chart -- the data is simple (model name, token count, cost) and does not need a full charting library
 
-**Detection:** API calls continue to fail repeatedly even though the circuit should be open. No "Service temporarily unavailable" message ever appears to the user.
+**Detection:** Chart area appears blank. Console shows `Refused to apply inline style because it violates the following Content Security Policy directive`.
 
 **Sources:**
-- [Extension Service Worker Lifecycle (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
-- [Circuit Breaker Pattern (Microsoft)](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
+- [Chart.js CSP style-src issue (#5208)](https://github.com/chartjs/Chart.js/issues/5208)
+- [Chart.js canvas style attribute CSP issue (#8108)](https://github.com/chartjs/Chart.js/issues/8108)
 
 ---
 
-### Pitfall 7: Transcript Debounce Timer Lost on Service Worker Termination
+### Pitfall 6: Zustand Store Bloat From Cost History Breaks webext-zustand Sync
 
-**What goes wrong:** The transcript persistence todo uses `setTimeout` for debouncing writes to `chrome.storage.local`. When Chrome terminates the service worker between the last segment arrival and the debounce timer firing, the unsaved segments are lost forever.
+**What goes wrong:** Cost tracking accumulates data over time -- every LLM request adds a record with model, token counts, cost, and timestamp. If this data is stored in the Zustand store (which syncs across all contexts via webext-zustand), every cost record addition triggers a full state serialization and broadcast to ALL open Google Meet tabs. After weeks of use with hundreds/thousands of records, this sync becomes a significant performance bottleneck.
 
-**Why it happens:** The existing code already stores transcript data in memory (`let mergedTranscript: TranscriptEntry[] = []` at `background.ts:21`). The proposed debounced persistence adds a `setTimeout` delay before writing to storage. If the service worker terminates during that delay window (1000ms), the pending write never executes.
+**Why it happens:** webext-zustand broadcasts the entire store state on every change. With cost history in the store, adding one record means serializing and sending potentially hundreds of KB of cost data to every tab. The current store already contains templates, settings, consent flags, and API keys. Adding unbounded cost history could push it past practical limits.
 
 **Consequences:**
-- Last 1 second of transcript is lost on every service worker termination
-- During active transcription, the keep-alive interval prevents this
-- But if transcription stops and the user doesn't interact for 30 seconds, any pending debounced write is lost
-- Edge case: user stops transcription, final debounced write is pending, service worker terminates before it fires
+- Extension becomes sluggish after extended use
+- Message passing between service worker and content scripts becomes slow
+- Memory usage grows unbounded
+- Eventually hits `chrome.storage.local` 10MB limit (without `unlimitedStorage` permission)
 
 **Prevention:**
-- Write immediately on STOP_TRANSCRIPTION (flush the debounce)
-- Write immediately on `chrome.runtime.onSuspend` (fires before Chrome terminates the service worker -- but not reliably for all termination causes)
-- Use a write-through cache: write every segment immediately to storage, use debouncing only for broadcast/UI updates (not for persistence)
-- For the offscreen document (where transcription actually runs), this is less of an issue since offscreen documents persist longer, but the merged transcript is assembled in the background service worker
-- Consider: `beforeunload` in the offscreen document as a last-chance save
+- Do NOT store cost history in the Zustand store. Store it separately in `chrome.storage.local` under its own key (e.g., `cost-tracking-history`), or better yet in IndexedDB
+- Store only aggregated summary data in the Zustand store: `{ totalCost: number, sessionCost: number, requestCount: number }` -- lightweight, bounded
+- The full cost history is only needed when the user opens the cost tracking UI in the popup -- load it on-demand from IndexedDB, not from the synced store
+- Implement data retention: auto-delete records older than 90 days, or cap at 1000 records
+- Implement Zustand persist `partialize` to explicitly exclude cost history from persistence (it already excludes functions -- extend it to exclude history arrays)
 
-**Detection:** Users notice the last few words of a transcription session are missing when they review the saved transcript.
+**Detection:** Extension becomes noticeably slower after weeks of use. `chrome.storage.local.getBytesInUse` returns unexpectedly large values. Store sync messages in console show large payloads.
 
-**Codebase reference:** The keep-alive interval at `background.ts:40-46` prevents SW termination during active LLM streaming, and should similarly cover active transcription. But the gap is after transcription stops and before the debounced save completes.
+**Codebase reference:** `src/store/index.ts:40-52` (`partialize` -- currently only persists specific fields, but any new fields added here will be synced), `src/store/index.ts:97` (`wrapStore` -- triggers full sync on every change)
+
+**Sources:**
+- [State Storage in Chrome Extensions (HackerNoon)](https://hackernoon.com/state-storage-in-chrome-extensions-options-limits-and-best-practices)
+- [chrome.storage API quotas (Chrome)](https://developer.chrome.com/docs/extensions/reference/api/storage)
 
 ---
 
@@ -219,98 +199,206 @@ async function handleMessage(message, sender) {
 
 ---
 
-### Pitfall 8: Encryption Adds Async Overhead to Every Store Read
+### Pitfall 7: Reasoning Model Streaming Sends reasoning_content Tokens That Break Existing SSE Parser
 
-**What goes wrong:** Currently, `useStore.getState()` returns the store state synchronously. After adding encryption, every API key read requires async decryption (`crypto.subtle.decrypt` returns a Promise). This breaks the synchronous access pattern used throughout the codebase.
+**What goes wrong:** The current SSE parser (`streamSSE.ts`) extracts content from `choice.delta.content`. Reasoning models may include a `reasoning_content` field in the delta (separate from `content`) that contains the model's chain-of-thought. If the parser ignores this field entirely, the stream appears to stall during the reasoning phase (no tokens emitted for 10-60+ seconds) before visible content starts streaming. Users will think the extension is frozen.
 
-**Why it happens:** WebCrypto API is entirely Promise-based. There is no synchronous decryption API. The current code reads API keys synchronously in message handlers (e.g., `background.ts:229`: `const { apiKeys, models } = state`).
+**Why it happens:** For standard models, tokens arrive immediately and continuously. For reasoning models, there is a long "thinking" phase where reasoning tokens are generated but may not be sent as `content` deltas (depending on the API version and settings). The existing `onToken` callback only fires for visible content. During the thinking phase, no tokens arrive, the keep-alive mechanism may not be triggered, and the service worker could terminate.
 
-**Prevention:**
-- Decrypt API keys on store rehydration (once, at startup) and keep decrypted values in the in-memory Zustand store
-- Only encrypt when writing to `chrome.storage.local` (the persist middleware's `setItem`)
-- Only decrypt when reading from `chrome.storage.local` (the persist middleware's `getItem`)
-- The Zustand persist middleware already uses async storage -- the `chromeStorage` adapter in `src/store/chromeStorage.ts` is already async. Add encrypt/decrypt there, transparently
-- Never expose encrypted values through the Zustand store's `getState()` -- always store decrypted in memory
-
-**Detection:** TypeScript errors across the codebase where `state.apiKeys.openAI` was accessed synchronously but now requires `await`. If not caught by types, runtime `[object Promise]` appears as API key values.
-
----
-
-### Pitfall 9: Consent Modal Blocks Extension Functionality as Dark Pattern
-
-**What goes wrong:** The proposed consent system requires users to check three separate checkboxes every time they start recording. If the per-session dialog cannot be dismissed, users who have already consented are forced through friction on every use. This creates hostility toward the extension and may itself constitute a dark pattern (unnecessary repeated consent).
-
-**Why it happens:** Overzealous compliance implementation. The todo proposes a "Don't show again" checkbox, but requiring three separate checkboxes for something the user already acknowledged is excessive friction for an interview assistant that needs to start quickly.
+**Consequences:**
+- UI shows "Streaming..." but no text appears for 10-60+ seconds
+- Users cancel the request thinking it is broken
+- Service worker may terminate during the long thinking phase if keep-alive is not maintained
+- If reasoning_content IS sent via the delta, it gets silently dropped and users miss valuable chain-of-thought context
 
 **Prevention:**
-- First-time consent: YES, mandatory, blocking, comprehensive
-- Per-session reminder: small, non-blocking banner (not a modal) saying "Recording active -- ensure all parties have consented"
-- "Don't show again" should be prominent and respected permanently (not reset on updates)
-- Never require re-consent unless the privacy policy materially changes
-- Avoid requiring multiple checkboxes -- one clear acknowledgment is sufficient for repeat use
-- The "Start Recording" button label itself can serve as ongoing consent: rename to "Start Recording (consented)" or show a small indicator
+- Add explicit handling for the reasoning phase: detect when a reasoning model is in use and show "Thinking..." status with an elapsed time counter instead of "Streaming..."
+- If the API sends `delta.reasoning_content`, optionally display it in a collapsible "Chain of Thought" section
+- Ensure the keep-alive interval runs during the reasoning phase (the current 20-second interval at background.ts:64 should be sufficient, but verify the reasoning phase doesn't exceed the 30-second service worker timeout between keep-alive pings)
+- Add a longer timeout for reasoning model requests (120+ seconds vs 30 seconds for standard models)
+- Parse both `delta.content` and `delta.reasoning_content` in `streamSSE.ts`
 
-**Detection:** User complaints about "too many popups" or uninstalls correlated with the consent dialog flow
+**Detection:** "Streaming..." indicator stays active but no text appears in the response panel for extended periods. If keep-alive fails, the response suddenly stops and an error appears.
+
+**Codebase reference:** `src/services/llm/providers/streamSSE.ts:119-133` (only reads `delta.content`), `entrypoints/background.ts:62-67` (keep-alive interval)
 
 **Sources:**
-- [GDPR Dark Patterns (FairPatterns)](https://www.fairpatterns.com/post/gdpr-dark-patterns-how-they-undermine-compliance-risk-legal-penalties)
-- [UX Patterns for High Consent Rates](https://cookie-script.com/guides/ux-patterns-for-high-consent-rates)
+- [Streaming API responses (OpenAI)](https://platform.openai.com/docs/guides/streaming-responses)
+- [Reasoning model streaming events (OpenAI)](https://platform.openai.com/docs/api-reference/responses-streaming)
 
 ---
 
-### Pitfall 10: chrome.storage.local Quota Exhaustion During Long Interviews
+### Pitfall 8: Floating Selection Tooltip Positioned Incorrectly Inside Shadow DOM
 
-**What goes wrong:** The transcript persistence todo writes transcript segments to `chrome.storage.local`, which has a 10MB limit (5MB in Chrome 113 and earlier). A 60-minute interview can generate 2000+ segments at ~500 bytes each = ~1MB per session. After 10 sessions without cleanup, storage is full. New writes throw `QUOTA_BYTES_PER_ITEM` or quota exceeded errors.
+**What goes wrong:** Implementing a text selection tooltip (for selecting text in the response panel and getting follow-up actions) requires `window.getSelection()` and `Range.getBoundingClientRect()` to position the tooltip. Inside Shadow DOM, `window.getSelection()` behaves differently across browsers. In Chromium, it returns only the selection from the DOM tree containing the selection anchor. If the selection is inside the Shadow DOM, `document.getSelection()` from the main document may return null or incomplete results.
 
-**Why it happens:** `chrome.storage.local` is shared between ALL extension data: settings, templates, transcript buffers, consent flags, migration flags, and now encrypted keys. The 10MB limit fills faster than expected.
+**Why it happens:** The Selection API was designed before Shadow DOM existed. Browser implementations vary:
+- Chromium: has non-standard `shadowRoot.getSelection()` but only for open shadow roots
+- The overlay uses WXT's shadow root which is accessible, but the selection coordinates from `getBoundingClientRect()` are relative to the viewport, while the tooltip position needs to be relative to the overlay container (which is inside the Shadow DOM and may be dragged/resized via react-rnd)
+
+**Consequences:**
+- Tooltip appears at the wrong position (offset by the overlay's drag position)
+- Tooltip appears outside the overlay, on the Google Meet page
+- Selection returns null even when text is visibly selected
+- On certain Chrome versions, getSelection inside Shadow DOM returns empty ranges
 
 **Prevention:**
-- Request `"unlimitedStorage"` permission in manifest.json (removes the 10MB cap, limited only by disk space)
-- Even with unlimited storage, implement a storage budget: warn at 50MB, auto-cleanup old sessions at 100MB
-- Implement transcript compression: store only final segments, drop partial/interim data from persistence
-- Move transcript storage to IndexedDB early (not as a "future" feature) -- IndexedDB has much larger quotas
-- Always handle quota errors gracefully: if write fails, log the error but do not crash the extension
-- Never store `ArrayBuffer` audio data in `chrome.storage.local` -- only text transcripts
+- Access selection via the shadow root: `shadowRoot.getSelection()` (Chromium-specific but this is a Chrome extension)
+- If the selection API is not available on the shadow root, listen for `mouseup` events and compute selection from the event target within the shadow root
+- Calculate tooltip position relative to the overlay container, not the viewport:
+  ```typescript
+  const range = shadowRoot.getSelection()?.getRangeAt(0);
+  const rangeRect = range?.getBoundingClientRect();
+  const overlayRect = overlayContainer.getBoundingClientRect();
+  const tooltipX = rangeRect.left - overlayRect.left;
+  const tooltipY = rangeRect.top - overlayRect.top;
+  ```
+- Use `floating-ui` (successor to Popper.js) with its `autoUpdate` for repositioning during drag/resize
+- Bind the tooltip to the overlay container's coordinate space, not the document
 
-**Detection:** `chrome.storage.local.set` calls start throwing errors. Settings changes stop persisting. Extension appears to forget configuration.
+**Detection:** Tooltip appears in the wrong location or does not appear at all. Test by selecting text in the response panel while the overlay is dragged away from its default position.
 
 **Sources:**
-- [chrome.storage API (Chrome)](https://developer.chrome.com/docs/extensions/reference/api/storage)
-- [Storage and Cookies (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies)
+- [Shadow DOM Selection API explainer (GitHub)](https://github.com/mfreed7/shadow-dom-selection)
+- [Shadow selection polyfill (Google Chrome Labs)](https://github.com/GoogleChromeLabs/shadow-selection-polyfill)
+- [chrome.dom API (Chrome)](https://developer.chrome.com/docs/extensions/reference/api/dom)
 
 ---
 
-### Pitfall 11: webext-zustand Initialization Race After Encryption Layer Added
+### Pitfall 9: contentEditable Transcript Editing Causes Cursor Jumping and React State Desync
 
-**What goes wrong:** Adding encryption to the `chromeStorage` adapter makes `getItem` and `setItem` async (they already are, but now they're slower due to crypto operations). During service worker restart, `webext-zustand`'s `wrapStore` call races with the Zustand persist middleware's `rehydrate`. If the encryption service hasn't initialized yet (no CryptoKey available), the rehydrate reads encrypted data and cannot decrypt it, resulting in the store being populated with encrypted gibberish or empty defaults.
+**What goes wrong:** Adding inline editing to transcript entries requires making the text content editable. Using `contentEditable` with React is notoriously problematic because React's virtual DOM and the browser's contentEditable system both want to own the DOM. When React re-renders the component (e.g., a new transcript entry arrives), it overwrites the contentEditable content, causing the cursor to jump to the beginning or the user's edits to be lost.
 
-**Why it happens:** The initialization order becomes: (1) service worker starts, (2) `wrapStore` runs, (3) Zustand persist middleware calls `chromeStorage.getItem`, (4) `getItem` needs to decrypt, (5) but encryption service hasn't initialized its CryptoKey yet from IndexedDB.
+**Why it happens:** The `TranscriptPanel` (TranscriptPanel.tsx) renders entries in a `memo`-ized list. When new entries arrive (via the `transcript-update` custom event), the parent re-renders with a new `entries` array. React reconciles the list and may re-render individual `TranscriptEntryRow` components. If the entry being edited has the same `key` but a new object reference (because the entire entries array is replaced on every event), React will re-render it and overwrite the user's in-progress edit.
+
+**Consequences:**
+- User starts editing a transcript entry, a new partial transcript arrives, and their edit is wiped
+- Cursor jumps to the beginning of the text on every keystroke if state management is wrong
+- Pasted text retains formatting from the clipboard (bold, font changes, etc.)
+- Undo/redo (Ctrl+Z) may not work as expected
 
 **Prevention:**
-- Initialize the encryption service BEFORE creating the Zustand store
-- Make the `chromeStorage` adapter aware of the encryption service lifecycle: if crypto not ready, queue the read and resolve once ready
-- Alternatively, initialize crypto inside `chromeStorage.getItem` lazily (with a cached promise to prevent multiple initializations)
-- Add a timeout: if crypto init takes more than 5 seconds, fall back to reading plaintext (handles migration period gracefully)
-- Test the initialization sequence by logging timestamps: crypto init -> store rehydrate -> wrapStore -> handler registration
+- Use `react-contenteditable` library which handles the React/contentEditable conflict with proper `shouldComponentUpdate` logic
+- Better approach: use a controlled `<textarea>` or `<input>` that appears on double-click/click of the entry text, replacing the display text temporarily. This avoids contentEditable entirely
+- When an entry is in "edit mode", freeze it from receiving updates from the transcript stream -- use a local state flag `isEditing` per entry
+- Strip HTML on paste: listen for `onPaste` and use `event.clipboardData.getData('text/plain')` to paste only plain text
+- After editing, dispatch the change back through the proper channel (custom event or message to background) so the transcript buffer is updated
+- Batch incoming transcript updates while an entry is being edited -- apply them only after the user confirms the edit
 
-**Detection:** Store state contains encrypted strings where objects are expected. Settings page shows garbled text or empty fields after service worker restart.
+**Detection:** Cursor jumps to position 0 on every keystroke. User edits disappear when new transcript entries arrive.
+
+**Codebase reference:** `src/overlay/TranscriptPanel.tsx:60-78` (TranscriptEntryRow component), `entrypoints/content.tsx:132-136` (transcript-update replaces entire entries array)
+
+**Sources:**
+- [react-contenteditable (npm)](https://www.npmjs.com/package/react-contenteditable)
+- [ContentEditable elements in React (Tania Rascia)](https://www.taniarascia.com/content-editable-elements-in-javascript-react/)
 
 ---
 
-### Pitfall 12: Offscreen Document Cannot Access IndexedDB Created by Service Worker
+### Pitfall 10: Cost Tracking Token Counts Not Available in SSE Streaming Mode
 
-**What goes wrong:** IndexedDB databases are scoped to the origin, and Chrome extension service workers and offscreen documents share the same origin (`chrome-extension://EXTENSION_ID`). However, there can be timing issues: if the service worker creates an IndexedDB database and the offscreen document tries to open it simultaneously, or if version numbers conflict, one context blocks the other.
+**What goes wrong:** To track costs, you need `usage.prompt_tokens`, `usage.completion_tokens`, and `usage.completion_tokens_details.reasoning_tokens` from the API response. But in streaming mode (which this extension uses exclusively), the usage object is only included in the final chunk when you set `stream_options: { include_usage: true }` in the request. The current `streamSSE.ts` does not request or parse the usage object.
 
-**Why it happens:** IndexedDB's `onupgradeneeded` blocks all other connections to the same database until the upgrade transaction completes. If the service worker is in the middle of a database upgrade when the offscreen document tries to open the same database, the offscreen document's open request is blocked until the upgrade finishes or times out.
+**Why it happens:** By default, the OpenAI streaming API does NOT include token usage in SSE chunks. You must explicitly opt in with `stream_options: { include_usage: true }`. Even then, the usage data arrives only in the last chunk (where `choices` is empty). The current parser looks for `[DONE]` and calls `completeOnce()` but does not extract usage data from the final chunk.
+
+**Consequences:**
+- Cost tracking has no data -- all cost fields show zero
+- You would need to estimate token counts from text length, which is unreliable (especially for reasoning tokens, which are invisible)
+- Without usage data, cost tracking is useless -- the whole feature depends on this
 
 **Prevention:**
-- Coordinate IndexedDB access: only one context should own database creation and migration
-- The service worker should be the sole owner of database schema management
-- The offscreen document should only read/write data, never trigger version upgrades
-- Use the `onblocked` event to handle database locking gracefully
-- Consider: the offscreen document doesn't need direct IndexedDB access -- it can send data to the service worker via messages, and the service worker persists to IndexedDB
+- Add `stream_options: { include_usage: true }` to the request body in both `OpenAIProvider.streamResponse` and `OpenRouterProvider.streamResponse`
+- Modify `streamSSE.ts` to parse the usage object from the final chunk (it arrives in a chunk with `usage` field and empty `choices`):
+  ```typescript
+  if (chunk.usage) {
+    onUsage({
+      promptTokens: chunk.usage.prompt_tokens,
+      completionTokens: chunk.usage.completion_tokens,
+      reasoningTokens: chunk.usage.completion_tokens_details?.reasoning_tokens ?? 0,
+    });
+  }
+  ```
+- Add an `onUsage` callback to `ProviderStreamOptions` and `StreamCallbacks`
+- Verify that OpenRouter also supports `stream_options` (it follows OpenAI-compatible format but may differ)
 
-**Detection:** `IDBOpenDBRequest` hangs in the offscreen document. The `onblocked` event fires but is not handled, causing the operation to stall silently.
+**Detection:** Cost tracking dashboard shows all zeros. No usage data appears in console logs.
+
+**Codebase reference:** `src/services/llm/providers/streamSSE.ts:46-163` (no usage parsing), `src/services/llm/providers/OpenAIProvider.ts:81-99` (request body without stream_options)
+
+**Sources:**
+- [Chat Completions API reference (OpenAI)](https://platform.openai.com/docs/api-reference/chat)
+- [Pricing documentation (OpenAI)](https://platform.openai.com/docs/pricing)
+
+---
+
+### Pitfall 11: Store Migration Required But No Version Strategy Exists
+
+**What goes wrong:** v2.0 adds multiple new fields to the Zustand store: cost tracking summary, uploaded file references, reasoning model preferences, markdown rendering settings. When existing v1.1 users update to v2.0, the persisted store in `chrome.storage.local` does not have these fields. Zustand's persist middleware will merge the stored state with the initial state, but:
+1. If a new field's default depends on existing state (e.g., cost tracking initialized from existing model selections), the default is wrong
+2. If field types change (e.g., `models.fullModel` needs a `reasoningEffort` sub-field), the old stored value overwrites the new structure
+3. The current store has NO `version` number in its persist config, making incremental migrations impossible
+
+**Why it happens:** The current persist config (`src/store/index.ts:36-60`) does not specify a `version` or `migrate` function. Zustand's default behavior is to merge persisted state over initial state (shallow merge). This works for adding NEW fields (they get defaults) but fails for restructuring existing fields.
+
+**Consequences:**
+- Users on v1.1 upgrade and some features silently use wrong defaults
+- If a field is renamed or restructured, the old value persists and the new structure is ignored
+- No way to run one-time data transformations on upgrade
+
+**Prevention:**
+- Add `version: 2` and a `migrate` function to the persist config NOW, before v2.0:
+  ```typescript
+  persist(
+    (...a) => ({ ...slices }),
+    {
+      name: 'ai-interview-settings',
+      version: 2,
+      migrate: (persisted, version) => {
+        if (version < 2) {
+          // Add new v2.0 fields, transform structures
+          return { ...persisted, costTracking: { totalCost: 0, ... } };
+        }
+        return persisted;
+      },
+      // ... rest of config
+    }
+  )
+  ```
+- Test migration by loading a v1.1 store snapshot and verifying v2.0 fields are correctly initialized
+- Add migration unit tests that verify each version transition
+- Document the version history for future milestones
+
+**Detection:** New features show unexpected default values or error when accessing undefined nested fields.
+
+**Codebase reference:** `src/store/index.ts:29-61` (persist config without version/migrate)
+
+**Sources:**
+- [Persisting store data - Zustand](https://zustand.docs.pmnd.rs/integrations/persisting-store-data)
+- [How to migrate Zustand local storage store (DEV Community)](https://dev.to/diballesteros/how-to-migrate-zustand-local-storage-store-to-a-new-version-njp)
+
+---
+
+### Pitfall 12: File Upload API Key Exposed in Content Script Network Requests
+
+**What goes wrong:** If file uploads are done from the content script (as recommended in Pitfall 4 to avoid service worker blob issues), the OpenAI API key must be available in the content script context to authenticate the upload request. Network requests from the content script are visible in the Google Meet page's DevTools Network tab. Anyone inspecting network traffic on the page can see the `Authorization: Bearer sk-...` header.
+
+**Why it happens:** Content scripts share the page's network context. Unlike the service worker (which has its own network context hidden from the page), requests from content scripts are fully visible in the page's DevTools.
+
+**Consequences:**
+- API keys visible to anyone who opens DevTools on the Google Meet page
+- If the page has any XSS vulnerability, malicious scripts can intercept the API key
+- This violates the extension's existing security posture (SEC-01: keys read from store only in background)
+
+**Prevention:**
+- Route file uploads through the popup or a dedicated offscreen document instead of the content script
+- Best approach: use the popup page for file uploads. The popup is an extension page with its own origin, and network requests from extension pages are NOT visible in the Google Meet page's DevTools
+- Alternative: create a small offscreen document specifically for file uploads. It shares the extension origin and can make authenticated requests invisibly
+- After upload, send only the `file_id` back to the service worker via messaging
+- NEVER send the raw API key to the content script -- the current architecture correctly keeps keys in the service worker (background.ts:399)
+
+**Detection:** Open DevTools on the Google Meet page and check the Network tab during file upload. If the Authorization header with the API key is visible, the key is exposed.
+
+**Codebase reference:** `entrypoints/background.ts:399` (API key read from store in service worker only), `src/services/crypto/encryptedStorage.ts` (encrypted key storage)
 
 ---
 
@@ -318,49 +406,79 @@ async function handleMessage(message, sender) {
 
 ---
 
-### Pitfall 13: AES-GCM IV Reuse Catastrophe
+### Pitfall 13: Markdown XSS via Untrusted LLM Output
 
-**What goes wrong:** AES-GCM requires a unique initialization vector (IV) for every encryption operation with the same key. If the IV is reused (e.g., using a deterministic IV derived from the key name), an attacker can XOR two ciphertexts to recover plaintext.
+**What goes wrong:** LLM responses are rendered as markdown, which can include HTML. If using `rehype-raw` (which allows raw HTML in markdown), the LLM could produce output containing `<script>`, `<img onerror="...">`, or other XSS vectors. Even without `rehype-raw`, markdown link syntax `[click me](javascript:alert(1))` can create XSS.
 
 **Prevention:**
-- Always generate a fresh random IV with `crypto.getRandomValues(new Uint8Array(12))` for each encryption call
-- Store the IV alongside the ciphertext (prepend it, as the todo proposes)
-- Never derive the IV from the data being encrypted or from a counter that might reset
-- The proposed code in the todo handles this correctly -- ensure it is not "simplified" during implementation
+- Do NOT use `rehype-raw` -- it enables raw HTML in markdown
+- Use `rehype-sanitize` to strip dangerous HTML elements and attributes
+- Configure `react-markdown`'s `allowedElements` to only permit safe elements: `p`, `h1-h6`, `ul`, `ol`, `li`, `code`, `pre`, `blockquote`, `strong`, `em`, `a` (with href validation)
+- Strip `javascript:` URLs from links
+- The Chrome extension CSP provides a defense-in-depth layer, but do not rely on it solely
+
+**Detection:** Code review of markdown renderer configuration. Test with deliberately malicious LLM output containing script tags.
 
 ---
 
-### Pitfall 14: Base64 Encoding Performance for Large Encrypted Payloads
+### Pitfall 14: Cost Tracking Pricing Data Goes Stale
 
-**What goes wrong:** The proposed encryption uses `btoa(String.fromCharCode(...combined))` to convert encrypted ArrayBuffer to base64 for storage. For large payloads (full transcript encryption), the spread operator `...` on a large Uint8Array can cause stack overflow.
+**What goes wrong:** Token pricing changes frequently. OpenAI updates prices when releasing new models or changing existing model pricing. If prices are hardcoded in the extension, costs will be wrong after a pricing change (potentially under- or over-reporting by 2-10x).
 
 **Prevention:**
-- Use chunked base64 encoding (same pattern already used in `ElevenLabsConnection.ts:225-230`)
-- For API keys (small strings), this is not an issue
-- If encrypting transcripts in the future, use a streaming base64 encoder or store ArrayBuffer directly in IndexedDB (which supports it natively)
+- Store pricing data as a configuration object that can be updated without a code release
+- Include a `lastUpdated` timestamp and display "Prices last updated: [date]" in the cost tracking UI
+- Consider fetching current prices from a simple JSON endpoint (even a GitHub raw URL) on extension startup
+- At minimum, display token counts alongside estimated costs -- token counts are always accurate even when prices are stale
+- Include a disclaimer: "Cost estimates are approximate and may not reflect current pricing"
+
+**Detection:** Compare displayed costs with OpenAI's billing dashboard. Discrepancies indicate stale pricing data.
 
 ---
 
-### Pitfall 15: Privacy Policy URL Becomes Invalid
+### Pitfall 15: Transcript Edit Conflicts With Auto-Scroll
 
-**What goes wrong:** Chrome Web Store requires a Privacy Policy URL. If the URL breaks (GitHub repo goes private, domain expires, hosting changes), the extension can be removed from the Chrome Web Store.
+**What goes wrong:** The `TranscriptPanel` uses `useAutoScroll` (TranscriptPanel.tsx line 86) to auto-scroll to the bottom when new entries arrive. If the user is editing a transcript entry in the middle of the list, auto-scroll will move the viewport away from their edit, making the editing experience jarring and frustrating.
 
 **Prevention:**
-- Host the privacy policy on a stable, controlled URL (GitHub Pages is fine)
-- Bundle a copy of the privacy policy inside the extension as an HTML page
-- Add the privacy policy URL to the manifest.json
-- Set up monitoring for the URL
+- Disable auto-scroll when any entry is in edit mode
+- Detect user scroll position: if the user has scrolled away from the bottom (to review/edit earlier entries), pause auto-scroll. Resume only when the user scrolls back to the bottom
+- Add a "scroll to bottom" button that appears when auto-scroll is paused
+- In the `useAutoScroll` hook, add a condition: `if (isEditing) return` before scrolling
+
+**Detection:** Start editing an entry, wait for new transcript entries to arrive. If the view jumps to the bottom while editing, the pitfall is present.
+
+**Codebase reference:** `src/overlay/hooks/useAutoScroll.ts`, `src/overlay/TranscriptPanel.tsx:86`
 
 ---
 
-### Pitfall 16: Consent Timestamp Not Persisted Across Contexts
+### Pitfall 16: OpenAI Files API Requires Purpose Field and Has Rate Limits
 
-**What goes wrong:** The recording consent flag is stored in `chrome.storage.local`, but the popup reads it asynchronously. If the popup opens and the storage read hasn't completed, the consent dialog flashes briefly even for users who already consented.
+**What goes wrong:** The OpenAI Files API requires a `purpose` field (e.g., `"assistants"`, `"fine-tune"`) when uploading. If you upload with the wrong purpose, the file cannot be used with certain endpoints. Additionally, there are rate limits on file uploads (typically 100 files per organization) and files have a maximum retention period.
 
 **Prevention:**
-- Cache the consent state in the Zustand store (already synced across contexts via `webext-zustand`)
-- Use `chrome.storage.local.get` with a callback in the popup's init, showing a loading state until the check completes
-- Never show the consent dialog and then hide it -- only render it after confirming the user hasn't consented
+- Upload with `purpose: "assistants"` for files used in chat context
+- Implement file management: list uploaded files, delete old files, show remaining quota
+- Cache the `file_id` locally so the same file is not uploaded repeatedly
+- Handle the case where a cached `file_id` is no longer valid (file was deleted or expired) -- re-upload on 404
+
+**Detection:** API returns 400 with "invalid purpose" or 429 with rate limit exceeded.
+
+---
+
+### Pitfall 17: Overlay Height Insufficient for New Feature Panels
+
+**What goes wrong:** v2.0 adds markdown rendering (taller responses), cost tracking display, file upload UI, and transcript editing controls. The current overlay has a fixed `minHeight: 200` (Overlay.tsx line 323) and a default height of 400px (transcript.ts line 78). With all new features, the usable content area becomes too cramped, especially the transcript panel at a fixed `h-28` (TranscriptPanel.tsx line 101).
+
+**Prevention:**
+- Increase `minHeight` to 300-350px to accommodate new features
+- Make the transcript panel height dynamic: allow the divider between transcript and response to be draggable
+- Consider a tabbed or collapsible panel design: Transcript | Response | Cost -- show one at a time with tabs
+- The overlay is already resizable (react-rnd), but users may not realize they need to resize it. Default to a larger initial size for v2.0
+
+**Detection:** UI elements overlap or are cut off at default size. Content is cramped and unreadable without manual resizing.
+
+**Codebase reference:** `src/overlay/Overlay.tsx:322-323` (minWidth/minHeight), `src/overlay/TranscriptPanel.tsx:101` (fixed h-28)
 
 ---
 
@@ -368,69 +486,68 @@ async function handleMessage(message, sender) {
 
 | Phase Topic | Likely Pitfall | Severity | Mitigation |
 |---|---|---|---|
-| API Key Encryption | Fingerprint-based key derivation breaks in SW | CRITICAL | Use `chrome.runtime.id` + stored salt only, or store CryptoKey in IDB |
-| API Key Encryption | Browser update changes user agent, keys lost | CRITICAL | Do not use UA in key derivation |
-| Plaintext Migration | Partial migration causes key loss | CRITICAL | Atomic migration with verification before plaintext removal |
-| Store Race Condition | Moving listener registration behind await | CRITICAL | Keep synchronous registration, await store inside handler |
-| IndexedDB Salt | Version conflict with other IDB features | HIGH | Separate databases per feature |
-| Circuit Breaker | In-memory state lost on SW termination | HIGH | Persist to chrome.storage.session, use chrome.alarms |
-| Transcript Persistence | Debounce timer lost on SW termination | HIGH | Write-through for persistence, debounce only for UI |
-| Transcript Persistence | Storage quota exhaustion | MODERATE | Request unlimitedStorage, implement cleanup |
-| Encryption + Store | Async decryption breaks sync store access | MODERATE | Decrypt on rehydration, store decrypted in memory |
-| Consent UX | Over-aggressive consent blocks UX | MODERATE | First-time modal only, non-blocking reminder after |
-| Encryption Init | Crypto not ready when store rehydrates | MODERATE | Initialize crypto before store creation |
-| IDB Access | Cross-context database locking | LOW | Single owner for schema, message-based access from offscreen |
+| Reasoning Models | Empty responses from token budget exhaustion | CRITICAL | Minimum 25K max_completion_tokens, warn against reasoning for fast hints |
+| Reasoning Models | System message rejection on o1-preview/o1-mini | CRITICAL | Use developer role, update isReasoningModel to detect all o-series |
+| Reasoning Models | Reasoning phase appears frozen (no streaming tokens) | MODERATE | Show "Thinking..." with timer, extend timeouts |
+| Markdown Rendering | No styles inside Shadow DOM | CRITICAL | Use component-level Tailwind classes, not prose/typography plugin |
+| Markdown Rendering | XSS via LLM-generated markdown | MINOR | Use rehype-sanitize, no rehype-raw |
+| File Upload | Blob transfer through service worker unreliable | CRITICAL | Upload from popup/offscreen, not via SW message passing |
+| File Upload | API key exposed in content script network tab | MODERATE | Route through popup or offscreen document |
+| Cost Tracking | No usage data in streaming mode | MODERATE | Add stream_options to request, parse usage from final chunk |
+| Cost Tracking | Store bloat from unbounded history | CRITICAL | Store history in IndexedDB, only summary in Zustand |
+| Cost Tracking | Chart.js CSP/Shadow DOM conflicts | MODERATE | Use SVG-based charting (recharts) or custom SVG |
+| Cost Tracking | Stale pricing data | MINOR | Configurable prices, show last-updated date |
+| Text Selection Tooltip | getSelection fails inside Shadow DOM | MODERATE | Use shadowRoot.getSelection(), position relative to overlay |
+| Transcript Editing | Cursor jump and state desync with contentEditable | MODERATE | Use controlled textarea on edit click, not contentEditable |
+| Transcript Editing | Auto-scroll conflicts with editing | MINOR | Disable auto-scroll during edit mode |
+| Store Migration | No version strategy for persisted state | MODERATE | Add version number and migrate function now |
 
 ---
 
 ## Integration Pitfalls (Features Interacting With Each Other)
 
-### Encryption + Store Sync
-The encryption service, Zustand store, `webext-zustand` sync, and `chrome.storage.local` persistence form a dependency chain. The initialization order MUST be:
-1. Encryption service initializes (loads CryptoKey from IndexedDB)
-2. Zustand store creates with encrypted `chromeStorage` adapter
-3. `wrapStore` called for `webext-zustand` sync
-4. Message handlers can now access decrypted state
+### Reasoning Models + Cost Tracking
+Reasoning models generate hidden reasoning tokens that are billed but not visible in the response text. If cost tracking only counts visible tokens (`completion_tokens`), it will massively underreport costs for reasoning models. The `completion_tokens_details.reasoning_tokens` field must be parsed and included in cost calculations. A single o3 request can consume 50,000+ reasoning tokens at $10-$60/million tokens -- users MUST see this cost before it surprises them on their OpenAI bill.
 
-If any step fails or is reordered, the store contains either encrypted gibberish or stale defaults.
+### Markdown Rendering + Text Selection Tooltip
+If the response is rendered as markdown with rich elements (code blocks, lists, headers), text selection behavior changes. Selecting across a code block and surrounding text produces a range that spans multiple block-level elements. The tooltip positioning must handle multi-line selections where `getBoundingClientRect()` returns a rect spanning the full width. Consider positioning the tooltip at the end of the selection (last line) rather than the center of the bounding rect.
 
-### Circuit Breaker + Keep-Alive
-The existing keep-alive interval (`background.ts:38-52`) runs during active LLM streaming. If the circuit breaker opens (API unavailable), the LLM request fails immediately and keep-alive stops. But the circuit breaker's OPEN-to-HALF_OPEN timer needs to survive the subsequent service worker termination. This requires `chrome.alarms`, not `setTimeout`.
+### File Upload + Reasoning Models (Resume Personalization)
+The primary use case for file upload is resume/job description personalization -- the uploaded file provides context for LLM prompts. If the user selects a reasoning model, the combined prompt (system prompt + file content + transcript + question) may be very large. Reasoning models have high context limits but also high per-token costs. A 10-page resume (5000 tokens) + full transcript (2000 tokens) + system prompt (500 tokens) = 7500 input tokens per request. With reasoning models at $15/million input tokens, that is ~$0.11 per request just for input -- before reasoning and output tokens.
 
-### Transcript Persistence + Encryption (Future)
-If transcripts are later encrypted before storage, the async encryption adds latency to every segment save. With debouncing at 1 second and encryption taking 5-10ms per segment, this is fine. But if encrypting the entire transcript array on each save (not individual segments), a 1000-segment transcript could take 1-5 seconds to encrypt, blocking the service worker.
+### Transcript Editing + Cost Tracking
+If a user edits a transcript entry and then triggers a new LLM request, the edited transcript is used as context. This is the correct behavior. But cost tracking should attribute the request to the original template/model, not create confusion about why "the same question" costs differently after an edit (because edited transcripts change the prompt token count).
 
-### Consent + First-Use Flow
-The consent dialog, privacy notice, recording warning, and store initialization all compete for the user's attention on first launch. Order them carefully:
-1. Privacy policy acceptance (one-time, brief)
-2. Recording consent warning (one-time, comprehensive)
-3. API key setup (functional requirement)
-4. Never show consent AND privacy AND settings all at once
+### File Upload + Store Migration
+Uploaded file IDs must be stored persistently so the user does not need to re-upload on every session. This means the store gains a new `uploadedFiles` field. The store migration must handle the case where this field does not exist in v1.1 persisted state. Additionally, file IDs can become invalid (OpenAI deletes files after a period) -- the migration should NOT assume stored file IDs are valid.
+
+### All Features + Overlay Size
+Every v2.0 feature adds UI elements to the overlay: markdown requires more vertical space for formatted content, cost tracking adds a summary bar or panel, file upload adds a file indicator/button, transcript editing adds edit controls, text selection adds a floating tooltip. The overlay must grow to accommodate all of these without becoming unwieldy. Consider a progressive disclosure design: core features visible by default, secondary features (cost details, file management) behind expandable sections.
 
 ---
 
 ## Sources
 
 **Official Documentation:**
-- [Extension Service Worker Lifecycle (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
-- [Longer Extension Service Worker Lifetimes (Chrome Blog)](https://developer.chrome.com/blog/longer-esw-lifetimes)
+- [Reasoning models guide (OpenAI)](https://platform.openai.com/docs/guides/reasoning)
+- [Chat Completions API reference (OpenAI)](https://platform.openai.com/docs/api-reference/chat)
+- [Files API reference (OpenAI)](https://platform.openai.com/docs/api-reference/files)
+- [Streaming API responses (OpenAI)](https://platform.openai.com/docs/guides/streaming-responses)
+- [Extension service worker lifecycle (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)
 - [chrome.storage API (Chrome)](https://developer.chrome.com/docs/extensions/reference/api/storage)
-- [Storage and Cookies (Chrome)](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies)
-- [Web Crypto API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
-- [Using IndexedDB (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB)
-- [WorkerGlobalScope: navigator property (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/navigator)
+- [Manifest CSP (Chrome)](https://developer.chrome.com/docs/extensions/reference/manifest/content-security-policy)
+- [Persisting store data (Zustand)](https://zustand.docs.pmnd.rs/integrations/persisting-store-data)
 
 **Community / Technical Reports:**
-- [MV3 Extension Service Worker Async Init (Chromium Groups)](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/bnH_zx2LjQY)
-- [webext-redux Race Condition Fix (GitHub PR #111)](https://github.com/tshaddix/webext-redux/pull/111/files)
-- [Zustand Chrome Extension Discussion (#2020)](https://github.com/pmndrs/zustand/discussions/2020)
-- [Window is not defined in service workers (Workbox #1482)](https://github.com/GoogleChrome/workbox/issues/1482)
-- [Saving Web Crypto Keys using IndexedDB (GitHub Gist)](https://gist.github.com/saulshanabrook/b74984677bccd08b028b30d9968623f5)
-- [Chrome Extension Encryption (codestudy.net)](https://www.codestudy.net/blog/chrome-extension-encrypting-data-to-be-stored-in-chrome-storage/)
-- [Handling IndexedDB Upgrade Version Conflict (DEV)](https://dev.to/ivandotv/handling-indexeddb-upgrade-version-conflict-368a)
-- [GDPR Dark Patterns (FairPatterns)](https://www.fairpatterns.com/post/gdpr-dark-patterns-how-they-undermine-compliance-risk-legal-penalties)
-- [UX Patterns for High Consent Rates (CookieScript)](https://cookie-script.com/guides/ux-patterns-for-high-consent-rates)
-- [Vibe Engineering: MV3 Service Worker Keepalive (Medium)](https://medium.com/@dzianisv/vibe-engineering-mv3-service-worker-keepalive-how-chrome-keeps-killing-our-ai-agent-9fba3bebdc5b)
-- [Microsoft: Learnings from Migrating to MV3](https://devblogs.microsoft.com/engineering-at-microsoft/learnings-from-migrating-accessibility-insights-for-web-to-chromes-manifest-v3/)
-- [Circuit Breaker Pattern (Microsoft Azure)](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
-- [Secure Storage Proposal (W3C WebExtensions)](https://github.com/w3c/webextensions/blob/main/proposals/secure-storage.md)
+- [O4-mini empty responses (OpenAI Community)](https://community.openai.com/t/o4-mini-returns-empty-response-because-reasoning-token-used-all-the-completion-token/1359002)
+- [Chart.js CSP issue #5208](https://github.com/chartjs/Chart.js/issues/5208)
+- [Chart.js canvas style attribute CSP issue #8108](https://github.com/chartjs/Chart.js/issues/8108)
+- [Shadow DOM Selection API explainer](https://github.com/mfreed7/shadow-dom-selection)
+- [Shadow selection polyfill (Google Chrome Labs)](https://github.com/GoogleChromeLabs/shadow-selection-polyfill)
+- [react-contenteditable (npm)](https://www.npmjs.com/package/react-contenteditable)
+- [CSS Shadow DOM pitfalls (PixelFreeStudio)](https://blog.pixelfreestudio.com/css-shadow-dom-pitfalls-styling-web-components-correctly/)
+- [Shadow DOM style encapsulation (CSS-Tricks)](https://css-tricks.com/encapsulating-style-and-structure-with-shadow-dom/)
+- [Zustand store migration (DEV Community)](https://dev.to/diballesteros/how-to-migrate-zustand-local-storage-store-to-a-new-version-njp)
+- [State Storage in Chrome Extensions (HackerNoon)](https://hackernoon.com/state-storage-in-chrome-extensions-options-limits-and-best-practices)
+- [Reasoning models do not support temperature/top_p (OpenAI Community)](https://community.openai.com/t/why-is-the-temperature-and-top-p-of-o1-models-fixed-to-1-not-0/938922)
+- [LibreChat reasoning model parameter bug (GitHub)](https://github.com/danny-avila/LibreChat/issues/10737)

@@ -1,760 +1,1012 @@
-# Architecture Patterns: v1.1 Security & Reliability Integration
+# Architecture Patterns: v2.0 Enhanced Experience Integration
 
-**Domain:** Chrome MV3 Extension -- Security Hardening, Compliance, Bug Fixes
-**Researched:** 2026-02-08
-**Confidence:** HIGH (based on codebase analysis + Chrome MV3 documentation)
-
----
-
-## Current Architecture Summary
-
-The extension has four execution contexts, each with distinct capabilities:
-
-```
-+---------------------------+     +-----------------------------+
-| Background Service Worker |     | Offscreen Document          |
-| (entrypoints/background)  |     | (entrypoints/offscreen)     |
-|                           |     |                             |
-| - Message hub             |<--->| - AudioContext + Worklet    |
-| - LLM API calls (fetch)   |     | - WebSocket to ElevenLabs   |
-| - Tab capture stream IDs  |     | - Mic capture               |
-| - Zustand store (primary) |     | - PCM processing            |
-| - chrome.storage adapter  |     | - Only chrome.runtime API   |
-| - Keep-alive management   |     | - Full DOM access           |
-+---------------------------+     +-----------------------------+
-       ^        ^                        ^
-       |        |                        |
-       v        v                        |
-+-------------+ +------------------+     |
-| Popup       | | Content Script   |     |
-| (React)     | | (React/Shadow)   |     |
-|             | |                  |     |
-| - Settings  | | - Overlay UI     |     |
-| - Controls  | | - Transcript     |     |
-| - Zustand   | | - LLM responses  |     |
-| - Templates | | - Capture mode   |     |
-+-------------+ | - Zustand sync   |     |
-                +------------------+     |
-                                         |
-              All connected via chrome.runtime.sendMessage
-```
-
-**Key architectural facts from codebase analysis:**
-
-1. **Store:** Single Zustand store (`useStore`) with `persist` middleware writing to `chrome.storage.local` via `chromeStorage` adapter. `webext-zustand` (`wrapStore`) syncs across all contexts.
-
-2. **Transcript state:** Currently module-level variables in `background.ts` (lines 21-23): `mergedTranscript: TranscriptEntry[]` and `interimEntries: Map`. Lost on service worker termination.
-
-3. **API keys:** Currently in plaintext within the Zustand store, persisted to `chrome.storage.local` as part of the `apiKeys` object. Also passed via runtime messages (e.g., `START_TRANSCRIPTION` message contains `apiKey` field -- see `messages.ts:173`).
-
-4. **LLM retry:** Existing manual retry logic in `streamWithRetry()` (background.ts lines 169-213) with `MAX_LLM_RETRIES=3` and exponential backoff. No circuit breaker pattern.
-
-5. **Store init:** `storeReadyPromise` awaited via `.then()` at line 125, but message listeners registered synchronously at line 436. Messages can arrive before store hydration completes.
+**Domain:** Chrome MV3 Extension -- File Personalization, Cost Tracking, Reasoning Models, Markdown Rendering, Selection Tooltips, Transcript Editing
+**Researched:** 2026-02-09
+**Confidence:** HIGH (codebase analysis) / MEDIUM (API integrations based on official docs + web research)
 
 ---
 
-## Integration Analysis: Six New Features
+## Current Architecture (Post v1.1)
 
-### 1. Encryption Service
-
-**Question:** Where does it initialize? Background only? Shared?
-
-**Answer: Background service worker only.** Initialize encryption in the background context.
-
-**Rationale:**
-- `crypto.subtle` (WebCrypto API) is available in service workers -- confirmed via [Chromium Extensions discussion](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/VCXF9rZXr5Y) and [MDN SubtleCrypto docs](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto). Access via `crypto.subtle` (not `window.crypto.subtle` since there is no `window` in service workers).
-- The background is where API keys are consumed (LLM calls in `handleLLMRequest`, transcription start forwarded to offscreen). No other context needs to decrypt keys.
-- Salt storage in IndexedDB is accessible from the background service worker -- confirmed via [Microsoft's MV3 migration learnings](https://devblogs.microsoft.com/engineering-at-microsoft/learnings-from-migrating-accessibility-insights-for-web-to-chromes-manifest-v3/).
-
-**Integration point -- modify `chromeStorage.ts`:**
-
-The current `chromeStorage` adapter wraps `chrome.storage.local.get/set/remove`. The encryption layer wraps this adapter, encrypting only the `apiKeys` portion of the persisted state before writing and decrypting after reading.
+Four execution contexts connected via `chrome.runtime.sendMessage`:
 
 ```
-Current flow:
-  Zustand persist → chromeStorage.setItem(JSON string) → chrome.storage.local
-
-New flow:
-  Zustand persist → encryptedChromeStorage.setItem(JSON string)
-                   → parse → encrypt apiKeys fields → stringify
-                   → chrome.storage.local
++-------------------------------+     +-----------------------------+
+| Background Service Worker     |     | Offscreen Document          |
+| (entrypoints/background.ts)   |     | (entrypoints/offscreen/)    |
+|                               |     |                             |
+| - Message hub (switch/case)   |<--->| - AudioContext + Worklet    |
+| - LLM API calls (fetch SSE)  |     | - WebSocket to ElevenLabs   |
+| - Tab capture stream IDs     |     | - Mic capture               |
+| - Zustand store (primary)    |     | - PCM 16-bit 16kHz          |
+| - Encrypted chrome.storage   |     | - Full DOM access           |
+| - TranscriptBuffer (debounced)|     +-----------------------------+
+| - CircuitBreakerManager      |            ^
+| - Keep-alive interval        |            |
++-------------------------------+     chrome.runtime.sendMessage
+       ^        ^
+       |        |
+       v        v
++-------------+ +---------------------------+
+| Popup       | | Content Script            |
+| (React)     | | (React in Shadow DOM)     |
+|             | |                           |
+| - Settings  | | - Overlay (react-rnd)     |
+| - Controls  | | - TranscriptPanel         |
+| - Templates | | - ResponsePanel           |
+| - Zustand   | | - CaptureIndicator        |
++-------------+ | - HealthIndicator         |
+                | - Hotkey capture mode      |
+                | - Custom events bridge     |
+                | - Zustand sync (webext)    |
+                +---------------------------+
 ```
 
-**New files:**
-- `src/services/crypto/encryption.ts` -- EncryptionService class (singleton)
+**Key facts for v2.0 integration:**
 
-**Modified files:**
-- `src/store/chromeStorage.ts` -- wrap get/set to handle encryption
-- `entrypoints/background.ts` -- initialize encryption before store init
+1. **LLM Provider Abstraction:** `LLMProvider` interface with `streamResponse()`. Two implementations: `OpenAIProvider` and `OpenRouterProvider`. Both use shared `streamSSE()` utility with `eventsource-parser`. Already handles reasoning model detection via `isReasoningModel()` (checks o1/o3 prefixes, uses `max_completion_tokens`).
 
-**Initialization order (critical):**
-```
-1. EncryptionService.initialize()  -- derive key, load/create salt from IndexedDB
-2. Store rehydration               -- now chromeStorage can decrypt
-3. wrapStore() for cross-context sync
-4. Register message listeners
-```
+2. **State Architecture:** Zustand store with slices (`settingsSlice`, `templatesSlice`, `consentSlice`). Persisted to `chrome.storage.local` via encrypted adapter. Synced across contexts via `webext-zustand`. Current `partialize` list: `apiKeys, models, blurLevel, hotkeys, captureMode, transcriptionLanguage, templates, activeTemplateId, privacyPolicyAccepted, privacyPolicyAcceptedAt, recordingConsentDismissedPermanently`.
 
-**Confidence:** HIGH -- WebCrypto and IndexedDB both confirmed available in MV3 service workers.
+3. **Transcript State:** `TranscriptBuffer` class in background.ts with debounced persistence to `chrome.storage.local`. Content script maintains module-level `currentTranscript: TranscriptEntry[]` updated via `TRANSCRIPT_UPDATE` custom events. Entries are `{ id, speaker, text, timestamp, isFinal }`.
+
+4. **Response Rendering:** `ResponsePanel` renders `fastHint` and `fullAnswer` as plain text with Tailwind classes. No markdown parsing. Response state flows: background -> `LLM_STREAM`/`LLM_STATUS` messages -> content script `handleLLMStream()` -> custom event `llm-response-update` -> Overlay React state.
+
+5. **Shadow DOM:** Content script uses `createShadowRootUi(ctx, {...})` from WXT. All overlay CSS is isolated within Shadow DOM. Tailwind styles are injected into shadow root via `cssInjectionMode: 'ui'`.
+
+6. **chrome.storage.local Usage:** Settings store (~2KB), transcript buffer (variable, potentially large during long interviews), overlay position state, circuit breaker state, transcription active flag. No explicit size monitoring.
+
+7. **Message System:** Discriminated union `ExtensionMessage` with exhaustive switch in `handleMessage()`. Adding new message types requires updating: `MessageType` union, message interface, `ExtensionMessage` union, switch cases in background.ts, and content.tsx listener.
+
+8. **Prompt System:** `PromptBuilder.buildPrompt()` takes `DualLLMRequest` + `PromptTemplate` -> produces `{ system, user, userFull }`. Variable substitution via `$highlighted`, `$recent`, `$transcript` using `substituteVariables()`. The `PromptVariables` interface allows arbitrary string keys via index signature.
 
 ---
 
-### 2. IndexedDB for Persistent Transcripts
+## Feature Integration Analysis
 
-**Question:** Which context can access it? Background + offscreen?
+### 1. File Personalization (Resume/JD Upload)
 
-**Answer: Background service worker for writes. Popup and offscreen share the same origin so technically can read, but route everything through background for consistency.**
+**What it is:** User uploads PDF/text files (resume, job description) that get injected into LLM prompts as context.
 
-**Key facts:**
-- IndexedDB is accessible in service workers -- confirmed via [Chrome storage docs](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies): "The IndexedDB and Cache Storage APIs are accessible in service workers."
-- Extension storage (including IndexedDB) is shared across the extension's origin: service worker, popup, offscreen -- confirmed via same source.
-- Content scripts CANNOT access extension IndexedDB -- they run in the web page's origin (meet.google.com), so their IndexedDB is the page's, not the extension's. Confirmed via [Chrome content script docs](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies): "In content scripts, calling web storage APIs accesses data from the host page."
+**Architecture decision: Client-side text extraction, NOT OpenAI Files API.**
 
-**Architecture decision: Write from background, read from background or popup directly.**
+Rationale:
+- The OpenAI Files API uploads to OpenAI servers and generates `file_id` references. The Chat Completions API does NOT directly support `file_id` references -- file content must be passed inline in messages or used through the Assistants/Responses API. [MEDIUM confidence -- based on OpenAI community forums and docs]
+- Since the extension supports both OpenAI and OpenRouter, file content must be provider-agnostic.
+- PDFs for resumes are typically 1-3 pages -- client-side text extraction is trivial.
+- Client-side extraction keeps data local (privacy win) and works across all providers.
 
-```
-Offscreen (transcript segments arrive)
-  → chrome.runtime.sendMessage(TRANSCRIPT_FINAL)
-  → Background receives
-  → Background writes to in-memory mergedTranscript[] (existing)
-  → Background ALSO writes to IndexedDB via TranscriptDB service (NEW)
-
-Popup (session history view -- future)
-  → Can query IndexedDB directly (same origin)
-  → OR message background for query results
-
-Content script (overlay needs transcript)
-  → Receives via broadcast from background (existing TRANSCRIPT_UPDATE)
-  → NO direct IndexedDB access (different origin)
-```
-
-**For v1.1 scope (transcript buffer persistence, not full session history):**
-
-The immediate need (todo `20260208-fix-transcript-persistence`) is preventing data loss when the service worker terminates. The approach:
-
-1. Create `TranscriptBuffer` class that mirrors in-memory state to `chrome.storage.local` with debounced writes (1s interval).
-2. On service worker restart, reload from `chrome.storage.local`.
-3. This is a stopgap. Full IndexedDB session history (todo `20260208-persistent-transcripts`) is v2.1 scope.
-
-**Why `chrome.storage.local` for v1.1 instead of IndexedDB:**
-- Simpler API, already used throughout the codebase
-- No schema management needed
-- Adequate for single active session (~1MB for 30-min interview)
-- IndexedDB reserved for v2.1 when session history, search, and export are needed
-
-**New files:**
-- `src/services/transcription/transcriptBuffer.ts` -- TranscriptBuffer class
-
-**Modified files:**
-- `entrypoints/background.ts` -- use TranscriptBuffer instead of raw array
-
-**Confidence:** HIGH -- chrome.storage.local is proven in this codebase. IndexedDB access patterns verified via Chrome docs.
-
----
-
-### 3. Circuit Breaker
-
-**Question:** Per-service instances, where do they live?
-
-**Answer: Background service worker only. One CircuitBreaker instance per external service.**
-
-**Rationale:**
-- All API calls originate from the background service worker:
-  - LLM calls: `handleLLMRequest()` in background.ts calls `provider.streamResponse()`
-  - Transcription: Background forwards `START_TRANSCRIPTION` to offscreen, but the API key is passed through. The actual ElevenLabs WebSocket lives in offscreen.
-- The offscreen's ElevenLabs connection already has its own reconnection logic (`ElevenLabsConnection` class with `MAX_RECONNECT_ATTEMPTS=3` and exponential backoff).
-
-**Circuit breaker placement:**
+**Implementation approach:**
 
 ```
-Background service worker:
-  circuitBreakers = {
-    llm:        new CircuitBreaker({ failureThreshold: 5, timeout: 60_000 }),
-    sttToken:   new CircuitBreaker({ failureThreshold: 3, timeout: 30_000 }),
-  }
+[Popup Settings UI]
+    |
+    v
+FileReader API (browser) --> Extract text from PDF/DOCX/TXT
+    |
+    v
+Store extracted text in IndexedDB (via idb library)
+    |
+    v
+[Background: PromptBuilder]
+    |
+    Inject file context as $resume / $jobDescription variables
+    into system prompt or user prompt template
+    |
+    v
+[Provider streamResponse() -- unchanged]
 ```
 
-**Note on service worker termination and circuit breaker state:**
+**New components:**
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `FileUploadPanel` | `src/components/settings/FileUploadPanel.tsx` | Popup UI for file upload/management |
+| `fileExtractionService` | `src/services/files/extraction.ts` | PDF/text parsing (pdf.js for PDF, raw for TXT) |
+| `fileStorageService` | `src/services/files/storage.ts` | IndexedDB CRUD for extracted file content |
+| `filesSlice` | `src/store/filesSlice.ts` | Zustand slice for file metadata (name, type, size, extractedLength) |
 
-Circuit breaker state (failure counts, current state) is in-memory. When the service worker terminates, this state is lost. This is actually acceptable:
-- If the service worker dies and restarts, the circuit resets to CLOSED (healthy default).
-- The worst case is re-attempting a few failures before re-opening the circuit.
-- Persisting circuit state to storage would add complexity with minimal benefit.
+**Modified components:**
+| Component | Change |
+|-----------|--------|
+| `PromptBuilder.ts` | Add `$resume`, `$jobDescription` variables to `PromptVariables` |
+| `promptSubstitution.ts` | No changes needed -- `PromptVariables` already has `[key: string]: string \| undefined` index signature |
+| `store/types.ts` | Add `FilesSlice` types |
+| `store/index.ts` | Add `filesSlice` to combined store, update `partialize` |
+| `entrypoints/popup/App.tsx` | Add file upload section in settings |
 
-**LLM circuit breaker -- wraps existing retry logic:**
+**Data flow:**
+- File metadata (name, type, uploadedAt) in Zustand store (synced via webext-zustand, small ~500 bytes)
+- File content (extracted text) in IndexedDB (large, not synced -- only needed in background context for prompt building)
+- Background reads from IndexedDB when building prompts. This means `buildPrompt()` becomes async or file content is pre-loaded into memory.
 
-Currently `streamWithRetry()` does linear retry. The circuit breaker wraps this:
+**Why IndexedDB for content:**
+- chrome.storage.local has 10MB quota (expandable with `unlimitedStorage` permission). IndexedDB uses quota-based storage (~60% of disk for Chrome, effectively unlimited for small data).
+- Resume text can be 5-50KB, job descriptions 2-20KB -- manageable in chrome.storage.local but IndexedDB is the correct pattern for file-like content.
+- `idb` library provides Promise-based wrapper, ~1.2KB gzipped.
+- IndexedDB is available in service workers. [HIGH confidence -- confirmed via Chrome docs]
 
-```
-LLM_REQUEST arrives
-  → circuitBreakers.llm.execute(async () => {
-      → streamWithRetry(params)   // existing retry logic inside
-    })
-  → If circuit OPEN, fail fast with user-friendly message
-```
+**Critical design decision: Pre-load vs lazy-load file content.**
 
-**STT token circuit breaker -- wraps token endpoint:**
-
-The offscreen document's `ElevenLabsConnection.obtainToken()` calls `POST /v1/single-use-token/realtime_scribe`. This is the point to protect:
-- Option A: Circuit breaker in background, wrapping the `START_TRANSCRIPTION` forwarding.
-- Option B: Circuit breaker in the `ElevenLabsConnection` class itself (offscreen context).
-
-**Recommendation: Option B** -- the `ElevenLabsConnection` already manages its own reconnection. Adding a circuit breaker at the token acquisition level in the same class keeps failure handling co-located. The offscreen document is long-lived, so circuit breaker state persists for the session.
-
-**New files:**
-- `src/services/api/circuitBreaker.ts` -- generic CircuitBreaker class
-
-**Modified files:**
-- `entrypoints/background.ts` -- wrap LLM calls with circuit breaker
-- `src/services/transcription/ElevenLabsConnection.ts` -- circuit breaker for token requests
-
-**Confidence:** HIGH -- pattern is straightforward, no MV3 constraints.
-
----
-
-### 4. Consent / Privacy UI
-
-**Question:** Popup components or overlay?
-
-**Answer: Popup only. Not the overlay.**
-
-**Rationale:**
-- The consent flow gates access to recording functionality. The popup is where "Start Capture" and "Start Transcription" buttons live (see `App.tsx` lines 161-233 and 282-309).
-- The overlay (content script) is injected on meet.google.com and shows transcript/LLM results. It does not initiate recording -- it consumes data.
-- First-time legal warning must be blocking (cannot use extension without acknowledgment). This is naturally a popup modal.
-- Per-session consent check happens when user clicks "Start" in popup, before sending `START_CAPTURE` message.
-
-**Component placement:**
-
-```
-entrypoints/popup/
-  components/
-    RecordingWarning.tsx    -- First-time legal warning modal (NEW)
-    ConsentDialog.tsx       -- Per-session consent checklist (NEW)
-  App.tsx                   -- Integration: show warning/consent before capture
-
-src/store/
-  types.ts                  -- Add consent state fields
-  settingsSlice.ts          -- Add consent tracking actions
-```
-
-**Consent state storage:**
-
-Store consent acknowledgment in `chrome.storage.local` directly (not in the Zustand store) because:
-1. It is a one-time flag, not a reactive setting that UI components watch.
-2. Zustand persist serializes/deserializes the whole store; consent state is simpler as standalone keys.
-3. The popup reads it on mount with `chrome.storage.local.get('recording_warning_acknowledged')`.
-
-```
-chrome.storage.local keys:
-  recording_warning_acknowledged: boolean  -- one-time legal warning accepted
-  recording_warning_date: number           -- when accepted
-  skip_consent_dialog: boolean             -- per-session dialog suppressed
-  skip_consent_date: number                -- when suppressed
-  last_recording_consent: number           -- timestamp of last consent
-```
-
-**Privacy Policy page:**
-
-Add `entrypoints/privacy.html` as a standalone extension page (already have `entrypoints/permissions.html` as precedent). Link from popup privacy notice and settings.
-
-**New files:**
-- `entrypoints/popup/components/RecordingWarning.tsx`
-- `entrypoints/popup/components/ConsentDialog.tsx`
-- `PRIVACY.md` (repository root)
-
-**Modified files:**
-- `entrypoints/popup/App.tsx` -- integrate consent flow before capture start
-
-**Confidence:** HIGH -- standard React component work, no MV3 constraints.
-
----
-
-### 5. Transcript Buffer Persistence
-
-**Question:** How to handle service worker lifecycle for transcript state?
-
-**Answer: Debounced writes to `chrome.storage.local` + recovery on restart.**
-
-**Current problem (background.ts lines 21-23):**
+Option A (recommended): Pre-load file content into module-level variable in background.ts at startup and on file changes. PromptBuilder stays synchronous.
 ```typescript
-let mergedTranscript: TranscriptEntry[] = [];
-let interimEntries: Map<string, {...}> = new Map();
-```
-These are module-level variables. When Chrome terminates the service worker (30s idle timeout, low memory, etc.), ALL transcript data is lost.
+// background.ts
+let resumeText: string | null = null;
+let jobDescText: string | null = null;
 
-**Existing mitigation:** The `startKeepAlive()` function (line 40-45) pings every 20s during LLM streaming. But this only runs during active LLM requests, not during the entire recording session.
-
-**Solution: TranscriptBuffer service with debounced persistence.**
-
-```
-TranscriptBuffer
-  |
-  |-- addEntry(entry)
-  |     |-- push to in-memory array
-  |     |-- schedule debounced save (1s)
-  |
-  |-- save()
-  |     |-- chrome.storage.local.set({ transcript_<sessionId>: entries })
-  |
-  |-- load(sessionId)
-  |     |-- chrome.storage.local.get(transcript_<sessionId>)
-  |     |-- populate in-memory array
-  |
-  |-- clear()
-        |-- reset in-memory array
-        |-- chrome.storage.local.remove(transcript_<sessionId>)
-```
-
-**Keep-alive strategy for active recording:**
-
-Extend the existing `startKeepAlive()` to also run during active transcription (not just LLM streaming). Currently:
-- `startKeepAlive()` called in `handleLLMRequest()` (line 279)
-- `stopKeepAlive()` called when both LLM models complete (line 290)
-
-Modification: Also call `startKeepAlive()` when transcription starts (`START_TRANSCRIPTION` handler) and `stopKeepAlive()` when transcription stops. This keeps the service worker alive during the entire interview session, which is the expected behavior.
-
-**Recovery flow when service worker restarts mid-session:**
-
-```
-1. Service worker starts
-2. Check chrome.storage.local for 'active_session_id'
-3. If found:
-   a. Load TranscriptBuffer from storage
-   b. Resume keep-alive
-   c. Broadcast recovered transcript to content scripts
-4. If not found: clean start
-```
-
-**Storage quota considerations:**
-- `chrome.storage.local.QUOTA_BYTES` = 5,242,880 bytes (~5MB)
-- Average transcript entry: ~200 bytes (id, speaker, text, timestamp, isFinal)
-- 30-minute interview: ~200 entries = ~40KB
-- 2-hour interview: ~800 entries = ~160KB
-- Well within quota for single active session
-
-**New files:**
-- `src/services/transcription/transcriptBuffer.ts`
-
-**Modified files:**
-- `entrypoints/background.ts` -- replace raw array with TranscriptBuffer, extend keep-alive
-
-**Confidence:** HIGH -- `chrome.storage.local` is proven in this codebase. Pattern is straightforward.
-
----
-
-### 6. Store Initialization Ordering (Race Condition Fix)
-
-**Question:** How to fix the race condition where messages arrive before store is ready?
-
-**Current problem:**
-
-```typescript
-// Line 124-127: Store init is async, non-blocking
-storeReadyPromise.then(() => {
-  console.log('Store ready in service worker');
-});
-
-// Line 436: Message listener registered SYNCHRONOUSLY (same tick)
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Can receive messages BEFORE storeReadyPromise resolves
-  // handleMessage() calls useStore.getState() which may have stale/default state
-});
-```
-
-**Why we CANNOT simply await store before registering listeners:**
-
-Chrome MV3 requires event listeners to be registered synchronously in the first turn of the event loop. If the service worker is woken by an event (e.g., a message), and the listener is not registered in that first turn, the event is lost. This is [documented by Chrome](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle): "Always register listeners at the top level."
-
-**Solution: Register listener immediately, queue or guard store access.**
-
-```typescript
-// Option A: Queue + Drain (Recommended)
-const messageQueue: QueuedMessage[] = [];
-let storeReady = false;
-
-// Register SYNCHRONOUSLY at top level (required by MV3)
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!storeReady) {
-    // Queue the message for processing after store init
-    messageQueue.push({ message, sender, sendResponse });
-    return true; // keep channel open
-  }
-  handleMessage(message, sender).then(sendResponse);
-  return true;
-});
-
-// Initialize store and drain queue
-storeReadyPromise.then(() => {
-  storeReady = true;
-  // Process any messages that arrived during init
-  for (const { message, sender, sendResponse } of messageQueue) {
-    handleMessage(message, sender).then(sendResponse);
-  }
-  messageQueue.length = 0;
-});
-```
-
-**Why not Option B (lazy store access per message)?**
-
-```typescript
-// Option B: Check in every handler -- works but repetitive
-async function handleMessage(message, sender) {
-  if (!useStore.persist.hasHydrated?.()) {
-    await storeReadyPromise;
-  }
-  // proceed...
+// Load on startup and when files change
+async function loadFileContent() {
+  const db = await getDB();
+  const resume = await db.get('files', 'resume');
+  resumeText = resume?.extractedText ?? null;
+  // ... same for job description
 }
 ```
-This adds latency to every message (the check), and the `hasHydrated` method is internal to Zustand persist middleware and may not be exposed by webext-zustand's `wrapStore`. Option A is simpler and deterministic.
 
-**Integration with encryption init (ordering):**
+Option B: Make buildPrompt() async. Requires changing handleLLMRequest() to await prompt building.
 
-The encryption service must initialize BEFORE store rehydration, because the chromeStorage adapter needs to decrypt API keys during rehydration.
+Option A is simpler because `buildPrompt()` is called synchronously in the hot path and the file content rarely changes.
 
-```
-1. Register message listener (sync, top-level, with queue guard)
-2. EncryptionService.initialize()        -- async, derives key
-3. await storeReadyPromise               -- store rehydrates, decrypts via chromeStorage
-4. storeReady = true; drain queue
-```
+**Shadow DOM impact:** None -- file upload happens in popup, not content script.
 
-**Modified files:**
-- `entrypoints/background.ts` -- restructure initialization
-- `src/store/index.ts` -- verify `storeReadyPromise` export behavior
-
-**Confidence:** HIGH -- the queuing pattern is a well-documented solution for MV3 service worker async init. See [Chromium Extensions discussion](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/bnH_zx2LjQY).
+**Confidence:** HIGH (standard patterns, no external API dependency)
 
 ---
 
-## Recommended Architecture: After v1.1
+### 2. Cost Tracking Dashboard
+
+**What it is:** Track token usage per request, calculate costs per provider/model, display session and historical cost summaries.
+
+**Architecture decision: Capture usage from streaming responses, store in IndexedDB.**
+
+**Data capture points (two different approaches by provider):**
+
+**OpenAI:** Send `stream_options: { include_usage: true }` in the request body. The final SSE chunk includes a `usage` object: `{ prompt_tokens, completion_tokens, total_tokens }` with `completion_tokens_details` (including `reasoning_tokens`). The `choices` array is empty in this final chunk.
+[HIGH confidence -- confirmed via OpenAI streaming docs and community posts]
+
+**OpenRouter:** Usage data is automatically included in the final SSE chunk. No special parameter needed. The response includes `usage: { prompt_tokens, completion_tokens, total_tokens, cost }` plus `completion_tokens_details: { reasoning_tokens }`. OpenRouter also provides `cost` directly in the usage object, and a separate `/api/v1/generation` endpoint for async cost lookup.
+[HIGH confidence -- confirmed via OpenRouter docs at openrouter.ai/docs/guides/guides/usage-accounting]
 
 ```
-+---------------------------------------------------------------+
-| Background Service Worker                                     |
-|                                                               |
-|  INITIALIZATION (ordered):                                    |
-|  1. Register message listener with queue guard                |
-|  2. EncryptionService.initialize()                            |
-|  3. await storeReadyPromise (decrypt + rehydrate)             |
-|  4. TranscriptBuffer.load() (recover active session)          |
-|  5. storeReady = true; drain message queue                    |
-|                                                               |
-|  SERVICES:                                                    |
-|  - EncryptionService (singleton)     -- WebCrypto AES-GCM     |
-|  - TranscriptBuffer (per-session)    -- debounced persistence |
-|  - CircuitBreaker (per-LLM-provider) -- fail-fast on outage   |
-|  - LLM request handler              -- uses circuit breaker   |
-|  - Keep-alive manager                -- active during sessions |
-|                                                               |
-|  STORE:                                                       |
-|  - Zustand + persist + webext-zustand                         |
-|  - chromeStorage adapter (now with encryption layer)          |
-|  - API keys encrypted at rest                                 |
-|  - API keys NEVER in runtime messages                         |
-+---------------------------------------------------------------+
-         ^                    ^
-         |                    |
-         v                    v
-+------------------+  +-----------------------------+
-| Popup (React)    |  | Offscreen Document          |
-|                  |  |                             |
-| NEW COMPONENTS:  |  | MODIFIED:                   |
-| - RecordingWarn  |  | - ElevenLabsConnection      |
-| - ConsentDialog  |  |   + circuit breaker for     |
-| - PrivacyNotice  |  |     token acquisition       |
-|                  |  |                             |
-| MODIFIED:        |  | UNCHANGED:                  |
-| - App.tsx        |  | - AudioContext/Worklet      |
-|   (consent flow  |  | - Mic capture               |
-|    before start) |  | - Audio processing          |
-|                  |  +-----------------------------+
-| - No apiKey in   |
-|   messages       |
-+------------------+
-         ^
-         |
-         v
-+------------------+
-| Content Script   |
-| (Shadow DOM)     |
-|                  |
-| UNCHANGED:       |
-| - Overlay UI     |
-| - Transcript     |
-|   display        |
-| - LLM responses  |
-| - No IndexedDB   |
-|   access         |
-+------------------+
+[streamSSE.ts]
+    |
+    Parse final chunk with usage data
+    (detect: choices[0] empty + usage object present)
+    |
+    v
+New callback: onUsage(usage: UsageData)
+    |
+    v
+[Background handleLLMRequest()]
+    |
+    Record to CostTracker service
+    |
+    v
+[IndexedDB: cost_records store]
+    |
+    v
+[Popup: CostDashboard component reads from IndexedDB]
 ```
+
+**Key modification to streamSSE.ts:**
+
+The current `onEvent` handler in the `createParser` callback needs to additionally check for usage data in parsed chunks:
+
+```typescript
+// In streamSSE.ts onEvent handler, after content extraction:
+if (chunk.usage) {
+  // Final usage chunk - may have empty choices
+  options.onUsage?.({
+    promptTokens: chunk.usage.prompt_tokens,
+    completionTokens: chunk.usage.completion_tokens,
+    totalTokens: chunk.usage.total_tokens,
+    reasoningTokens: chunk.usage.completion_tokens_details?.reasoning_tokens,
+  });
+}
+```
+
+**New components:**
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `CostTracker` | `src/services/cost/costTracker.ts` | Record/query usage data from IndexedDB |
+| `CostDashboard` | `src/components/CostDashboard.tsx` | Popup UI with per-model, per-session, historical costs |
+| `modelPricing` | `src/services/cost/pricing.ts` | Static pricing table per model (input/output per 1M tokens) |
+| `CostSummaryWidget` | `src/overlay/CostSummaryWidget.tsx` | Optional small widget in overlay footer showing session cost |
+
+**Modified components:**
+| Component | Change |
+|-----------|--------|
+| `streamSSE.ts` | Parse `usage` from final chunk, call `onUsage` callback |
+| `LLMProvider.ts` | Add optional `onUsage` to `ProviderStreamOptions` |
+| `OpenAIProvider.ts` | Add `stream_options: { include_usage: true }` to request body |
+| `OpenRouterProvider.ts` | Usage already included; pass through `onUsage` callback |
+| `background.ts` | Wire `onUsage` callback in `fireModelRequest()`, save to CostTracker |
+| `entrypoints/popup/App.tsx` | Add cost dashboard tab/section |
+
+**IndexedDB schema for cost records:**
+
+```typescript
+interface CostRecord {
+  id: string;                    // crypto.randomUUID()
+  timestamp: number;             // Date.now()
+  sessionId: string;             // Generated per transcription session
+  responseId: string;            // Links to LLM request
+  provider: 'openai' | 'openrouter';
+  model: string;                 // e.g., 'gpt-4o-mini'
+  modelType: 'fast' | 'full';
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;       // For o-series models
+  totalTokens: number;
+  estimatedCost: number;         // Calculated from pricing table (USD)
+  reportedCost?: number;         // OpenRouter reports actual cost
+}
+```
+
+**Pricing table approach:**
+- Static JSON mapping `modelId -> { inputPer1M, outputPer1M }` in code
+- Updated manually when pricing changes (acceptable for private-use extension)
+- For OpenRouter, use the reported `cost` field directly when available (more accurate than calculation)
+- Reasoning tokens counted as output tokens for cost calculation
+
+**Storage architecture:**
+- IndexedDB `ai-interview-assistant` database, `costRecords` object store, indexed by `timestamp`, `sessionId`, `model`
+- Each record is ~200 bytes. 1000 requests = ~200KB. No size concerns.
+- Not in Zustand store -- only popup reads it, background writes it
+
+**Session ID management:**
+- Generate `sessionId` when transcription starts (`START_TRANSCRIPTION` handler)
+- Store in module-level variable in background.ts
+- Include in every `CostRecord`
+
+**Shadow DOM impact:** None -- cost dashboard is in popup. Optional session cost widget in overlay footer uses existing Tailwind styles.
+
+**Service Worker constraint:** IndexedDB available in service workers. CostTracker writes from background, reads from popup.
+
+**Confidence:** HIGH (OpenRouter usage format verified from official docs; OpenAI `stream_options` is well-documented standard)
 
 ---
 
-## Component Boundaries
+### 3. Reasoning Models Support (o-series)
 
-| Component | Responsibility | Communicates With | v1.1 Changes |
-|-----------|---------------|-------------------|-------------|
-| Background SW | Message hub, API orchestration, state management | All contexts via `chrome.runtime` | + Encryption init, + TranscriptBuffer, + CircuitBreaker, + message queue guard, - apiKey from messages |
-| Offscreen | Audio capture, WebSocket STT, PCM processing | Background only | + CircuitBreaker for ElevenLabs token, no apiKey from messages (reads from store or receives from background) |
-| Popup | Settings UI, capture controls, consent | Background via messages, Zustand sync | + RecordingWarning, + ConsentDialog, + PrivacyNotice, - apiKey in START_TRANSCRIPTION message |
-| Content Script | Overlay rendering, transcript display, hotkey capture | Background via messages, Zustand sync | No changes in v1.1 |
+**What it is:** Properly support o1, o1-mini, o3, o3-mini, o4-mini models with their unique API parameters, plus a dedicated reasoning effort control and optional reasoning token display.
+
+**Current state analysis:**
+
+The codebase ALREADY handles reasoning models partially:
+- `OpenAIProvider.ts` line 19-31: `isReasoningModel()` detects o1/o3 prefixes
+- Line 77-79: Uses `max_completion_tokens` instead of `max_tokens` for reasoning models
+- `OpenRouterProvider.ts` lines 18-29: Same detection logic
+- Model list includes o1, o1-mini, o1-preview, o3-mini
+
+**What's missing (verified against official docs):**
+
+1. **`developer` message role:** Reasoning models treat `system` as `developer` internally. Current code sends `{ role: 'system' }` which works (API auto-converts) but `developer` is the explicit correct role. [HIGH confidence -- confirmed via Azure OpenAI docs and OpenAI community]
+
+2. **`reasoning_effort` parameter:** Not supported. All reasoning models (o1, o1-mini, o3, o3-mini, o4-mini) support `low`, `medium`, `high` values. [HIGH confidence -- confirmed via official docs]
+
+3. **Unsupported parameters:** Reasoning models reject `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logprobs`, `top_logprobs`, `logit_bias`. Current code doesn't send these, so no issue. [HIGH confidence]
+
+4. **Streaming support differences:**
+   - o1: Does NOT support streaming (Chat Completions API) [HIGH confidence]
+   - o1-mini: Supports streaming [HIGH confidence]
+   - o3: Supports streaming (limited access via direct OpenAI) [MEDIUM confidence]
+   - o3-mini: Supports streaming [HIGH confidence]
+   - o4-mini: Supports streaming [HIGH confidence]
+
+   The current `streamSSE()` flow needs a fallback for o1 (non-streaming fetch). This is the most significant integration challenge.
+
+5. **Reasoning tokens in response:** Streaming chunks include `reasoning_details` in `choices[].delta` (via OpenRouter). For OpenAI, `reasoning_summary` is available for o3 and o4-mini only. [MEDIUM confidence -- availability varies by model and access level]
+
+6. **Model list outdated:** Missing o3, o4-mini from both provider model lists. o3-pro and deep-research variants are not suitable for real-time use (long latency).
+
+7. **o4-mini prefix detection:** Current `OPENAI_REASONING_MODEL_PREFIXES = ['o1', 'o3']` -- needs `'o4'` added. [HIGH confidence]
+
+**Architecture changes:**
+
+```
+[Settings: reasoning_effort selector (per-model or global)]
+    |
+    v
+[Store: settingsSlice -- add reasoningEffort: 'low' | 'medium' | 'high']
+    |
+    v
+[Provider.streamResponse()]
+    |
+    For reasoning models:
+    |-- Use 'developer' role instead of 'system'
+    |-- Add reasoning_effort to request body
+    |-- For o1: use non-streaming fetch, call onToken with full response
+    |-- For others: use existing streamSSE()
+    |
+    v
+[streamSSE -- optionally parse reasoning_details from delta]
+    |
+    v
+[Content script: ReasoningPanel (new) -- show thinking summary]
+```
+
+**Critical: o1 non-streaming fallback.**
+
+Since o1 does not support streaming, the provider needs a non-streaming code path:
+
+```typescript
+// In OpenAIProvider.streamResponse():
+if (model === 'o1' && !canStream) {
+  // Non-streaming: single fetch, parse response, emit all tokens at once
+  const response = await fetch(url, { method: 'POST', body, headers });
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content ?? '';
+  options.onToken(content);
+  options.onComplete();
+  return;
+}
+```
+
+This is a targeted exception for o1 only. All other reasoning models support streaming.
+
+**Modified components:**
+| Component | Change |
+|-----------|--------|
+| `OpenAIProvider.ts` | Use `developer` role for reasoning models, add `reasoning_effort`, add o1 non-streaming fallback, update model list (add o3, o4-mini), add `'o4'` to prefix detection |
+| `OpenRouterProvider.ts` | Same role handling, add `reasoning_effort`, update model list |
+| `streamSSE.ts` | Optionally parse `reasoning_details` from delta chunks, add `onReasoning` callback |
+| `LLMProvider.ts` | Add `reasoningEffort?` and `onReasoning?` to `ProviderStreamOptions` |
+| `store/settingsSlice.ts` | Add `reasoningEffort: 'low' \| 'medium' \| 'high'` setting (default: 'medium') |
+| `store/types.ts` | Add `ReasoningEffort` type |
+| `background.ts` | Pass `reasoningEffort` from store to provider, handle `LLM_REASONING` messages |
+| `messages.ts` | Add `LLM_REASONING` message type |
+
+**New components:**
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `ReasoningPanel` | `src/overlay/ReasoningPanel.tsx` | Collapsible panel showing reasoning summary (when available) |
+| `ReasoningEffortSelector` | `src/components/settings/ReasoningEffortSelector.tsx` | Settings UI for reasoning effort level |
+
+**Key integration point -- message role at provider level (NOT PromptBuilder):**
+
+The role change should happen at the provider level because PromptBuilder is provider-agnostic. The provider knows which model is being used and can make the role decision:
+
+```typescript
+// In OpenAIProvider.streamResponse():
+const role = isReasoningModel(model) ? 'developer' : 'system';
+const messages = [
+  { role, content: systemPrompt },
+  { role: 'user', content: userPrompt },
+];
+```
+
+This keeps `BuildPromptResult` unchanged (`{ system, user, userFull }` -- just text, no role info).
+
+**Shadow DOM impact:** ReasoningPanel renders inside the overlay Shadow DOM. Same styling patterns as existing panels.
+
+**Confidence:** MEDIUM-HIGH (API parameters confirmed, but o1 non-streaming fallback and reasoning_details parsing need runtime validation)
+
+---
+
+### 4. Markdown Rendering for LLM Responses
+
+**What it is:** Render LLM responses with proper formatting: code blocks with syntax highlighting, headers, lists, bold/italic, tables.
+
+**Architecture decision: Use `react-markdown` with `react-syntax-highlighter` for code highlighting.**
+
+Rationale for `react-markdown`:
+- Creates virtual DOM (no `dangerouslySetInnerHTML`), XSS-safe
+- Supports GFM (tables, strikethrough) via `remark-gfm` plugin
+- ~15KB gzipped (react-markdown core). Well-maintained, widely used.
+- `components` prop allows custom rendering of every HTML element with Tailwind classes
+
+**Syntax highlighting decision: `react-syntax-highlighter` with inline styles (NOT sugar-high, NOT rehype-highlight).**
+
+This is a critical decision for Shadow DOM compatibility:
+
+| Library | Style method | Shadow DOM compatible? | Size |
+|---------|-------------|----------------------|------|
+| `react-syntax-highlighter` | Inline styles (default, `useInlineStyles={true}`) | YES -- inline styles bypass Shadow DOM CSS isolation | ~50KB (with PrismLight, tree-shakeable) |
+| `sugar-high` | CSS custom properties (`--sh-` prefix) | REQUIRES injecting CSS vars into shadow root's `:host` | ~1KB |
+| `rehype-highlight` | CSS class names from highlight.js themes | REQUIRES injecting theme CSS into shadow root | ~20KB |
+
+**Recommendation: `react-syntax-highlighter` because its default inline style approach works in Shadow DOM without any CSS injection workarounds.** The size cost (~50KB) is acceptable for a Chrome extension.
+
+The `PrismLight` build from `react-syntax-highlighter/dist/esm/prism-light` allows tree-shaking -- register only needed languages (javascript, typescript, python, java, sql, bash, json) to keep bundle small.
+
+Sugar-high was initially considered but upon verification it uses CSS custom properties, NOT inline styles. These CSS variables need to be defined in the shadow root's `:host` scope. While doable (Tailwind injection via `cssInjectionMode: 'ui'` could include the vars in `app.css`), it adds fragile coupling. [HIGH confidence -- verified via sugar-high GitHub repo]
+
+**Implementation:**
+
+```
+[LLM_STREAM message with token]
+    |
+    v
+[Content script: accumulate in currentLLMResponse.fullAnswer]
+    |
+    v
+[ResponsePanel]
+    |
+    Before: <div>{response.fullAnswer}</div>  (plain text)
+    After:  <MarkdownRenderer content={response.fullAnswer} />
+    |
+    v
+[MarkdownRenderer component]
+    |
+    react-markdown with:
+    - remark-gfm for tables/strikethrough
+    - Custom components map:
+      - code blocks -> react-syntax-highlighter (PrismLight, inline styles)
+      - headings -> Tailwind-styled h2/h3 with text-white/90
+      - lists -> Tailwind-styled ul/li with proper spacing
+      - tables -> Tailwind-styled table with border-white/20
+      - inline code -> <code> with bg-white/10 px-1 rounded
+      - paragraphs -> text-sm text-white/90 with mb-2 spacing
+```
+
+**New components:**
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `MarkdownRenderer` | `src/overlay/MarkdownRenderer.tsx` | react-markdown wrapper with custom component map |
+| `CodeBlock` | `src/overlay/CodeBlock.tsx` | Code block with react-syntax-highlighter + copy button |
+
+**Modified components:**
+| Component | Change |
+|-----------|--------|
+| `ResponsePanel.tsx` | Replace plain text `{response.fullAnswer}` and `{response.fastHint}` with `<MarkdownRenderer>` |
+
+**Performance during streaming:**
+
+react-markdown re-parses the full content on every render. During streaming, `fullAnswer` changes every ~50ms. Mitigation strategies:
+
+1. **Debounced rendering (recommended):** Use a `useDeferredValue` or custom debounce (~200ms) during streaming. Show raw text between debounce intervals, full markdown on debounce tick and on completion. This gives perceived real-time updates without parsing overhead.
+
+2. **Streaming-aware rendering:** During `status === 'streaming'`, render markdown only up to the last complete paragraph/block. On `status === 'complete'`, render the full markdown. This avoids re-parsing incomplete markdown that produces broken output.
+
+3. **React 18 `useDeferredValue`:** Wrap the markdown content in `useDeferredValue(content)`. React will prioritize rendering the raw text update and defer the expensive markdown parse. This is the simplest approach.
+
+**Recommended: Use `useDeferredValue` for the markdown content string.** It requires zero custom logic and leverages React 18's concurrent features (already in the project).
+
+**Shadow DOM impact:** ADDRESSED. Custom components use Tailwind classes (already injected into Shadow DOM). `react-syntax-highlighter` uses inline styles. No external CSS sheets needed. No shadow DOM issues.
+
+**Confidence:** HIGH (react-markdown is well-established, react-syntax-highlighter inline styles verified, Shadow DOM CSS injection via WXT confirmed from codebase analysis)
+
+---
+
+### 5. Enhanced Text Selection -> LLM (Floating Tooltip)
+
+**What it is:** When user selects text in the overlay (transcript or response panel), show a floating tooltip with quick action buttons (e.g., "Explain", "Rephrase", "Deeper") -- no hotkey required.
+
+**Architecture challenge: Selection detection in Shadow DOM.**
+
+The overlay lives in a Shadow DOM created by WXT's `createShadowRootUi`. Key facts about selection APIs:
+
+- `window.getSelection()` works for selections in the main document. For selections within Shadow DOM, Chrome provides the non-standard `shadowRoot.getSelection()`. [MEDIUM confidence -- behavior may vary]
+- The newer `Selection.getComposedRanges()` API can return ranges that cross shadow boundaries. Available since August 2025 in latest browsers. [MEDIUM confidence -- recently available]
+- The current `getHighlightedText()` in `useCaptureMode.ts` uses `window.getSelection()` which will detect text selected WITHIN the overlay because WXT uses `mode: 'open'` shadow DOM.
+- `selectionchange` event fires on `document`, not on shadow roots. Must listen on `document` and then check if the selection is within the overlay's shadow root.
+
+**Implementation approach:**
+
+```
+[User selects text in overlay panels]
+    |
+    document 'selectionchange' event listener
+    |
+    v
+[Check if selection is within our shadow root]
+    |
+    shadowRoot.getSelection() (Chrome) or
+    window.getSelection() + check if anchorNode is within overlay
+    |
+    If selection.toString().trim() has text:
+    |
+    v
+[Get selection coordinates via Range.getBoundingClientRect()]
+    |
+    Coordinates are viewport-relative (works across shadow boundary)
+    |
+    v
+[Show <SelectionTooltip> positioned near selection]
+    |
+    Tooltip actions: "Ask AI", "Explain", "Rephrase", "Copy"
+    |
+    On action click:
+    |
+    v
+[sendLLMRequest(actionPrefix + selectedText, 'highlight')]
+    |
+    Uses existing LLM_REQUEST message flow
+```
+
+**New components:**
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `SelectionTooltip` | `src/overlay/SelectionTooltip.tsx` | Floating tooltip with action buttons |
+| `useTextSelection` | `src/overlay/hooks/useTextSelection.ts` | Hook to detect text selection within overlay and position tooltip |
+| `quickPrompts` | `src/services/llm/quickPrompts.ts` | Predefined action prompts ("Explain this concept: ...", "Rephrase for clarity: ...") |
+
+**Modified components:**
+| Component | Change |
+|-----------|--------|
+| `Overlay.tsx` | Add `<SelectionTooltip>` component, wire `useTextSelection` hook |
+| `content.tsx` | May need to expose `sendLLMRequest` more flexibly (currently takes `question` and `mode`) |
+
+**Tooltip positioning strategy:**
+
+Render the tooltip as a child of the overlay container (inside Shadow DOM), positioned with `position: fixed` using viewport coordinates from `getBoundingClientRect()`. Since the overlay itself uses `react-rnd` with absolute positioning, the tooltip should be a portal-like element at the shadow root level to avoid coordinate translation.
+
+```typescript
+// useTextSelection.ts
+function useTextSelection(shadowRoot: ShadowRoot | null) {
+  const [tooltipState, setTooltipState] = useState<{
+    visible: boolean;
+    text: string;
+    x: number;
+    y: number;
+  }>({ visible: false, text: '', x: 0, y: 0 });
+
+  useEffect(() => {
+    const handler = () => {
+      const selection = shadowRoot?.getSelection?.() ?? window.getSelection();
+      const text = selection?.toString().trim() ?? '';
+      if (text.length > 3) {
+        const range = selection!.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        setTooltipState({
+          visible: true,
+          text,
+          x: rect.left + rect.width / 2,
+          y: rect.top - 8, // Position above selection
+        });
+      } else {
+        setTooltipState(prev => prev.visible ? { ...prev, visible: false } : prev);
+      }
+    };
+
+    document.addEventListener('selectionchange', handler);
+    return () => document.removeEventListener('selectionchange', handler);
+  }, [shadowRoot]);
+
+  return tooltipState;
+}
+```
+
+**Edge cases:**
+- Selection spans outside overlay -> check `anchorNode` is descendant of overlay container
+- Selection disappears on click elsewhere -> `mousedown` handler hides tooltip
+- Tooltip obscures selected text -> position above by default, flip below if near viewport top
+- Tooltip action click clears selection -> capture text before clearing
+- Rapid selection changes -> debounce `selectionchange` handler (100ms)
+
+**Shadow DOM impact:** Selection events work within Shadow DOM in Chrome. `getBoundingClientRect()` returns viewport-relative coords correctly. Tooltip renders within Shadow DOM (isolated styles). The `shadowRoot.getSelection()` is Chrome-specific but this is a Chrome extension. [HIGH confidence for Chrome-only target]
+
+**Service Worker constraint:** None -- all UI-side logic.
+
+**Confidence:** HIGH (standard DOM APIs, Chrome-only target simplifies selection API concerns)
+
+---
+
+### 6. Transcript Editing (Inline Corrections)
+
+**What it is:** Allow user to edit transcript entries inline (fix STT errors), add comments, and soft-delete entries.
+
+**Architecture decision: Local edit overlay in content script, NOT modifying TranscriptBuffer directly.**
+
+Rationale:
+- `TranscriptBuffer` in background.ts receives live STT entries. Modifying it during active transcription creates race conditions (new entries arriving while user edits).
+- Edits are user-facing corrections, not changes to the raw STT data.
+- An edit layer on top preserves original data and enables undo.
+- Keeps the edit feature entirely in the content script context (no new messages needed for basic editing).
+
+**Implementation approach:**
+
+```
+[TranscriptEntry from STT]   [TranscriptEdit from user]
+        |                              |
+        v                              v
+[TranscriptBuffer]           [transcriptEdits Map<entryId, Edit>]
+(background.ts)              (content script / useTranscriptEdits hook)
+        |                              |
+        +-------> merge at display <---+
+                      |
+                      v
+              [TranscriptPanel renders merged view]
+              [getFullTranscript() returns edited text for LLM]
+```
+
+**Edit types:**
+
+```typescript
+interface TranscriptEdit {
+  entryId: string;
+  type: 'correction' | 'comment' | 'delete';
+  correctedText?: string;      // For corrections
+  comment?: string;            // For comments
+  deleted?: boolean;           // For soft delete
+  editedAt: number;            // Timestamp
+}
+
+// Undo stack
+type UndoEntry = {
+  edit: TranscriptEdit;
+  previousState: TranscriptEdit | null;  // null = entry was unedited
+};
+```
+
+**State management:**
+
+Edits stored in a React hook state (`useTranscriptEdits`) within the content script. Not in Zustand because:
+- Edits are session-scoped (cleared when transcription session ends)
+- Only needed in the overlay context (content script)
+- No cross-context sync required
+- Optional persistence to `chrome.storage.local` for crash recovery
+
+For undo: maintain a stack of `UndoEntry` objects. `Ctrl+Z` pops the last entry. Simple and sufficient.
+
+**New components:**
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `EditableTranscriptEntry` | `src/overlay/EditableTranscriptEntry.tsx` | Inline edit mode for a single entry |
+| `useTranscriptEdits` | `src/overlay/hooks/useTranscriptEdits.ts` | Hook managing edit state, undo stack, persistence |
+| `TranscriptActions` | `src/overlay/TranscriptActions.tsx` | Per-entry action buttons (edit, comment, delete, undo) |
+
+**Modified components:**
+| Component | Change |
+|-----------|--------|
+| `TranscriptPanel.tsx` | Replace static `TranscriptEntryRow` with `EditableTranscriptEntry`, add edit controls visible on hover |
+| `content.tsx` | Modify `getFullTranscript()` and `getRecentTranscript()` to merge edits before sending to LLM |
+
+**Critical integration: Edited text in LLM context.**
+
+When user corrects a transcript entry, the LLM must receive the corrected text, not the original STT output. The `getFullTranscript()` and `getRecentTranscript()` functions in content.tsx must be updated:
+
+```typescript
+// content.tsx -- module-level or passed from Overlay context
+let transcriptEdits: Map<string, TranscriptEdit> = new Map();
+
+// Updated in response to edits from overlay (via custom event or ref)
+function getFullTranscript(): string {
+  const merged = currentTranscript
+    .filter(e => e.isFinal)
+    .map(entry => {
+      const edit = transcriptEdits.get(entry.id);
+      if (edit?.deleted) return null;
+      if (edit?.correctedText) return { ...entry, text: edit.correctedText };
+      return entry;
+    })
+    .filter(Boolean) as TranscriptEntry[];
+  return formatEntries(merged);
+}
+```
+
+The challenge is that `transcriptEdits` lives in the React component tree (Overlay -> useTranscriptEdits) but `getFullTranscript()` is a module-level function in content.tsx. Bridge this via:
+- Custom event: Overlay dispatches `transcript-edits-update` with the edits map
+- Ref pattern: content.tsx creates a ref that the Overlay updates
+- Module-level setter: export `setTranscriptEdits()` from content.tsx
+
+**Recommended: Module-level setter exported from content.tsx.** Simplest, most direct.
+
+**Inline editing UX:**
+- Click pencil icon or double-click entry text to enter edit mode
+- Controlled `<textarea>` (not `contenteditable` -- more predictable with React)
+- Enter to save, Escape to cancel
+- Visual indicator: edited entries show subtle "edited" badge and original text on hover
+- Deleted entries show strikethrough with "restore" button
+
+**Shadow DOM impact:** Editing UI renders within Shadow DOM. Standard React controlled components. No special considerations.
+
+**Service Worker constraint:** Edits stay in content script state. No background communication needed for basic editing.
+
+**Confidence:** HIGH (standard React patterns, no external dependencies)
+
+---
+
+## Component Boundaries Summary
+
+### New Services (src/services/)
+
+```
+src/services/
+  files/
+    extraction.ts     -- PDF/text file parsing (pdf.js for PDF, raw for TXT)
+    storage.ts         -- IndexedDB CRUD for file content
+  cost/
+    costTracker.ts     -- IndexedDB CRUD for cost records
+    pricing.ts         -- Static model pricing table (USD per 1M tokens)
+  db.ts                -- Shared IndexedDB database initialization (idb wrapper)
+  llm/
+    quickPrompts.ts    -- Predefined selection action prompts
+    providers/
+      (existing files modified)
+```
+
+### New Store Slices
+
+```
+src/store/
+  filesSlice.ts        -- File metadata (name, type, size, extractedLength)
+  (settingsSlice.ts    -- Add reasoningEffort: 'low' | 'medium' | 'high')
+  (types.ts            -- Add FilesSlice, ReasoningEffort types)
+  (index.ts            -- Add filesSlice, update partialize)
+```
+
+### New Overlay Components
+
+```
+src/overlay/
+  MarkdownRenderer.tsx         -- react-markdown wrapper with Tailwind component map
+  CodeBlock.tsx                 -- PrismLight code block with copy button
+  ReasoningPanel.tsx            -- Collapsible reasoning summary display
+  SelectionTooltip.tsx          -- Floating action tooltip on text selection
+  EditableTranscriptEntry.tsx   -- Inline transcript editing
+  TranscriptActions.tsx         -- Per-entry action buttons (edit/comment/delete)
+  CostSummaryWidget.tsx         -- Optional session cost in overlay footer
+  hooks/
+    useTextSelection.ts         -- Selection detection + tooltip positioning
+    useTranscriptEdits.ts       -- Edit state management + undo stack
+```
+
+### New Popup Components
+
+```
+src/components/
+  settings/
+    FileUploadPanel.tsx         -- File upload/management UI
+    ReasoningEffortSelector.tsx  -- Reasoning effort level selector
+  CostDashboard.tsx              -- Cost tracking charts/summary
+```
 
 ---
 
 ## Data Flow Changes
 
-### Before v1.1 (Current)
+### Current Data Flow (v1.1)
 
 ```
-[API Key Flow - INSECURE]
-User enters key → Zustand store → chrome.storage.local (PLAINTEXT)
-User clicks Start → Popup sends START_TRANSCRIPTION { apiKey: "sk-..." }
-                   → Background forwards to Offscreen
-                   → Offscreen uses key for ElevenLabs
-
-[Transcript Flow - FRAGILE]
-Offscreen → TRANSCRIPT_FINAL → Background → mergedTranscript[] (IN MEMORY ONLY)
-                                           → broadcast to content scripts
-Service worker dies → mergedTranscript = [] (DATA LOST)
+STT Audio -> Offscreen -> Background (TranscriptBuffer) -> Content Script (TRANSCRIPT_UPDATE)
+Hotkey/Selection -> Content Script -> Background (LLM_REQUEST) -> Provider (fetch SSE) -> Background (LLM_STREAM) -> Content Script
+Settings -> Popup -> Zustand store -> chrome.storage.local -> All contexts
 ```
 
-### After v1.1
+### New Data Flows (v2.0)
 
 ```
-[API Key Flow - SECURE]
-User enters key → Zustand store → EncryptedChromeStorage → chrome.storage.local (ENCRYPTED)
-User clicks Start → ConsentDialog (if first time) → Popup sends START_TRANSCRIPTION (NO apiKey)
-                   → Background reads key from encrypted store
-                   → Background forwards key to Offscreen (internal message)
+FILE UPLOAD:
+Popup -> FileReader API -> extraction service -> IndexedDB
+Background (PromptBuilder) <- reads IndexedDB at startup + on change -> injects $resume/$jobDescription
 
-[Transcript Flow - RESILIENT]
-Offscreen → TRANSCRIPT_FINAL → Background → TranscriptBuffer
-                                           |→ in-memory array (fast access)
-                                           |→ debounced chrome.storage.local (persistence)
-                                           → broadcast to content scripts
-Service worker dies → service worker restarts → TranscriptBuffer.load() → data RECOVERED
+COST TRACKING:
+Provider (streamSSE final chunk) -> onUsage callback -> Background -> CostTracker -> IndexedDB
+Popup (CostDashboard) <- reads IndexedDB for cost records
+Optional: Background -> LLM_USAGE message -> Content Script -> CostSummaryWidget
 
-[LLM Flow - RESILIENT]
-Content → LLM_REQUEST → Background → CircuitBreaker.execute(
-                                       → streamWithRetry(provider.streamResponse())
-                                     )
-                                   → If circuit OPEN: fail fast, notify UI
+REASONING MODELS:
+Provider (streamSSE reasoning delta) -> onReasoning callback -> Background -> LLM_REASONING message -> Content Script -> ReasoningPanel
+o1 model: Provider (non-streaming fetch) -> onToken(full content) -> onComplete
+Settings: reasoningEffort -> Zustand -> Background -> provider request body
+
+MARKDOWN RENDERING:
+LLM_STREAM tokens -> content script accumulates fullAnswer string ->
+ResponsePanel -> MarkdownRenderer (react-markdown + react-syntax-highlighter inline styles)
+No new messages. No data flow change. Pure rendering change.
+
+SELECTION TOOLTIP:
+User selects text in overlay -> useTextSelection detects via selectionchange ->
+SelectionTooltip shows -> User clicks action -> sendLLMRequest(prefix + text, 'highlight')
+Uses existing LLM_REQUEST flow. No new messages.
+
+TRANSCRIPT EDITING:
+User double-clicks entry -> EditableTranscriptEntry -> useTranscriptEdits hook ->
+transcriptEdits Map in content script -> getFullTranscript() merges edits
+No new messages. Edits are content-script-local.
 ```
 
 ---
 
-## Patterns to Follow
+## IndexedDB Schema Design
 
-### Pattern 1: Layered Storage Adapter
-
-**What:** Wrap the existing `chromeStorage` adapter with an encryption layer rather than modifying it directly.
-
-**Why:** Separation of concerns. The storage adapter does get/set/remove. The encryption layer transforms data. Composable and testable independently.
+Single IndexedDB database with multiple object stores, shared initialization:
 
 ```typescript
-// src/services/crypto/encryptedStorage.ts
-import { chromeStorage } from '@/store/chromeStorage';
-import { encryptionService } from './encryption';
+// src/services/db.ts
+import { openDB, type IDBPDatabase } from 'idb';
 
-export const encryptedChromeStorage: StateStorage = {
-  getItem: async (name: string) => {
-    const raw = await chromeStorage.getItem(name);
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed.state?.apiKeys) {
-        // Decrypt API keys
-        parsed.state.apiKeys = await decryptApiKeys(parsed.state.apiKeys);
+interface AppDB {
+  files: {
+    key: string;
+    value: {
+      id: string;
+      name: string;
+      type: 'resume' | 'job-description' | 'notes';
+      mimeType: string;
+      extractedText: string;
+      uploadedAt: number;
+      sizeBytes: number;
+    };
+  };
+  costRecords: {
+    key: string;
+    value: CostRecord;
+    indexes: {
+      'by-timestamp': number;
+      'by-session': string;
+      'by-model': string;
+    };
+  };
+}
+
+export function getDB(): Promise<IDBPDatabase<AppDB>> {
+  return openDB<AppDB>('ai-interview-assistant', 1, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('files')) {
+        db.createObjectStore('files', { keyPath: 'id' });
       }
-      return JSON.stringify(parsed);
-    } catch {
-      return raw; // fallback for non-JSON or migration
-    }
-  },
-  setItem: async (name: string, value: string) => {
-    // Encrypt API keys before storing
-    const parsed = JSON.parse(value);
-    if (parsed.state?.apiKeys) {
-      parsed.state.apiKeys = await encryptApiKeys(parsed.state.apiKeys);
-    }
-    await chromeStorage.setItem(name, JSON.stringify(parsed));
-  },
-  removeItem: chromeStorage.removeItem,
-};
-```
-
-### Pattern 2: Service Worker Init Queue
-
-**What:** Register event listeners synchronously, queue processing until async init completes.
-
-**Why:** MV3 mandates synchronous listener registration. Store/encryption init is async. Queue bridges the gap.
-
-```typescript
-interface QueuedMessage {
-  message: ExtensionMessage;
-  sender: chrome.runtime.MessageSender;
-  sendResponse: (response: unknown) => void;
-}
-
-const messageQueue: QueuedMessage[] = [];
-let initialized = false;
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Always let webext-zustand handle its own messages
-  if (message?.type === 'chromex.dispatch' || message?.type === 'chromex.fetch_state') {
-    return false;
-  }
-  if (!initialized) {
-    messageQueue.push({ message, sender, sendResponse });
-    return true;
-  }
-  handleMessage(message, sender).then(sendResponse).catch(/*...*/);
-  return true;
-});
-```
-
-### Pattern 3: Circuit Breaker as Wrapper
-
-**What:** Wrap existing API call functions with circuit breaker, do not replace them.
-
-**Why:** Existing retry logic in `streamWithRetry()` works well. Circuit breaker adds a higher-level protection (stop trying entirely after too many failures) without changing the inner retry mechanism.
-
-```typescript
-// In handleLLMRequest:
-try {
-  await llmCircuitBreaker.execute(async () => {
-    await streamWithRetry(params, modelType, responseId);
+      if (!db.objectStoreNames.contains('costRecords')) {
+        const store = db.createObjectStore('costRecords', { keyPath: 'id' });
+        store.createIndex('by-timestamp', 'timestamp');
+        store.createIndex('by-session', 'sessionId');
+        store.createIndex('by-model', 'model');
+      }
+    },
   });
-} catch (error) {
-  if (error instanceof CircuitOpenError) {
-    // Service is known-down, fail fast with user message
-    await sendLLMMessageToMeet({ type: 'LLM_STATUS', /*...*/ status: 'error',
-      error: 'Service temporarily unavailable. Will retry automatically in 60 seconds.' });
-  }
 }
 ```
 
----
+**Why shared database:** Single `openDB()` call, schema versioning in one place, consistent access patterns across features.
 
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Encryption in Every Context
-
-**What:** Initializing EncryptionService in popup, content script, AND background.
-
-**Why bad:** Multiple encryption instances with potentially different keys (if browser fingerprint varies between contexts). Increases attack surface. Salt stored in IndexedDB could have race conditions.
-
-**Instead:** Initialize once in background. Other contexts get decrypted values via Zustand store sync (webext-zustand). Popup writes encrypted API keys by sending them to the background for storage, or by using the Zustand store action which persists through the encrypted adapter.
-
-### Anti-Pattern 2: IndexedDB in Content Script for Transcripts
-
-**What:** Having the content script write directly to IndexedDB for transcript persistence.
-
-**Why bad:** Content scripts run in the web page's origin (meet.google.com). Their IndexedDB is the PAGE's IndexedDB, not the extension's. Data would be scoped to meet.google.com and potentially visible to the host page.
-
-**Instead:** All transcript persistence goes through background service worker messages. Content script receives data via broadcast, does not store it.
-
-### Anti-Pattern 3: Awaiting Store Before Listener Registration
-
-**What:** `await storeReadyPromise; chrome.runtime.onMessage.addListener(...)`.
-
-**Why bad:** Chrome MV3 will not deliver the waking event to a listener registered after the first turn of the event loop. If a message wakes the service worker, the handler misses it.
-
-**Instead:** Register synchronously, queue messages, drain after init.
-
-### Anti-Pattern 4: Persisting Circuit Breaker State to Storage
-
-**What:** Writing circuit breaker failure counts and state to `chrome.storage.local` to survive service worker termination.
-
-**Why bad:** Adds write overhead on every API call. Circuit breaker state is ephemeral by nature. Resetting to CLOSED on restart is the correct default (assume service recovered).
-
-**Instead:** Keep circuit breaker state in memory. Accept that it resets on restart.
+**Access contexts:**
+- Background service worker: reads files (for prompts), writes cost records
+- Popup: reads/writes files (upload UI), reads cost records (dashboard)
+- Content script: does NOT access IndexedDB directly (routes through background or popup handles its own)
 
 ---
 
-## New vs Modified Files Summary
+## Message System Extensions
 
-### New Files
+Minimal new message types needed:
 
-| File | Purpose | Context |
-|------|---------|---------|
-| `src/services/crypto/encryption.ts` | EncryptionService -- WebCrypto AES-GCM wrapper | Background SW |
-| `src/services/crypto/encryptedStorage.ts` | Encrypted StateStorage adapter | Background SW |
-| `src/services/api/circuitBreaker.ts` | Generic CircuitBreaker class | Background SW + Offscreen |
-| `src/services/transcription/transcriptBuffer.ts` | TranscriptBuffer -- debounced persistence | Background SW |
-| `entrypoints/popup/components/RecordingWarning.tsx` | First-time legal warning modal | Popup |
-| `entrypoints/popup/components/ConsentDialog.tsx` | Per-session consent checklist | Popup |
-| `PRIVACY.md` | Privacy policy document | Repository root |
+```typescript
+// Reasoning tokens display (background -> content script)
+export interface LLMReasoningMessage extends BaseMessage {
+  type: 'LLM_REASONING';
+  responseId: string;
+  model: LLMModelType;
+  reasoning: string;  // Reasoning token content or summary
+}
 
-### Modified Files
-
-| File | Changes | Risk |
-|------|---------|------|
-| `entrypoints/background.ts` | Init order (encryption -> store -> queue drain), TranscriptBuffer integration, circuit breaker wrapping, keep-alive extension, remove apiKey from message handling | HIGH -- central hub, many changes |
-| `src/store/chromeStorage.ts` or `src/store/index.ts` | Switch to encryptedChromeStorage adapter | MEDIUM -- affects all store persistence |
-| `src/types/messages.ts` | Remove `apiKey` field from `StartTranscriptionMessage` | LOW -- type-only change |
-| `entrypoints/popup/App.tsx` | Add consent flow before capture, remove apiKey from messages | MEDIUM -- UI flow change |
-| `src/services/transcription/ElevenLabsConnection.ts` | Add circuit breaker for token requests | LOW -- isolated change |
-
----
-
-## Build Order (Dependency-Based)
-
-```
-Phase 1: Foundation (no feature deps, enables all others)
-  1a. Store race condition fix (message queue guard)
-  1b. Remove apiKey from messages (security, simple refactor)
-
-Phase 2: Encryption (depends on 1a for init ordering)
-  2a. EncryptionService
-  2b. Encrypted storage adapter
-  2c. Migration from plaintext
-
-Phase 3: Persistence (depends on 1a for init ordering)
-  3a. TranscriptBuffer service
-  3b. Keep-alive during transcription
-  3c. Recovery on restart
-
-Phase 4: Resilience (independent, can parallelize with Phase 3)
-  4a. CircuitBreaker class
-  4b. Wrap LLM calls
-  4c. Wrap ElevenLabs token requests
-
-Phase 5: Compliance UI (independent of 2-4, but builds on 1b)
-  5a. RecordingWarning component
-  5b. ConsentDialog component
-  5c. Privacy policy document
-  5d. Integrate consent flow in App.tsx
+// Optional: usage data for overlay widget (background -> content script)
+export interface LLMUsageMessage extends BaseMessage {
+  type: 'LLM_USAGE';
+  responseId: string;
+  model: LLMModelType;
+  promptTokens: number;
+  completionTokens: number;
+  estimatedCost: number;
+}
 ```
 
-**Why this order:**
-- Phase 1 fixes the init race condition that all other features depend on (encryption init, transcript buffer loading, etc.).
-- Phase 2 must come before Phase 3 because the encrypted storage adapter must be in place before any new storage writes.
-- Phase 4 is independent of 2 and 3 (circuit breaker wraps API calls, does not touch storage).
-- Phase 5 is independent UI work that can be done anytime after Phase 1b (since consent gates the capture flow that no longer sends apiKey).
+Most new features are either popup-only (files, cost dashboard) or content-script-only (selection tooltip, transcript editing), requiring no new messages.
+
+**Update required in messages.ts:** Add to `MessageType` union, add message interfaces, add to `ExtensionMessage` union. Update exhaustive switch in background.ts and content.tsx listener.
+
+---
+
+## Suggested Build Order (Dependencies)
+
+```
+Phase 1: Markdown Rendering
+  |  (foundational -- improves ALL subsequent LLM output display)
+  |  (no external dependencies, pure rendering change)
+  |
+Phase 2: IndexedDB Foundation + File Personalization
+  |  (establishes IndexedDB patterns used by cost tracking)
+  |  (high user value -- personalized LLM responses)
+  |
+Phase 3: Reasoning Models Enhancement
+  |  (benefits from markdown rendering for reasoning output)
+  |  (modifies LLM provider layer, affects cost tracking)
+  |
+Phase 4: Cost Tracking
+  |  (depends on: IndexedDB foundation from Phase 2, streamSSE changes)
+  |  (benefits from: reasoning model support for reasoning_tokens)
+  |
+Phase 5: Enhanced Text Selection Tooltip
+  |  (depends on: markdown rendering for formatted display of results)
+  |  (uses existing LLM_REQUEST flow, low coupling)
+  |
+Phase 6: Transcript Editing
+  |  (most isolated, no dependencies on other v2.0 work)
+  |  (can be deferred without blocking)
+```
+
+**Rationale for this order:**
+
+1. **Markdown first:** Every subsequent LLM feature produces markdown output. Having rendering in place means Phase 3 reasoning output, Phase 5 selection results, and even Phase 2 file-enhanced prompts all display well from day one.
+
+2. **IndexedDB + Files second:** Establishes the `idb`-based storage pattern. File personalization has high user value (personalized answers). The IndexedDB schema from `db.ts` is reused by cost tracking.
+
+3. **Reasoning models third:** Modifies the LLM provider layer (streamSSE, OpenAIProvider, OpenRouterProvider). Best to do this before cost tracking modifies the same files for usage capture. Avoids merge conflicts.
+
+4. **Cost tracking fourth:** Depends on IndexedDB (Phase 2) and benefits from reasoning model changes (Phase 3) -- reasoning tokens are tracked separately. Modifies `streamSSE.ts` which Phase 3 also touches.
+
+5. **Selection tooltip fifth:** Nice-to-have feature, simpler than others. Benefits from markdown rendering (results look good). Independent of provider layer.
+
+6. **Transcript editing last:** Most isolated feature. No dependencies on other v2.0 work. Can be deferred without blocking other features.
+
+**Parallelization opportunities:**
+- Phase 1 (Markdown) and Phase 2 (Files) can run in parallel (no shared files)
+- Phase 5 (Selection) and Phase 6 (Transcript Editing) can run in parallel (no shared files)
+- Phase 3 (Reasoning) must precede Phase 4 (Cost) due to shared streamSSE.ts modifications
 
 ---
 
 ## Scalability Considerations
 
-| Concern | Current (v1.0) | After v1.1 | At v2.1 (IndexedDB) |
-|---------|----------------|------------|---------------------|
-| Transcript storage | In-memory only (~unlimited RAM) | chrome.storage.local (~5MB, ~50 sessions) | IndexedDB (~100MB+, hundreds of sessions) |
-| API key security | Plaintext in chrome.storage | AES-GCM encrypted at rest | Same |
-| Service worker death | Total data loss | Recovery from storage | Recovery from IndexedDB |
-| API failure handling | Simple retry (3 attempts) | Circuit breaker + retry | Same |
-| Legal compliance | None | Consent UI + Privacy Policy | Same |
+| Concern | At 1 session/day | At 10 sessions/day | At 100+ sessions |
+|---------|-------------------|---------------------|-------------------|
+| IndexedDB cost records | ~5KB | ~50KB | ~5MB (add TTL cleanup) |
+| IndexedDB file content | ~100KB | Same (files reused) | Same |
+| chrome.storage.local | ~10KB total | Same | Same |
+| Transcript buffer | ~50KB peak | Same per session | Same (cleared per session) |
+| Markdown re-renders | Deferred via React 18 | Same | Same |
+| Transcript edits | ~2KB per session | Same (cleared per session) | Same |
+
+**No scalability concerns for the target use case** (private interview assistant, 1-5 sessions per day). Add a "clear old cost records" button or automatic 90-day TTL for heavy users.
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Storing File Content in Zustand
+**What:** Putting extracted resume/JD text (~50KB) in the Zustand store.
+**Why bad:** `webext-zustand` syncs the entire store across contexts via `chrome.runtime.sendMessage`. Large text content in every sync message causes performance degradation and exceeds message size best practices.
+**Instead:** Store file content in IndexedDB, only store metadata (name, type, size, extractedLength) in Zustand.
+
+### Anti-Pattern 2: Parsing Markdown on Every Streaming Token
+**What:** Running react-markdown parse on every streaming token (every ~50ms).
+**Why bad:** Markdown parsing is O(n) on content length. With a 2000-token response, later tokens cause parsing of the entire accumulated response every 50ms.
+**Instead:** Use React 18 `useDeferredValue()` to let React batch and defer expensive re-renders, or debounce to 200ms intervals during streaming.
+
+### Anti-Pattern 3: Modifying TranscriptBuffer for User Edits
+**What:** Pushing user edits back into the `TranscriptBuffer` class in background.ts.
+**Why bad:** TranscriptBuffer receives live STT entries with debounced persistence. Mixing user edits creates ordering bugs, race conditions with incoming STT data, and persistence conflicts.
+**Instead:** Maintain a separate edit overlay in content script state, merge at display time and when building LLM context.
+
+### Anti-Pattern 4: OpenAI Files API for Cross-Provider File Context
+**What:** Using OpenAI's `file_id` reference in chat completions for file context.
+**Why bad:** Files API works with Assistants/Responses API, not standard Chat Completions. Also, OpenRouter doesn't support `file_id` references.
+**Instead:** Extract text client-side and inject into prompt as a plain text variable (`$resume`, `$jobDescription`).
+
+### Anti-Pattern 5: Storing Cost Records in chrome.storage.local
+**What:** Using chrome.storage for cost tracking data.
+**Why bad:** 10MB limit, no indexing, no efficient querying by date range or model. Reading all records to display a filtered view is wasteful.
+**Instead:** Use IndexedDB with proper indexes (timestamp, sessionId, model) for efficient queries.
+
+### Anti-Pattern 6: Using sugar-high Without Shadow DOM CSS Injection
+**What:** Choosing sugar-high for syntax highlighting and expecting it to work in Shadow DOM out of the box.
+**Why bad:** Sugar-high uses CSS custom properties (`--sh-keyword`, `--sh-string`, etc.) that must be defined in the shadow root's `:host` scope. Without explicit injection, all code appears unstyled.
+**Instead:** Use `react-syntax-highlighter` with `useInlineStyles={true}` (default) -- inline styles bypass Shadow DOM CSS isolation entirely.
+
+### Anti-Pattern 7: Sending Streaming Request for o1 Model
+**What:** Using `stream: true` when calling the o1 model via OpenAI API.
+**Why bad:** o1 does not support streaming in the Chat Completions API. The request will fail.
+**Instead:** Add a non-streaming fallback path in `OpenAIProvider.streamResponse()` specifically for o1. Emit the full response as a single `onToken()` call followed by `onComplete()`.
 
 ---
 
 ## Sources
 
-- [Chrome Extension Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) -- event listener registration requirements
-- [Chrome Storage and Cookies](https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies) -- IndexedDB availability, content script storage isolation
-- [Chrome Offscreen Documents API](https://developer.chrome.com/docs/extensions/reference/api/offscreen) -- API restrictions in offscreen context
-- [WebCrypto in MV3 Service Workers](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/VCXF9rZXr5Y) -- `crypto.subtle` availability confirmed
-- [MDN SubtleCrypto](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto) -- AES-GCM patterns
-- [MV3 Async Init Race Condition](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/bnH_zx2LjQY) -- message queuing workaround
-- [Microsoft MV3 Migration Learnings](https://devblogs.microsoft.com/engineering-at-microsoft/learnings-from-migrating-accessibility-insights-for-web-to-chromes-manifest-v3/) -- IndexedDB in service workers for persistence
-- [Circuit Breaker Pattern (Martin Fowler)](https://martinfowler.com/bliki/CircuitBreaker.html) -- CLOSED/OPEN/HALF_OPEN state machine
+- [OpenAI Reasoning Models Guide](https://platform.openai.com/docs/guides/reasoning) -- HIGH confidence
+- [Azure OpenAI Reasoning Models](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning) -- HIGH confidence, detailed parameter comparison table
+- [OpenAI Chat Completions API Reference](https://platform.openai.com/docs/api-reference/chat) -- HIGH confidence
+- [OpenAI Streaming API Reference](https://platform.openai.com/docs/api-reference/chat-streaming) -- HIGH confidence
+- [OpenRouter Usage Accounting](https://openrouter.ai/docs/guides/guides/usage-accounting) -- HIGH confidence, confirmed usage in final SSE chunk
+- [OpenRouter Reasoning Tokens Guide](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens) -- HIGH confidence, reasoning_details format
+- [OpenRouter Streaming Reference](https://openrouter.ai/docs/api/reference/streaming) -- HIGH confidence
+- [react-markdown GitHub Repository](https://github.com/remarkjs/react-markdown) -- HIGH confidence
+- [react-syntax-highlighter GitHub](https://github.com/react-syntax-highlighter/react-syntax-highlighter) -- HIGH confidence, inline styles confirmed
+- [sugar-high GitHub Repository](https://github.com/huozhi/sugar-high) -- HIGH confidence, CSS custom properties (NOT inline styles) confirmed
+- [MDN Selection API](https://developer.mozilla.org/en-US/docs/Web/API/Window/getSelection) -- HIGH confidence
+- [Selection.getComposedRanges() MDN](https://developer.mozilla.org/en-US/docs/Web/API/Selection/getComposedRanges) -- MEDIUM confidence (new API, limited adoption)
+- [Chrome Extensions Storage API](https://developer.chrome.com/docs/extensions/reference/api/storage) -- HIGH confidence
+- [Chrome IndexedDB Storage Improvements](https://developer.chrome.com/docs/chromium/indexeddb-storage-improvements) -- HIGH confidence
+- [WXT Content Script UI (Shadow DOM)](https://wxt.dev/guide/key-concepts/content-script-ui.html) -- HIGH confidence
+- [WXT Shadow DOM CSS Issues](https://github.com/wxt-dev/wxt/issues/678) -- MEDIUM confidence, community reports
+- [OpenAI Files API Reference](https://platform.openai.com/docs/api-reference/files) -- HIGH confidence
+- [OpenAI Community: Files with Chat Completions](https://community.openai.com/t/how-to-use-a-file-via-chat-completions/873600) -- MEDIUM confidence
