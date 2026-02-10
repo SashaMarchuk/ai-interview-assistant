@@ -27,7 +27,7 @@ export default defineConfig({
   }),
   manifest: {
     name: 'AI Interview Assistant',
-    version: '0.1.0',
+    version: '2.0.0',
     description: 'Real-time AI assistance for technical interviews',
     permissions: ['tabCapture', 'activeTab', 'offscreen', 'storage', 'scripting', 'alarms'],
     host_permissions: ['https://meet.google.com/*'],
