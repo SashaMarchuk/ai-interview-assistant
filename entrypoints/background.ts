@@ -94,18 +94,51 @@ function stopKeepAlive(): void {
 }
 
 /**
+ * Cached Meet tab IDs for fast broadcast.
+ * Avoids chrome.tabs.query() on every message (expensive for high-frequency streaming).
+ * Cache is refreshed every 5 seconds and on tab lifecycle events.
+ */
+let cachedMeetTabIds: number[] = [];
+let tabCacheTimestamp = 0;
+const TAB_CACHE_TTL_MS = 5000;
+
+/** Refresh the cached Meet tab IDs */
+async function refreshMeetTabCache(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+    cachedMeetTabIds = tabs.filter((t) => t.id != null).map((t) => t.id!);
+    tabCacheTimestamp = Date.now();
+  } catch {
+    // Keep stale cache on error
+  }
+}
+
+// Invalidate cache on tab lifecycle events
+chrome.tabs.onRemoved.addListener((tabId) => {
+  cachedMeetTabIds = cachedMeetTabIds.filter((id) => id !== tabId);
+});
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  // Only invalidate on URL changes (navigation)
+  if (changeInfo.url) {
+    tabCacheTimestamp = 0; // Force refresh on next broadcast
+  }
+});
+
+/**
  * Broadcast a message to all Google Meet content scripts.
+ * Uses cached tab IDs for performance; refreshes cache when stale.
  * Silently ignores tabs where content script is not loaded.
  */
 async function broadcastToMeetTabs(message: ExtensionMessage): Promise<void> {
   try {
-    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-    for (const tab of tabs) {
-      if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, message).catch(() => {
-          // Ignore - content script might not be loaded on this tab
-        });
-      }
+    // Refresh cache if stale
+    if (Date.now() - tabCacheTimestamp > TAB_CACHE_TTL_MS) {
+      await refreshMeetTabCache();
+    }
+    for (const tabId of cachedMeetTabIds) {
+      chrome.tabs.sendMessage(tabId, message).catch(() => {
+        // Ignore - content script might not be loaded on this tab
+      });
     }
   } catch (error) {
     console.error('Failed to broadcast to Meet tabs:', error);

@@ -14,7 +14,7 @@
  * - Triangular arrow pointer toward selection
  */
 
-import { useEffect, useState, forwardRef } from 'react';
+import { useEffect, useState, useMemo, forwardRef } from 'react';
 import { useFloating, offset, flip, shift } from '@floating-ui/react-dom';
 import { useStore } from '../store';
 import { ICON_MAP } from '../constants/quickPromptIcons';
@@ -62,8 +62,11 @@ export const SelectionTooltip = forwardRef<HTMLDivElement, SelectionTooltipProps
       return () => cancelAnimationFrame(raf);
     }, []);
 
-    // Sort prompts by order
-    const sortedPrompts = [...quickPrompts].sort((a, b) => a.order - b.order);
+    // Memoize sorted prompts to avoid re-sorting on every render
+    const sortedPrompts = useMemo(
+      () => [...quickPrompts].sort((a, b) => a.order - b.order),
+      [quickPrompts],
+    );
 
     // Determine arrow position based on Floating UI placement
     const isAbove = placement.startsWith('top');

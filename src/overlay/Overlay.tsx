@@ -175,9 +175,15 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
   // Health issues for status display
   const [connectionIssues, setConnectionIssues] = useState<HealthIssue[]>([]);
 
-  // Consolidated event listeners for transcript, LLM response, and capture state
-  // Using useCallback to create stable handler references
+  // Consolidated event listeners: all static (empty-deps) listeners in a single useEffect
+  // to reduce React effect overhead (6 effects -> 1 effect, fewer mount/unmount cycles)
   useEffect(() => {
+    const serviceNameMap: Record<ConnectionStateEventDetail['service'], string> = {
+      'stt-tab': 'Tab STT',
+      'stt-mic': 'Mic STT',
+      llm: 'LLM-conn',
+    };
+
     const handleTranscriptUpdate: TypedCustomEventHandler<TranscriptUpdateEventDetail> = (
       event,
     ) => {
@@ -202,41 +208,10 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
       setCaptureState(event.detail.state);
     };
 
-    window.addEventListener('transcript-update', handleTranscriptUpdate as EventListener);
-    window.addEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
-    window.addEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
+    const handleContextInvalidated = () => setContextInvalid(true);
 
-    return () => {
-      window.removeEventListener('transcript-update', handleTranscriptUpdate as EventListener);
-      window.removeEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
-      window.removeEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
-    };
-  }, []);
-
-  // Listen for extension context invalidation (extension updated/reloaded)
-  useEffect(() => {
-    const handler = () => setContextInvalid(true);
-    window.addEventListener('extension-context-invalidated', handler);
-    return () => window.removeEventListener('extension-context-invalidated', handler);
-  }, []);
-
-  // Listen for session cost updates from content script
-  useEffect(() => {
     const handleSessionCostUpdate = (event: CustomEvent<{ sessionCost: number }>) => {
       setSessionCost(event.detail.sessionCost);
-    };
-    window.addEventListener('session-cost-update', handleSessionCostUpdate as EventListener);
-    return () => {
-      window.removeEventListener('session-cost-update', handleSessionCostUpdate as EventListener);
-    };
-  }, []);
-
-  // Listen for connection state updates from background (for HealthIndicator)
-  useEffect(() => {
-    const serviceNameMap: Record<ConnectionStateEventDetail['service'], string> = {
-      'stt-tab': 'Tab STT',
-      'stt-mic': 'Mic STT',
-      llm: 'LLM-conn',
     };
 
     const handleConnectionStateUpdate: TypedCustomEventHandler<ConnectionStateEventDetail> = (
@@ -268,21 +243,7 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
       });
     };
 
-    window.addEventListener(
-      'connection-state-update',
-      handleConnectionStateUpdate as EventListener,
-    );
-    return () => {
-      window.removeEventListener(
-        'connection-state-update',
-        handleConnectionStateUpdate as EventListener,
-      );
-    };
-  }, []);
-
-  // Listen for quick prompt response status updates from content script
-  useEffect(() => {
-    const handleStatus = (
+    const handleQuickPromptStatus = (
       e: CustomEvent<{ responseId: string; status: string; actionId?: string }>,
     ) => {
       if (e.detail.status === 'complete') {
@@ -294,20 +255,48 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
         setTimeout(() => setErrorActionId(null), 3000);
       }
     };
-    window.addEventListener('quick-prompt-response-status', handleStatus as EventListener);
-    return () => {
-      window.removeEventListener('quick-prompt-response-status', handleStatus as EventListener);
-    };
-  }, []);
 
-  // Listen for quick prompt responses updates from content script
-  useEffect(() => {
-    const handler = (e: CustomEvent<{ responses: QuickPromptResponse[] }>) => {
+    const handleQuickPromptResponses = (e: CustomEvent<{ responses: QuickPromptResponse[] }>) => {
       setQuickPromptResponses(e.detail.responses);
     };
-    window.addEventListener('quick-prompt-responses-update', handler as EventListener);
-    return () =>
-      window.removeEventListener('quick-prompt-responses-update', handler as EventListener);
+
+    window.addEventListener('transcript-update', handleTranscriptUpdate as EventListener);
+    window.addEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
+    window.addEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
+    window.addEventListener('extension-context-invalidated', handleContextInvalidated);
+    window.addEventListener('session-cost-update', handleSessionCostUpdate as EventListener);
+    window.addEventListener(
+      'connection-state-update',
+      handleConnectionStateUpdate as EventListener,
+    );
+    window.addEventListener(
+      'quick-prompt-response-status',
+      handleQuickPromptStatus as EventListener,
+    );
+    window.addEventListener(
+      'quick-prompt-responses-update',
+      handleQuickPromptResponses as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener('transcript-update', handleTranscriptUpdate as EventListener);
+      window.removeEventListener('llm-response-update', handleLLMResponseUpdate as EventListener);
+      window.removeEventListener('capture-state-update', handleCaptureStateUpdate as EventListener);
+      window.removeEventListener('extension-context-invalidated', handleContextInvalidated);
+      window.removeEventListener('session-cost-update', handleSessionCostUpdate as EventListener);
+      window.removeEventListener(
+        'connection-state-update',
+        handleConnectionStateUpdate as EventListener,
+      );
+      window.removeEventListener(
+        'quick-prompt-response-status',
+        handleQuickPromptStatus as EventListener,
+      );
+      window.removeEventListener(
+        'quick-prompt-responses-update',
+        handleQuickPromptResponses as EventListener,
+      );
+    };
   }, []);
 
   // Handle quick prompt action click from tooltip

@@ -82,6 +82,8 @@ interface QuickPromptResponseEntry {
 }
 
 const quickPromptResponses: QuickPromptResponseEntry[] = [];
+// Map for O(1) lookup of quick prompt responses by responseId
+const quickPromptResponseMap = new Map<string, QuickPromptResponseEntry>();
 
 // Token batching for streaming performance
 // Accumulates tokens and flushes on animation frame to reduce React re-renders
@@ -89,6 +91,11 @@ const quickPromptResponses: QuickPromptResponseEntry[] = [];
 let pendingFastTokens = '';
 let pendingFullTokens = '';
 let tokenBatchRafId: number | null = null;
+
+// Quick prompt token batching (separate from main LLM batching)
+const pendingQpTokens = new Map<string, string>();
+
+let qpTokenBatchRafId: number | null = null;
 
 /**
  * Dispatch LLM response update to the React overlay via custom event.
@@ -264,15 +271,40 @@ function dispatchQuickPromptUpdate(): void {
 }
 
 /**
+ * Flush accumulated quick prompt tokens to the React overlay.
+ * Called on each animation frame during quick prompt streaming.
+ */
+function flushPendingQpTokens(): void {
+  qpTokenBatchRafId = null;
+  if (pendingQpTokens.size === 0) return;
+
+  for (const [responseId, tokens] of pendingQpTokens) {
+    const entry = quickPromptResponseMap.get(responseId);
+    if (entry) {
+      entry.content += tokens;
+      entry.status = 'streaming';
+    }
+  }
+  pendingQpTokens.clear();
+  dispatchQuickPromptUpdate();
+}
+
+/**
  * Handle streaming tokens for quick prompt responses (qp- prefixed).
- * Appends token to the matching entry and dispatches update.
+ * Batches tokens via rAF to reduce React re-renders (same pattern as main LLM stream).
  */
 function handleQuickPromptStream(message: LLMStreamMessage): void {
-  const entry = quickPromptResponses.find((r) => r.id === message.responseId);
+  const entry = quickPromptResponseMap.get(message.responseId);
   if (!entry) return;
-  entry.content += message.token;
-  entry.status = 'streaming';
-  dispatchQuickPromptUpdate();
+
+  // Accumulate token into pending buffer
+  const existing = pendingQpTokens.get(message.responseId) ?? '';
+  pendingQpTokens.set(message.responseId, existing + message.token);
+
+  // Schedule flush on next animation frame
+  if (qpTokenBatchRafId === null) {
+    qpTokenBatchRafId = requestAnimationFrame(flushPendingQpTokens);
+  }
 }
 
 /**
@@ -280,7 +312,13 @@ function handleQuickPromptStream(message: LLMStreamMessage): void {
  * Updates status and dispatches both the response update and a status event for the tooltip.
  */
 function handleQuickPromptStatus(message: LLMStatusMessage): void {
-  const entry = quickPromptResponses.find((r) => r.id === message.responseId);
+  // Flush any pending tokens before status transition (same pattern as main LLM)
+  if (qpTokenBatchRafId !== null) {
+    cancelAnimationFrame(qpTokenBatchRafId);
+    flushPendingQpTokens();
+  }
+
+  const entry = quickPromptResponseMap.get(message.responseId);
   if (!entry) return;
 
   if (message.status === 'error') {
@@ -306,7 +344,7 @@ function handleQuickPromptStatus(message: LLMStatusMessage): void {
  * Handle cost updates for quick prompt responses (qp- prefixed).
  */
 function handleQuickPromptCost(message: LLMCostMessage): void {
-  const entry = quickPromptResponses.find((r) => r.id === message.responseId);
+  const entry = quickPromptResponseMap.get(message.responseId);
   if (!entry) return;
   entry.costUSD = (entry.costUSD ?? 0) + message.costUSD;
 
@@ -477,6 +515,7 @@ async function sendQuickPromptRequest(
     status: 'streaming',
   };
   quickPromptResponses.push(qpResponse);
+  quickPromptResponseMap.set(responseId, qpResponse);
   dispatchQuickPromptUpdate();
 
   const message: QuickPromptRequestMessage = {
@@ -515,6 +554,29 @@ async function sendQuickPromptRequest(
   }
 }
 
+// Cache for edit overlay arrays - only rebuild when edits change
+let cachedEditedIds: string[] = [];
+let cachedDeletedIds: string[] = [];
+let editCacheVersion = 0;
+let lastEditCacheVersion = -1;
+
+/** Invalidate the edit cache (call after any edit map mutation) */
+function invalidateEditCache(): void {
+  editCacheVersion++;
+}
+
+/** Rebuild cached editedIds/deletedIds if edit map has changed */
+function rebuildEditCacheIfNeeded(): void {
+  if (lastEditCacheVersion === editCacheVersion) return;
+  lastEditCacheVersion = editCacheVersion;
+  cachedEditedIds = [];
+  cachedDeletedIds = [];
+  transcriptEdits.forEach((edit, id) => {
+    cachedEditedIds.push(id);
+    if (edit.isDeleted) cachedDeletedIds.push(id);
+  });
+}
+
 /**
  * Dispatch transcript update to the React overlay via custom event.
  * Raw entries are stored in currentTranscript (needed for undo original text lookup).
@@ -524,21 +586,20 @@ async function sendQuickPromptRequest(
 function dispatchTranscriptUpdate(entries: TranscriptEntry[]): void {
   currentTranscript = entries; // Keep raw for undo reference
   // For display: apply text edits but keep deleted entries visible (marked for UI rendering)
-  const displayEntries = entries.map((entry) => {
-    const edit = transcriptEdits.get(entry.id);
-    if (edit?.editedText != null) {
-      return { ...entry, text: edit.editedText };
-    }
-    return entry;
-  });
-  const editedIds = Array.from(transcriptEdits.keys());
-  const deletedIds: string[] = [];
-  transcriptEdits.forEach((edit, id) => {
-    if (edit.isDeleted) deletedIds.push(id);
-  });
+  const hasEdits = transcriptEdits.size > 0;
+  const displayEntries = hasEdits
+    ? entries.map((entry) => {
+        const edit = transcriptEdits.get(entry.id);
+        if (edit?.editedText != null) {
+          return { ...entry, text: edit.editedText };
+        }
+        return entry;
+      })
+    : entries;
+  rebuildEditCacheIfNeeded();
   window.dispatchEvent(
     new CustomEvent<TranscriptUpdateEventDetail>('transcript-update', {
-      detail: { entries: displayEntries, editedIds, deletedIds },
+      detail: { entries: displayEntries, editedIds: cachedEditedIds, deletedIds: cachedDeletedIds },
     }),
   );
 }
@@ -613,6 +674,7 @@ function setupTranscriptEditListeners(): void {
       isDeleted: existing?.isDeleted ?? false,
       originalText: existing?.originalText ?? entry.text,
     });
+    invalidateEditCache();
     // Re-dispatch with edits applied
     dispatchTranscriptUpdate(currentTranscript);
   }) as EventListener);
@@ -628,12 +690,14 @@ function setupTranscriptEditListeners(): void {
       isDeleted: true,
       originalText: existing?.originalText ?? entry.text,
     });
+    invalidateEditCache();
     dispatchTranscriptUpdate(currentTranscript);
   }) as EventListener);
 
   window.addEventListener('transcript-undo', ((e: CustomEvent<{ id: string }>) => {
     const { id } = e.detail;
     transcriptEdits.delete(id);
+    invalidateEditCache();
     dispatchTranscriptUpdate(currentTranscript);
   }) as EventListener);
 }

@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useCallback } from 'react';
+import { memo, useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useAutoScroll } from './hooks/useAutoScroll';
 import type { TranscriptEntry as TranscriptEntryType } from '../types/transcript';
 
@@ -212,19 +212,28 @@ export const TranscriptPanel = memo(function TranscriptPanel({
   const editedSet = useMemo(() => new Set(editedIds ?? []), [editedIds]);
   const deletedSet = useMemo(() => new Set(deletedIds ?? []), [deletedIds]);
 
-  // Memoize the entry count display
+  // Memoize the entry count display (use loop counter instead of .filter().length)
   const entryCountText = useMemo(() => {
     if (entries.length === 0) return null;
-    // Count visible (non-deleted) entries
-    const visibleCount = entries.filter((e) => !deletedSet.has(e.id)).length;
     const totalCount = entries.length;
+    let deletedCount = 0;
+    for (let i = 0; i < totalCount; i++) {
+      if (deletedSet.has(entries[i].id)) deletedCount++;
+    }
+    const visibleCount = totalCount - deletedCount;
     if (visibleCount === totalCount) {
       return `${totalCount} ${totalCount === 1 ? 'entry' : 'entries'}`;
     }
     return `${visibleCount}/${totalCount} entries`;
   }, [entries, deletedSet]);
 
-  // Double-click to start editing
+  // Use ref for editText so callbacks don't need to depend on it (avoids re-creating callbacks)
+  const editTextRef = useRef(editText);
+  useEffect(() => {
+    editTextRef.current = editText;
+  }, [editText]);
+
+  // Double-click to start editing (use stable callback with entry parameter)
   const handleDoubleClick = useCallback(
     (entry: TranscriptEntryType) => {
       if (deletedSet.has(entry.id)) return; // Can't edit deleted entries
@@ -234,15 +243,16 @@ export const TranscriptPanel = memo(function TranscriptPanel({
     [deletedSet],
   );
 
-  // Save edit
+  // Save edit (stable: reads editText from ref)
   const handleSave = useCallback(
     (entryId: string) => {
-      if (editText.trim()) {
-        dispatchEditEvent(entryId, editText.trim());
+      const text = editTextRef.current.trim();
+      if (text) {
+        dispatchEditEvent(entryId, text);
       }
       setEditingId(null);
     },
-    [editText],
+    [],
   );
 
   // Cancel edit
@@ -250,7 +260,7 @@ export const TranscriptPanel = memo(function TranscriptPanel({
     setEditingId(null);
   }, []);
 
-  // Key handler for edit input
+  // Key handler for edit input (stable: handleSave uses ref)
   const handleEditKeyDown = useCallback(
     (e: React.KeyboardEvent, entryId: string) => {
       if (e.key === 'Enter') {
