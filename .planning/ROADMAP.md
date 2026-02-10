@@ -164,11 +164,12 @@ Plans:
   1. Selecting text in either the transcript panel or the response panel causes a floating tooltip to appear near the selection with action buttons
   2. Clicking a quick prompt button (e.g., "Explain", "Elaborate", "Correct") sends the selected text plus the chosen prompt to the LLM and displays the response
   3. User can customize which quick prompt actions appear in the tooltip via popup settings
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 21-01: TBD
-- [ ] 21-02: TBD
+- [ ] 21-01-PLAN.md -- Quick Prompt types, Zustand slice, message types, background concurrent handler
+- [ ] 21-02-PLAN.md -- Selection detection hook, floating tooltip UI, content script wiring, ResponsePanel integration
+- [ ] 21-03-PLAN.md -- Quick Prompts settings UI with CRUD, DnD reorder, icon picker, test button
 
 ## Progress
 
@@ -185,4 +186,4 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 | 18. Cost Dashboard | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 19. File Personalization | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 20. Transcript Editing | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
-| 21. Enhanced Text Selection | v2.0 | 0/TBD | Not started | - |
+| 21. Enhanced Text Selection | v2.0 | 0/3 | Planning complete | - |
