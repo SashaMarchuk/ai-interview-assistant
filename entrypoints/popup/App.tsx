@@ -17,6 +17,7 @@ import BlurSettings from '../../src/components/settings/BlurSettings';
 import LanguageSettings from '../../src/components/settings/LanguageSettings';
 import ConsentSettings from '../../src/components/settings/ConsentSettings';
 import FileUploadSettings from '../../src/components/settings/FileUploadSettings';
+import QuickPromptSettings from '../../src/components/settings/QuickPromptSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
 const CostDashboard = lazy(() => import('../../src/components/cost/CostDashboard'));
@@ -643,6 +644,12 @@ function App() {
             <section>
               <h2 className="mb-3 text-sm font-semibold text-gray-900">Personalization</h2>
               <FileUploadSettings />
+            </section>
+
+            {/* Quick Prompts Section */}
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Quick Prompts</h2>
+              <QuickPromptSettings />
             </section>
 
             {/* Hotkeys Section */}
