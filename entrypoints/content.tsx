@@ -12,6 +12,7 @@ import type {
   LLMStreamMessage,
   LLMStatusMessage,
   LLMCostMessage,
+  QuickPromptRequestMessage,
   ConnectionService,
   ConnectionStatus,
 } from '../src/types/messages';
@@ -68,6 +69,19 @@ let activeResponseId: string | null = null;
 
 // Session cost tracking (in-memory, resets on page reload)
 let sessionCostUSD = 0;
+
+// Quick prompt response entries (concurrent, independent from main LLM response)
+interface QuickPromptResponseEntry {
+  id: string; // responseId (prefixed with 'qp-')
+  actionLabel: string; // e.g., "Explain"
+  textSnippet: string; // First ~50 chars of selected text
+  content: string; // Accumulated response text
+  status: 'streaming' | 'complete' | 'error';
+  error?: string;
+  costUSD?: number;
+}
+
+const quickPromptResponses: QuickPromptResponseEntry[] = [];
 
 // Token batching for streaming performance
 // Accumulates tokens and flushes on animation frame to reduce React re-renders
@@ -149,6 +163,12 @@ function ensureLLMResponse(responseId: string): LLMResponse | null {
 }
 
 function handleLLMStream(message: LLMStreamMessage): void {
+  // Route quick prompt responses separately (responseId starts with 'qp-')
+  if (message.responseId.startsWith('qp-')) {
+    handleQuickPromptStream(message);
+    return;
+  }
+
   // Ensure response exists (initializes if needed, returns null if stale)
   const response = ensureLLMResponse(message.responseId);
   if (!response) return;
@@ -167,6 +187,12 @@ function handleLLMStream(message: LLMStreamMessage): void {
 }
 
 function handleLLMStatus(message: LLMStatusMessage): void {
+  // Route quick prompt responses separately (responseId starts with 'qp-')
+  if (message.responseId.startsWith('qp-')) {
+    handleQuickPromptStatus(message);
+    return;
+  }
+
   // Flush any pending tokens before status transition
   if (tokenBatchRafId !== null) {
     cancelAnimationFrame(tokenBatchRafId);
@@ -191,6 +217,12 @@ function handleLLMStatus(message: LLMStatusMessage): void {
 }
 
 function handleLLMCost(message: LLMCostMessage): void {
+  // Route quick prompt cost updates separately (responseId starts with 'qp-')
+  if (message.responseId.startsWith('qp-')) {
+    handleQuickPromptCost(message);
+    return;
+  }
+
   if (!currentLLMResponse || currentLLMResponse.id !== message.responseId) return;
   if (activeResponseId && message.responseId !== activeResponseId) return;
 
@@ -214,6 +246,78 @@ function handleLLMCost(message: LLMCostMessage): void {
   // Dispatch session cost update event for Overlay footer
   window.dispatchEvent(
     new CustomEvent<SessionCostEventDetail>('session-cost-update', {
+      detail: { sessionCost: sessionCostUSD },
+    }),
+  );
+}
+
+/**
+ * Dispatch quick prompt responses to the React overlay via custom event.
+ * Always sends a fresh array copy so React detects changes.
+ */
+function dispatchQuickPromptUpdate(): void {
+  window.dispatchEvent(
+    new CustomEvent('quick-prompt-responses-update', {
+      detail: { responses: [...quickPromptResponses] },
+    }),
+  );
+}
+
+/**
+ * Handle streaming tokens for quick prompt responses (qp- prefixed).
+ * Appends token to the matching entry and dispatches update.
+ */
+function handleQuickPromptStream(message: LLMStreamMessage): void {
+  const entry = quickPromptResponses.find((r) => r.id === message.responseId);
+  if (!entry) return;
+  entry.content += message.token;
+  entry.status = 'streaming';
+  dispatchQuickPromptUpdate();
+}
+
+/**
+ * Handle status updates for quick prompt responses (qp- prefixed).
+ * Updates status and dispatches both the response update and a status event for the tooltip.
+ */
+function handleQuickPromptStatus(message: LLMStatusMessage): void {
+  const entry = quickPromptResponses.find((r) => r.id === message.responseId);
+  if (!entry) return;
+
+  if (message.status === 'error') {
+    entry.status = 'error';
+    entry.error = message.error;
+  } else if (message.status === 'complete') {
+    entry.status = 'complete';
+  } else if (message.status === 'streaming') {
+    entry.status = 'streaming';
+  }
+
+  dispatchQuickPromptUpdate();
+
+  // Notify the tooltip about status changes (for button spinner/error state)
+  window.dispatchEvent(
+    new CustomEvent('quick-prompt-response-status', {
+      detail: { responseId: message.responseId, status: entry.status },
+    }),
+  );
+}
+
+/**
+ * Handle cost updates for quick prompt responses (qp- prefixed).
+ */
+function handleQuickPromptCost(message: LLMCostMessage): void {
+  const entry = quickPromptResponses.find((r) => r.id === message.responseId);
+  if (!entry) return;
+  entry.costUSD = (entry.costUSD ?? 0) + message.costUSD;
+
+  // Accumulate into session total
+  sessionCostUSD += message.costUSD;
+
+  dispatchQuickPromptUpdate();
+
+  // Dispatch session cost update event for Overlay footer
+  window.dispatchEvent(
+    new CustomEvent('session-cost-update', {
       detail: { sessionCost: sessionCostUSD },
     }),
   );
@@ -349,6 +453,65 @@ async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<
     }
   } catch (error) {
     console.error('AI Interview Assistant: Failed to send reasoning request:', error);
+  }
+}
+
+/**
+ * Send a quick prompt request to the background service worker.
+ * Quick prompts run concurrently with the main LLM request (separate abort controllers).
+ */
+async function sendQuickPromptRequest(
+  selectedText: string,
+  promptTemplate: string,
+  actionLabel: string,
+  actionId: string,
+): Promise<void> {
+  const responseId = `qp-${crypto.randomUUID()}`;
+
+  // Initialize quick prompt response entry
+  const qpResponse: QuickPromptResponseEntry = {
+    id: responseId,
+    actionLabel,
+    textSnippet: selectedText.slice(0, 50) + (selectedText.length > 50 ? '...' : ''),
+    content: '',
+    status: 'streaming',
+  };
+  quickPromptResponses.push(qpResponse);
+  dispatchQuickPromptUpdate();
+
+  const message: QuickPromptRequestMessage = {
+    type: 'QUICK_PROMPT_REQUEST',
+    responseId,
+    selectedText,
+    promptTemplate,
+    actionLabel,
+  };
+
+  try {
+    const result = await safeSendMessage(message);
+    if (result.contextInvalid) {
+      window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
+      return;
+    }
+    const response = result.data as { success?: boolean; error?: string } | undefined;
+    if (!response?.success) {
+      console.error(
+        'AI Interview Assistant: Quick prompt request failed:',
+        response?.error || 'Unknown error',
+      );
+    }
+  } catch (error) {
+    console.error('AI Interview Assistant: Failed to send quick prompt request:', error);
+    // Update entry to error state
+    qpResponse.status = 'error';
+    qpResponse.error = error instanceof Error ? error.message : 'Request failed';
+    dispatchQuickPromptUpdate();
+    // Notify tooltip of error
+    window.dispatchEvent(
+      new CustomEvent('quick-prompt-response-status', {
+        detail: { responseId, status: 'error', actionId },
+      }),
+    );
   }
 }
 
@@ -571,13 +734,14 @@ export default defineContentScript({
       name: 'ai-interview-assistant',
       position: 'inline',
       anchor: 'body',
-      onMount: (container) => {
+      onMount: (container, shadow) => {
         // Create a wrapper div to avoid React warning about rendering on <body>
         const wrapper = document.createElement('div');
         wrapper.id = 'ai-interview-root';
         container.appendChild(wrapper);
         const root = createRoot(wrapper);
         // Render the overlay wrapped with CaptureProvider for keyboard handling
+        // Pass shadowRoot to Overlay for Shadow DOM-aware text selection detection
         root.render(
           <CaptureProvider
             onCapture={sendLLMRequest}
@@ -585,7 +749,7 @@ export default defineContentScript({
             getRecentTranscript={getRecentTranscript}
             getFullTranscript={getFullTranscript}
           >
-            <Overlay />
+            <Overlay shadowRoot={shadow} />
           </CaptureProvider>,
         );
         return root;
@@ -603,6 +767,24 @@ export default defineContentScript({
       sendReasoningRequest(event.detail.effort);
     }) as EventListener;
     window.addEventListener('reasoning-request', handleReasoningRequest);
+
+    // Listen for quick-prompt-request events from the overlay's SelectionTooltip
+    const handleQuickPromptRequest = ((
+      e: CustomEvent<{
+        selectedText: string;
+        promptTemplate: string;
+        actionLabel: string;
+        actionId: string;
+      }>,
+    ) => {
+      sendQuickPromptRequest(
+        e.detail.selectedText,
+        e.detail.promptTemplate,
+        e.detail.actionLabel,
+        e.detail.actionId,
+      );
+    }) as EventListener;
+    window.addEventListener('quick-prompt-request', handleQuickPromptRequest);
 
     // Notify background that UI is ready
     try {

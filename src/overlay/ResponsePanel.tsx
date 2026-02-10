@@ -2,9 +2,24 @@ import { memo } from 'react';
 import type { LLMResponse } from '../types/transcript';
 import { MemoizedMarkdown } from '../components/markdown/MemoizedMarkdown';
 
+/**
+ * Quick prompt response data from content script.
+ * Each entry represents one quick prompt action result.
+ */
+export interface QuickPromptResponse {
+  id: string;
+  actionLabel: string;
+  textSnippet: string;
+  content: string;
+  status: 'streaming' | 'complete' | 'error';
+  error?: string;
+  costUSD?: number;
+}
+
 interface ResponsePanelProps {
   response: LLMResponse | null;
   isReasoningPending?: boolean;
+  quickPromptResponses?: QuickPromptResponse[];
 }
 
 /**
@@ -69,6 +84,7 @@ const StatusIndicator = memo(function StatusIndicator({
 export const ResponsePanel = memo(function ResponsePanel({
   response,
   isReasoningPending,
+  quickPromptResponses = [],
 }: ResponsePanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -135,6 +151,35 @@ export const ResponsePanel = memo(function ResponsePanel({
             )}
           </div>
         )}
+
+        {/* Quick Prompt Response Sections (appended below existing content) */}
+        {quickPromptResponses.map((qp) => (
+          <div key={qp.id} className="mt-3 text-sm">
+            <div className="mb-1 flex items-center gap-1">
+              <span className="font-medium text-teal-300">{qp.actionLabel}</span>
+              <span className="text-xs text-white/40">
+                — &quot;{qp.textSnippet}&quot;
+              </span>
+              {qp.costUSD != null && qp.costUSD > 0 && (
+                <span className="ml-auto text-xs text-white/30">
+                  ${qp.costUSD < 0.01 ? qp.costUSD.toFixed(4) : qp.costUSD.toFixed(3)}
+                </span>
+              )}
+            </div>
+            <div className="border-l-2 border-teal-400/50 pl-2">
+              {qp.status === 'error' ? (
+                <span className="text-red-300">{qp.error || 'Request failed'}</span>
+              ) : (
+                <>
+                  <MemoizedMarkdown content={qp.content} />
+                  {qp.status === 'streaming' && (
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-teal-400" />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
