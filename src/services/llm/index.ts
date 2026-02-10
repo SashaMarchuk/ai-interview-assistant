@@ -33,9 +33,9 @@ export {
   type ResolvedProvider,
 } from './providers';
 
-// Re-export provider implementations (for direct access if needed)
-export { OpenRouterProvider, OPENROUTER_MODELS } from './providers/OpenRouterProvider';
-export { OpenAIProvider, OPENAI_MODELS } from './providers/OpenAIProvider';
+// Re-export model arrays for settings UI
+export { OPENROUTER_MODELS } from './providers/OpenRouterProvider';
+export { OPENAI_MODELS } from './providers/OpenAIProvider';
 
 // Re-export pricing module
-export { calculateCost, OPENAI_PRICING } from './pricing';
+export { calculateCost } from './pricing';

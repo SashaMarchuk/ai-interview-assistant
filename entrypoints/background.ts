@@ -254,15 +254,9 @@ const isRealExtension = (() => {
       await transcriptBuffer.load();
       isTranscriptionActive = true;
       startKeepAlive();
-      console.log(
-        'TranscriptBuffer: Recovered',
-        transcriptBuffer.length,
-        'entries after SW restart',
-      );
     }
 
     storeReady = true;
-    console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
     for (const { message, sender, sendResponse } of messageQueue) {
       handleMessage(message, sender)
         .then(sendResponse)
@@ -559,7 +553,6 @@ async function handleLLMRequest(
         },
         onComplete: () => {
           onDone();
-          console.log(`LLM: ${modelType} model complete`);
           sendLLMMessageToMeet({
             type: 'LLM_STATUS',
             responseId,
@@ -847,7 +840,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Messages with _fromBackground marker were sent BY background TO offscreen
   // Background should NOT handle these to prevent race conditions and recursion
   if (message?._fromBackground === true) {
-    console.log('Ignoring _fromBackground message:', message.type);
     // Let offscreen handle and respond
     return false;
   }
@@ -856,13 +848,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Even if _fromBackground check fails, don't process these
   const offscreenOnlyTypes = ['TAB_STREAM_ID', 'START_MIC_CAPTURE', 'STOP_MIC_CAPTURE'];
   if (offscreenOnlyTypes.includes(message?.type) && sender.id === chrome.runtime.id) {
-    console.log('Skipping offscreen-only message in background:', message.type);
     return false;
   }
 
   // Queue guard: if store not ready, queue message for processing after hydration
   if (!storeReady) {
-    console.log('Store not ready, queuing message:', message?.type);
     messageQueue.push({ message, sender, sendResponse });
     return true; // Keep channel open for async response
   }
@@ -876,40 +866,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep channel open for async response
 });
 
-// Register install listener at top level
-chrome.runtime.onInstalled.addListener((details) => {
-  console.log(`Extension ${details.reason}:`, details.previousVersion || 'fresh install');
-});
-
-// Message types that should be logged (important events only)
-const LOGGED_MESSAGE_TYPES = [
-  'START_CAPTURE',
-  'STOP_CAPTURE',
-  'CAPTURE_STARTED',
-  'CAPTURE_STOPPED',
-  'CAPTURE_ERROR',
-  'START_TRANSCRIPTION',
-  'STOP_TRANSCRIPTION',
-  'TRANSCRIPTION_STARTED',
-  'TRANSCRIPTION_STOPPED',
-  'TRANSCRIPTION_ERROR',
-  'LLM_REQUEST',
-  'LLM_CANCEL',
-  'QUICK_PROMPT_REQUEST',
-  'QUICK_PROMPT_CANCEL',
-  'CONNECTION_STATE',
-];
-
 // Async message handler using switch for proper discriminated union narrowing
 async function handleMessage(
   message: ExtensionMessage,
   _sender: chrome.runtime.MessageSender,
 ): Promise<MessageResponse> {
-  // Only log important events to reduce console spam
-  if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
-    console.log('Background:', message.type);
-  }
-
   switch (message.type) {
     case 'PING':
       return {
@@ -923,14 +884,12 @@ async function handleMessage(
       return { type: 'OFFSCREEN_READY' };
 
     case 'OFFSCREEN_READY':
-      console.log('Offscreen document is ready');
       return { received: true };
 
     case 'START_CAPTURE': {
       try {
         // Prevent concurrent START_CAPTURE calls
         if (isCaptureStartInProgress) {
-          console.log('START_CAPTURE already in progress, ignoring duplicate');
           return { success: false, error: 'Capture start already in progress' };
         }
         isCaptureStartInProgress = true;
@@ -938,7 +897,6 @@ async function handleMessage(
         // Always ensure clean state before starting
         // Check if offscreen thinks capture is active (regardless of our flag)
         try {
-          console.log('Ensuring clean state before capture...');
           await chrome.runtime.sendMessage({
             type: 'STOP_CAPTURE',
             _fromBackground: true,
@@ -973,7 +931,6 @@ async function handleMessage(
 
         // Get stream ID for tab capture (requires user gesture context from popup)
         // Do NOT specify consumerTabId - the stream will be used by extension's offscreen document
-        console.log('Requesting stream ID for tab:', activeTab.id);
         const streamId = await new Promise<string>((resolve, reject) => {
           chrome.tabCapture.getMediaStreamId({ targetTabId: activeTab.id }, (id) => {
             if (chrome.runtime.lastError) {
@@ -1005,7 +962,6 @@ async function handleMessage(
           throw new Error(response?.error || 'Tab capture failed - try refreshing the page');
         }
 
-        console.log('Tab capture started successfully');
         isCaptureStartInProgress = false;
         return { success: true };
       } catch (error) {
@@ -1030,7 +986,6 @@ async function handleMessage(
         currentSessionId = null;
         // Give Chrome extra time to fully release the stream
         await new Promise((resolve) => setTimeout(resolve, 300));
-        console.log('Tab capture stopped');
         return { success: true };
       } catch (error) {
         // Reset state even on error
@@ -1068,7 +1023,6 @@ async function handleMessage(
           _fromBackground: true,
         } as StartMicCaptureMessage & { _fromBackground: true });
 
-        if (response?.success) console.log('Mic capture started');
         return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown mic capture error';
@@ -1085,7 +1039,6 @@ async function handleMessage(
           _fromBackground: true,
         } as StopMicCaptureMessage & { _fromBackground: true });
 
-        if (response?.success) console.log('Mic capture stopped');
         return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1100,7 +1053,6 @@ async function handleMessage(
     case 'CAPTURE_STOPPED':
       // Ignore CAPTURE_STOPPED during START_CAPTURE (it's from cleanup, not real stop)
       if (isCaptureStartInProgress) {
-        console.log('Ignoring CAPTURE_STOPPED during START_CAPTURE (cleanup)');
         return { received: true };
       }
       isTabCaptureActive = false;
@@ -1158,7 +1110,6 @@ async function handleMessage(
 
         isTranscriptionActive = true;
         startKeepAlive();
-        console.log('Transcription: Starting...');
         return { success: true };
       } catch (error) {
         isTranscriptionActive = false;
@@ -1187,7 +1138,6 @@ async function handleMessage(
           stopKeepAlive();
         }
 
-        console.log('Transcription: Stopped');
         return { success: true };
       } catch (error) {
         isTranscriptionActive = false;
@@ -1200,7 +1150,6 @@ async function handleMessage(
     case 'TRANSCRIPTION_STARTED':
       isTranscriptionActive = true;
       circuitBreakerManager.getBreaker('elevenlabs').recordSuccess();
-      console.log('Transcription: Connected');
       return { received: true };
 
     case 'TRANSCRIPTION_STOPPED':
@@ -1237,8 +1186,6 @@ async function handleMessage(
       };
       addTranscriptEntry(entry);
 
-      // Log final transcript (speaker + text) for debugging
-      console.log(`[${message.speaker}]:`, message.text);
       return { received: true };
     }
 
@@ -1250,7 +1197,6 @@ async function handleMessage(
     case 'LLM_REQUEST': {
       // Cancel ALL existing active requests before starting new one
       if (activeAbortControllers.size > 0) {
-        console.log('LLM: Cancelling', activeAbortControllers.size, 'previous request(s)');
         for (const [, controller] of activeAbortControllers) {
           controller.abort();
         }
@@ -1267,11 +1213,6 @@ async function handleMessage(
         message.isReasoningRequest,
         message.reasoningEffort,
       );
-      console.log(
-        'LLM: Starting',
-        message.isReasoningRequest ? 'reasoning' : 'standard',
-        'request',
-      );
       return { success: true };
     }
 
@@ -1286,7 +1227,6 @@ async function handleMessage(
       if (abortController) {
         abortController.abort();
         activeAbortControllers.delete(message.responseId);
-        console.log('LLM: Cancelled');
         // Stop keep-alive if no other active requests (including quick prompts)
         if (hasNoActiveRequests()) {
           stopKeepAlive();
@@ -1302,7 +1242,6 @@ async function handleMessage(
       quickPromptAbortControllers.set(message.responseId, qpAbortController);
 
       handleQuickPromptRequest(message, qpAbortController);
-      console.log('Quick prompt: Starting', message.actionLabel);
       return { success: true };
     }
 
@@ -1321,10 +1260,6 @@ async function handleMessage(
     case 'CONNECTION_STATE': {
       // Forward connection state to content scripts for UI display
       await broadcastToMeetTabs(message);
-      // Only log non-connected states
-      if (message.state !== 'connected') {
-        console.log('Connection:', message.service, message.state);
-      }
       return { received: true };
     }
 
@@ -1351,7 +1286,6 @@ async function ensureOffscreenDocument(): Promise<void> {
   });
 
   if (existingContexts && existingContexts.length > 0) {
-    console.log('Offscreen document already exists');
     return;
   }
 
@@ -1361,7 +1295,6 @@ async function ensureOffscreenDocument(): Promise<void> {
     return;
   }
 
-  console.log('Creating offscreen document...');
   creatingOffscreen = chrome.offscreen.createDocument({
     url: offscreenUrl,
     reasons: [chrome.offscreen.Reason.USER_MEDIA],
@@ -1370,10 +1303,9 @@ async function ensureOffscreenDocument(): Promise<void> {
 
   await creatingOffscreen;
   creatingOffscreen = null;
-  console.log('Offscreen document created');
 }
 
 // WXT export
 export default defineBackground(() => {
-  console.log('AI Interview Assistant: Service Worker started');
+  // Service worker initialized
 });

@@ -112,19 +112,4 @@ export const storeReadyPromise: Promise<void> = new Promise((resolve) => {
 
 // Re-export types for consumers
 export type { StoreState } from './types';
-export type {
-  CaptureMode,
-  ReasoningEffort,
-  PromptTemplate,
-  TemplateType,
-  ApiKeyProvider,
-  ModelType,
-  HotkeyAction,
-  SettingsSlice,
-  TemplatesSlice,
-  ConsentSlice,
-  QuickPromptsSlice,
-  QuickPromptAction,
-  TemplateUpdate,
-  NewTemplate,
-} from './types';
+export type { ApiKeyProvider, ModelType, QuickPromptAction } from './types';

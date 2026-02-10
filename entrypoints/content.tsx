@@ -695,11 +695,8 @@ export default defineContentScript({
   async main(ctx) {
     // Check if this is an active meeting page (not landing/join page)
     if (!MEET_URL_PATTERN.test(window.location.href)) {
-      console.log('AI Interview Assistant: Not a meeting page, skipping injection');
       return;
     }
-
-    console.log('AI Interview Assistant: Content script loaded on Meet page');
 
     // Set up message listener for messages from Service Worker/Popup
     chrome.runtime.onMessage.addListener(
@@ -738,13 +735,11 @@ export default defineContentScript({
           case 'REQUEST_MIC_PERMISSION':
             // Handle mic permission request from popup
             // Content scripts run in the web page context, so permission prompts work properly here
-            console.log('AI Interview Assistant: Requesting mic permission from page context');
             navigator.mediaDevices
               .getUserMedia({ audio: true })
               .then((stream) => {
                 // Permission granted - immediately stop the stream (we just needed the permission)
                 stream.getTracks().forEach((track) => track.stop());
-                console.log('AI Interview Assistant: Mic permission granted');
                 sendResponse({ success: true });
               })
               .catch((error) => {
@@ -755,15 +750,6 @@ export default defineContentScript({
 
           case 'CONNECTION_STATE':
             // Dispatch custom event for Overlay to consume (for HealthIndicator)
-            // Only log non-connected states
-            if (message.state !== 'connected') {
-              console.log(
-                'AI Interview Assistant:',
-                message.service,
-                message.state,
-                message.error || '',
-              );
-            }
             window.dispatchEvent(
               new CustomEvent<ConnectionStateEventDetail>('connection-state-update', {
                 detail: {
@@ -818,7 +804,6 @@ export default defineContentScript({
     });
 
     ui.mount();
-    console.log('AI Interview Assistant: Overlay injected with capture mode support');
 
     // Listen for reasoning-request events from the overlay's Reason button
     const handleReasoningRequest = ((event: CustomEvent<ReasoningRequestEventDetail>) => {

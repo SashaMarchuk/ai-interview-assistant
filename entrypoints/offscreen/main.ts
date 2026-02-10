@@ -129,7 +129,6 @@ async function startTabCapture(streamId: string): Promise<void> {
       type: 'CAPTURE_STARTED',
     } satisfies CaptureStartedMessage);
 
-    console.log('Tab capture: Started');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Tab capture error:', errorMessage);
@@ -201,7 +200,6 @@ async function stopTabCapture(skipBroadcast = false): Promise<void> {
       } satisfies CaptureStoppedMessage);
     }
 
-    console.log('Tab capture: Stopped', skipBroadcast ? '(cleanup)' : '');
   } catch (error) {
     console.error('Tab capture cleanup error:', error);
   }
@@ -270,7 +268,6 @@ async function startMicCapture(): Promise<void> {
     // Connect source to worklet (NOT to destination)
     source.connect(micWorkletNode);
 
-    console.log('Mic capture: Started');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Mic capture error:', errorMessage);
@@ -335,7 +332,6 @@ async function stopMicCapture(): Promise<void> {
       micAudioContext = null;
     }
 
-    console.log('Mic capture: Stopped');
   } catch (error) {
     console.error('Mic capture cleanup error:', error);
   }
@@ -418,7 +414,6 @@ function createTranscription(
         } satisfies TranscriptionStartedMessage);
       }
       broadcastConnectionState(connectionService, 'connected');
-      console.log(`STT ${speaker}: Connected`);
     },
   );
 }
@@ -468,23 +463,9 @@ function stopTranscription(): void {
 }
 
 // Message types that should be logged (important events only)
-const LOGGED_MESSAGE_TYPES = [
-  'TAB_STREAM_ID',
-  'STOP_CAPTURE',
-  'START_MIC_CAPTURE',
-  'STOP_MIC_CAPTURE',
-  'START_TRANSCRIPTION',
-  'STOP_TRANSCRIPTION',
-];
-
 // Register message listener
 chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendResponse) => {
   if (!isExtensionContextValid()) return false;
-
-  // Only log important events
-  if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
-    console.log('Offscreen:', message.type);
-  }
 
   // Handle messages sent to offscreen document
   if (isMessage<PingMessage>(message, 'PING')) {
@@ -633,5 +614,4 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Initialize
-console.log('Offscreen: Ready');
 notifyReady();
