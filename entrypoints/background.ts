@@ -10,6 +10,7 @@ import type {
   LLMStreamMessage,
   LLMStatusMessage,
   LLMCostMessage,
+  QuickPromptRequestMessage,
 } from '../src/types/messages';
 import {
   buildPrompt,
@@ -67,6 +68,9 @@ let currentSessionId: string | null = null;
 
 // Track active LLM requests for cancellation
 const activeAbortControllers: Map<string, AbortController> = new Map();
+
+// Track active quick prompt requests separately (not cancelled by regular LLM_REQUEST)
+const quickPromptAbortControllers: Map<string, AbortController> = new Map();
 
 // LLM retry configuration
 const MAX_LLM_RETRIES = 3;
@@ -396,8 +400,8 @@ async function handleLLMRequest(
   const checkAllComplete = () => {
     if (fastComplete && fullComplete) {
       activeAbortControllers.delete(responseId);
-      // Stop keep-alive only if no other active requests
-      if (activeAbortControllers.size === 0) {
+      // Stop keep-alive only if no other active requests (including quick prompts)
+      if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
         stopKeepAlive();
       }
     }
@@ -625,6 +629,176 @@ async function handleLLMRequest(
   }
 }
 
+/**
+ * Handle QUICK_PROMPT_REQUEST: fire a single fast-model stream.
+ * Runs concurrently with active LLM requests -- does NOT cancel them.
+ * Uses separate abort controller tracking.
+ */
+async function handleQuickPromptRequest(
+  message: QuickPromptRequestMessage,
+  abortController: AbortController,
+): Promise<void> {
+  const state = useStore.getState();
+  const { apiKeys, models } = state;
+
+  // Resolve fast model provider
+  const fastResolution = resolveProviderForModel(models.fastModel, {
+    openAI: apiKeys.openAI,
+    openRouter: apiKeys.openRouter,
+  });
+
+  if (!fastResolution) {
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId: message.responseId,
+      model: 'fast',
+      status: 'error',
+      error: 'No LLM provider configured for fast model.',
+    });
+    quickPromptAbortControllers.delete(message.responseId);
+    return;
+  }
+
+  // Build prompt from template -- replace {{selection}} with actual text
+  const userPrompt = message.promptTemplate.includes('{{selection}}')
+    ? message.promptTemplate.replace('{{selection}}', message.selectedText)
+    : `${message.promptTemplate}: ${message.selectedText}`;
+
+  // Send streaming status
+  await sendLLMMessageToMeet({
+    type: 'LLM_STATUS',
+    responseId: message.responseId,
+    model: 'fast',
+    status: 'streaming',
+  });
+
+  // Start keep-alive
+  startKeepAlive();
+
+  const breaker = circuitBreakerManager.getBreaker(fastResolution.provider.id);
+  if (!breaker.allowRequest()) {
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId: message.responseId,
+      model: 'fast',
+      status: 'error',
+      error: `${fastResolution.provider.id} service temporarily unavailable`,
+    });
+    quickPromptAbortControllers.delete(message.responseId);
+    if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+      stopKeepAlive();
+    }
+    return;
+  }
+
+  try {
+    await streamWithRetry(
+      {
+        provider: fastResolution.provider,
+        model: fastResolution.model,
+        systemPrompt: 'You are a helpful assistant. Be concise and clear.',
+        userPrompt,
+        maxTokens: 1024,
+        apiKey:
+          fastResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
+        onToken: (token) => {
+          sendLLMMessageToMeet({
+            type: 'LLM_STREAM',
+            responseId: message.responseId,
+            model: 'fast',
+            token,
+          });
+        },
+        onComplete: () => {
+          quickPromptAbortControllers.delete(message.responseId);
+          if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+            stopKeepAlive();
+          }
+          sendLLMMessageToMeet({
+            type: 'LLM_STATUS',
+            responseId: message.responseId,
+            model: 'fast',
+            status: 'complete',
+          });
+        },
+        onError: (error) => {
+          quickPromptAbortControllers.delete(message.responseId);
+          if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+            stopKeepAlive();
+          }
+          sendLLMMessageToMeet({
+            type: 'LLM_STATUS',
+            responseId: message.responseId,
+            model: 'fast',
+            status: 'error',
+            error: error.message || 'Quick prompt request failed',
+          });
+        },
+        abortSignal: abortController.signal,
+        onUsage: (usage: TokenUsage) => {
+          const costUSD = calculateCost(
+            models.fastModel,
+            usage.promptTokens,
+            usage.completionTokens,
+            usage.providerCost,
+          );
+          sendLLMMessageToMeet({
+            type: 'LLM_COST',
+            responseId: message.responseId,
+            model: 'fast',
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            reasoningTokens: usage.reasoningTokens,
+            totalTokens: usage.totalTokens,
+            costUSD,
+          } as LLMCostMessage);
+
+          // Persist to IndexedDB for historical dashboard
+          const costRecord: CostRecord = {
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            sessionId: currentSessionId ?? `adhoc-${Date.now()}`,
+            provider: fastResolution!.provider.id,
+            modelId: models.fastModel,
+            modelSlot: 'fast',
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            reasoningTokens: usage.reasoningTokens,
+            totalTokens: usage.totalTokens,
+            costUSD,
+          };
+          saveCostRecord(costRecord).catch((err) => {
+            console.error('Failed to persist quick prompt cost record:', err);
+          });
+        },
+      },
+      'fast',
+      message.responseId,
+    )
+      .then(() => {
+        breaker.recordSuccess();
+      })
+      .catch((error) => {
+        breaker.recordFailure();
+        console.error('Quick prompt request error:', error);
+      });
+  } catch (error) {
+    if (!abortController.signal.aborted) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId: message.responseId,
+        model: 'fast',
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Quick prompt request failed',
+      });
+    }
+    quickPromptAbortControllers.delete(message.responseId);
+    if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+      stopKeepAlive();
+    }
+  }
+}
+
 type MessageResponse =
   | PongMessage
   | { type: string }
@@ -706,6 +880,8 @@ const LOGGED_MESSAGE_TYPES = [
   'TRANSCRIPTION_ERROR',
   'LLM_REQUEST',
   'LLM_CANCEL',
+  'QUICK_PROMPT_REQUEST',
+  'QUICK_PROMPT_CANCEL',
   'CONNECTION_STATE',
 ];
 
@@ -861,7 +1037,8 @@ async function handleMessage(
       return {
         isCapturing: isTabCaptureActive,
         isTranscribing: isTranscriptionActive,
-        hasActiveLLMRequest: activeAbortControllers.size > 0,
+        hasActiveLLMRequest:
+          activeAbortControllers.size > 0 || quickPromptAbortControllers.size > 0,
         isCaptureStartInProgress: isCaptureStartInProgress,
       };
 
@@ -990,8 +1167,8 @@ async function handleMessage(
         isTranscriptionActive = false;
         await setTranscriptionActive(false);
 
-        // Stop keep-alive only if no active LLM requests
-        if (activeAbortControllers.size === 0) {
+        // Stop keep-alive only if no active LLM or quick prompt requests
+        if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
           stopKeepAlive();
         }
 
@@ -1095,8 +1272,31 @@ async function handleMessage(
         abortController.abort();
         activeAbortControllers.delete(message.responseId);
         console.log('LLM: Cancelled');
-        // Stop keep-alive if no other active requests
-        if (activeAbortControllers.size === 0) {
+        // Stop keep-alive if no other active requests (including quick prompts)
+        if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+          stopKeepAlive();
+        }
+      }
+      return { success: true };
+    }
+
+    // Quick prompt lifecycle messages (concurrent with LLM requests)
+    case 'QUICK_PROMPT_REQUEST': {
+      // Do NOT cancel existing requests -- quick prompts run concurrently
+      const qpAbortController = new AbortController();
+      quickPromptAbortControllers.set(message.responseId, qpAbortController);
+
+      handleQuickPromptRequest(message, qpAbortController);
+      console.log('Quick prompt: Starting', message.actionLabel);
+      return { success: true };
+    }
+
+    case 'QUICK_PROMPT_CANCEL': {
+      const qpController = quickPromptAbortControllers.get(message.responseId);
+      if (qpController) {
+        qpController.abort();
+        quickPromptAbortControllers.delete(message.responseId);
+        if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
           stopKeepAlive();
         }
       }
