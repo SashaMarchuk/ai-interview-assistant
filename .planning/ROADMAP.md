@@ -57,7 +57,7 @@ Phase 16 (Reasoning) ──┘                      │
 - [ ] **Phase 18: Cost Dashboard** - IndexedDB persistence and popup charts with historical usage
 - [ ] **Phase 19: File Personalization** - Resume/JD upload, client-side extraction, LLM prompt injection
 - [ ] **Phase 20: Transcript Editing** - Inline edit, soft delete, undo, and LLM context integration
-- [ ] **Phase 21: Enhanced Text Selection** - Floating tooltip with quick prompts on any overlay text selection
+- [x] **Phase 21: Enhanced Text Selection** - Floating tooltip with quick prompts on any overlay text selection
 
 ## Phase Details
 
@@ -167,9 +167,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 21-01-PLAN.md -- Quick Prompt types, Zustand slice, message types, background concurrent handler
-- [ ] 21-02-PLAN.md -- Selection detection hook, floating tooltip UI, content script wiring, ResponsePanel integration
-- [ ] 21-03-PLAN.md -- Quick Prompts settings UI with CRUD, DnD reorder, icon picker, test button
+- [x] 21-01-PLAN.md -- Quick Prompt types, Zustand slice, message types, background concurrent handler
+- [x] 21-02-PLAN.md -- Selection detection hook, floating tooltip UI, content script wiring, ResponsePanel integration
+- [x] 21-03-PLAN.md -- Quick Prompts settings UI with CRUD, DnD reorder, icon picker, test button
 
 ## Progress
 
@@ -186,4 +186,4 @@ Phases 15 + 16 run in parallel. Then Phase 17 sequential. Then Phases 18 + 19 + 
 | 18. Cost Dashboard | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 19. File Personalization | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
 | 20. Transcript Editing | v2.0 | 2/2 | ✓ Complete | 2026-02-09 |
-| 21. Enhanced Text Selection | v2.0 | 0/3 | Planning complete | - |
+| 21. Enhanced Text Selection | v2.0 | 3/3 | ✓ Complete | 2026-02-10 |
