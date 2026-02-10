@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 21 (Text Selection) in progress
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 21 (Text Selection) COMPLETE
 
 ## Current Position
 
-Phase: 21 of 21 -- Text Selection Quick Prompts
-Plan: 2/3 complete (21-01, 21-02 done, 21-03 next)
-Status: Phase 21 Plan 02 (tooltip UI + wiring) complete. Plan 03 (settings UI) next.
-Last activity: 2026-02-10 -- Plan 21-02 executed
+Phase: 21 of 21 -- Text Selection Quick Prompts (COMPLETE)
+Plan: 3/3 complete (21-01, 21-02, 21-03 done)
+Status: Phase 21 complete. All v2.0 phases done. Ready for polish.
+Last activity: 2026-02-10 -- Plan 21-03 executed
 
-Progress: [█████████░] 95% (v2.0)
+Progress: [██████████] 100% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 49 (30 v1.0 + 7 v1.1 + 12 v2.0)
+- Total plans completed: 50 (30 v1.0 + 7 v1.1 + 13 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -40,6 +40,7 @@ Progress: [█████████░] 95% (v2.0)
 | 20-02 | Transcript Editing UI | 3min | 2 | 4 |
 | 21-01 | Quick Prompts Data Layer | 6min | 2 | 7 |
 | 21-02 | Selection Tooltip UI & Wiring | ~45min | 2 | 7 |
+| 21-03 | Quick Prompt Settings UI | 3min | 2 | 4 |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [21-02]: useMemo derivation pattern to avoid ESLint set-state-in-effect rule violation in useTextSelection
 - [21-02]: qp- prefix on responseId for routing quick prompt messages through shared LLM_STREAM/LLM_STATUS handlers
 - [21-02]: Custom event bridge pattern (quick-prompt-request, quick-prompt-responses-update) between content script and overlay
+- [21-03]: ICON_MAP/ICON_OPTIONS extracted to shared src/constants/quickPromptIcons.ts to avoid cross-context overlay-popup imports
+- [21-03]: @dnd-kit for drag-and-drop reordering (accessible, keyboard support, React-native)
+- [21-03]: Test button uses safeSendMessage + temporary chrome.runtime.onMessage listener for streaming response preview
 
 ### Pending Todos
 
@@ -116,5 +120,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 21-02-PLAN.md (Selection Tooltip UI & Content Script Wiring)
-Resume file: Phase 21 Plan 03 (Settings UI) is next. Tooltip UI and wiring are ready.
+Stopped at: Completed 21-03-PLAN.md (Quick Prompt Settings UI) -- Phase 21 complete, all v2.0 phases done
+Resume file: All phases complete. Next step: /polish-milestone for v2.0.
