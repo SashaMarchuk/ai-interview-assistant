@@ -89,7 +89,7 @@ function App() {
           isCaptureStartInProgress?: boolean;
         }>({
           type: 'GET_CAPTURE_STATE',
-        } as unknown as Record<string, unknown>);
+        });
 
         if (result.contextInvalid) {
           setCaptureStatus('Extension updated - reopen popup');
@@ -231,7 +231,7 @@ function App() {
       setCaptureStatus('Starting tab capture...');
       const tabResult = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_CAPTURE',
-      } as unknown as Record<string, unknown>);
+      });
 
       if (tabResult.contextInvalid) {
         throw new Error('Extension was updated. Please close and reopen this popup.');
@@ -246,14 +246,14 @@ function App() {
       setCaptureStatus('Starting mic capture...');
       const micResult = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_MIC_CAPTURE',
-      } as unknown as Record<string, unknown>);
+      });
 
       if (micResult.contextInvalid) {
         throw new Error('Extension was updated. Please close and reopen this popup.');
       }
       if (!micResult.data?.success) {
         // Tab capture succeeded but mic failed - stop tab capture for clean state
-        await safeSendMessage({ type: 'STOP_CAPTURE' } as unknown as Record<string, unknown>);
+        await safeSendMessage({ type: 'STOP_CAPTURE' });
         const errorMsg =
           typeof micResult.data?.error === 'string'
             ? micResult.data.error
@@ -328,7 +328,7 @@ function App() {
       // Stop tab capture
       const stopTabResult = await safeSendMessage({
         type: 'STOP_CAPTURE',
-      } as unknown as Record<string, unknown>);
+      });
 
       if (stopTabResult.contextInvalid) {
         setCaptureError('Extension was updated. Please close and reopen this popup.');
@@ -339,7 +339,7 @@ function App() {
       // Stop microphone capture
       const stopMicResult = await safeSendMessage({
         type: 'STOP_MIC_CAPTURE',
-      } as unknown as Record<string, unknown>);
+      });
 
       if (stopMicResult.contextInvalid) {
         setCaptureError('Extension was updated. Please close and reopen this popup.');
@@ -377,7 +377,7 @@ function App() {
       const result = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_TRANSCRIPTION',
         languageCode: transcriptionLanguage || undefined,
-      } as unknown as Record<string, unknown>);
+      });
 
       if (result.contextInvalid) {
         throw new Error('Extension was updated. Please close and reopen this popup.');
@@ -403,7 +403,7 @@ function App() {
     try {
       const result = await safeSendMessage({
         type: 'STOP_TRANSCRIPTION',
-      } as unknown as Record<string, unknown>);
+      });
 
       if (result.contextInvalid) {
         setTranscriptionStatus('Extension was updated. Please close and reopen this popup.');

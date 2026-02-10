@@ -25,12 +25,21 @@ function isContextInvalidatedError(error: unknown): boolean {
 }
 
 /**
+ * Result type for safeSendMessage with discriminated success/failure states.
+ */
+export type SafeMessageResult<T> =
+  | { success: true; data: T; contextInvalid?: undefined; error?: undefined }
+  | { success: false; data?: undefined; contextInvalid?: boolean; error?: string };
+
+/**
  * Send a message via chrome.runtime.sendMessage with context-invalidation
  * protection. Returns a result object instead of throwing.
+ *
+ * @param message - Any object with at least a `type` property. Typed as
+ *   `object` to accept both typed ExtensionMessage variants and ad-hoc
+ *   message literals without requiring index signatures.
  */
-export async function safeSendMessage<T = unknown>(
-  message: object,
-): Promise<{ success: boolean; data?: T; contextInvalid?: boolean; error?: string }> {
+export async function safeSendMessage<T = unknown>(message: object): Promise<SafeMessageResult<T>> {
   if (!isExtensionContextValid()) {
     return { success: false, contextInvalid: true, error: 'Extension context invalidated' };
   }

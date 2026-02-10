@@ -7,6 +7,7 @@ import type {
   InputAudioChunk,
   TokenResponse,
 } from './types';
+import { isServerMessage } from './types';
 
 /**
  * WebSocket connection wrapper for ElevenLabs Scribe v2 Realtime API.
@@ -265,7 +266,11 @@ export class ElevenLabsConnection {
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      const message: ServerMessage = JSON.parse(event.data);
+      const parsed: unknown = JSON.parse(event.data as string);
+      if (!isServerMessage(parsed)) {
+        return; // Silently ignore non-conforming messages
+      }
+      const message: ServerMessage = parsed;
       const messageType = message.message_type;
 
       switch (messageType) {

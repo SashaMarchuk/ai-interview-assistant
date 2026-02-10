@@ -276,13 +276,13 @@ export default function QuickPromptSettings() {
     chrome.runtime.onMessage.addListener(listener);
 
     // Send the quick prompt request
-    safeSendMessage({
+    safeSendMessage<{ success?: boolean }>({
       type: 'QUICK_PROMPT_REQUEST',
       responseId,
       selectedText: SAMPLE_TEXT,
       promptTemplate: form.promptTemplate.trim(),
       actionLabel: form.label.trim() || 'Test',
-    } as unknown as Record<string, unknown>).then((result) => {
+    }).then((result) => {
       if (result.contextInvalid || !result.success) {
         setTestLoading(false);
         setTestError(result.error || 'Failed to send request');

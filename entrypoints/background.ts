@@ -11,6 +11,7 @@ import type {
   LLMStatusMessage,
   LLMCostMessage,
   QuickPromptRequestMessage,
+  CaptureStateResponse,
 } from '../src/types/messages';
 import {
   buildPrompt,
@@ -343,7 +344,7 @@ async function handleLLMRequest(
   fullTranscript: string,
   templateId: string,
   isReasoningRequest?: boolean,
-  reasoningEffort?: string,
+  reasoningEffort?: ReasoningEffort,
 ): Promise<void> {
   // Get store state for settings and templates
   const state = useStore.getState();
@@ -545,7 +546,7 @@ async function handleLLMRequest(
             reasoningTokens: usage.reasoningTokens,
             totalTokens: usage.totalTokens,
             costUSD,
-          } as LLMCostMessage);
+          } satisfies LLMCostMessage);
 
           // Persist to IndexedDB for historical dashboard
           const costRecord: CostRecord = {
@@ -606,7 +607,7 @@ async function handleLLMRequest(
       onDone: () => {
         fullComplete = true;
       },
-      reasoningEffort: reasoningEffort as ReasoningEffort | undefined,
+      reasoningEffort,
     });
 
     // Send streaming status
@@ -784,7 +785,7 @@ async function handleQuickPromptRequest(
             reasoningTokens: usage.reasoningTokens,
             totalTokens: usage.totalTokens,
             costUSD,
-          } as LLMCostMessage);
+          } satisfies LLMCostMessage);
 
           // Persist to IndexedDB for historical dashboard
           const costRecord: CostRecord = {
@@ -834,15 +835,10 @@ async function handleQuickPromptRequest(
 
 type MessageResponse =
   | PongMessage
-  | { type: string }
+  | { type: 'OFFSCREEN_READY' }
   | { received: boolean }
   | { success: boolean; error?: string }
-  | {
-      isCapturing: boolean;
-      isTranscribing: boolean;
-      hasActiveLLMRequest: boolean;
-      isCaptureStartInProgress: boolean;
-    }
+  | CaptureStateResponse
   | { error: string }
   | undefined;
 

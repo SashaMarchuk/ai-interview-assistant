@@ -55,6 +55,12 @@ export interface SessionCostEventDetail {
   sessionCost: number;
 }
 
+/** Standard response from background service worker for async operations */
+interface BackgroundResponse {
+  success?: boolean;
+  error?: string;
+}
+
 // Module-level transcript state
 let currentTranscript: TranscriptEntry[] = [];
 
@@ -429,12 +435,12 @@ async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Pr
   };
 
   try {
-    const result = await safeSendMessage(message);
+    const result = await safeSendMessage<BackgroundResponse>(message);
     if (result.contextInvalid) {
       window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
       return;
     }
-    const response = result.data as { success?: boolean; error?: string } | undefined;
+    const response = result.data;
     if (!response?.success) {
       console.error(
         'AI Interview Assistant: LLM request failed:',
@@ -477,12 +483,12 @@ async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<
   };
 
   try {
-    const result = await safeSendMessage(message);
+    const result = await safeSendMessage<BackgroundResponse>(message);
     if (result.contextInvalid) {
       window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
       return;
     }
-    const response = result.data as { success?: boolean; error?: string } | undefined;
+    const response = result.data;
     if (!response?.success) {
       console.error(
         'AI Interview Assistant: Reasoning request failed:',
@@ -527,12 +533,12 @@ async function sendQuickPromptRequest(
   };
 
   try {
-    const result = await safeSendMessage(message);
+    const result = await safeSendMessage<BackgroundResponse>(message);
     if (result.contextInvalid) {
       window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
       return;
     }
-    const response = result.data as { success?: boolean; error?: string } | undefined;
+    const response = result.data;
     if (!response?.success) {
       console.error(
         'AI Interview Assistant: Quick prompt request failed:',
@@ -719,6 +725,15 @@ export default defineContentScript({
     // Set up message listener for messages from Service Worker/Popup
     chrome.runtime.onMessage.addListener(
       safeMessageListener((_message, _sender, sendResponse) => {
+        // Validate message shape before processing
+        if (
+          typeof _message !== 'object' ||
+          _message === null ||
+          !('type' in _message) ||
+          typeof (_message as { type: unknown }).type !== 'string'
+        ) {
+          return false;
+        }
         const message = _message as ExtensionMessage;
         switch (message.type) {
           case 'TRANSCRIPT_UPDATE':
@@ -738,7 +753,7 @@ export default defineContentScript({
             return false;
 
           case 'LLM_COST':
-            handleLLMCost(message as LLMCostMessage);
+            handleLLMCost(message);
             return false;
 
           case 'REQUEST_MIC_PERMISSION':
