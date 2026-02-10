@@ -43,6 +43,12 @@ export interface LLMResponse {
   status: LLMResponseStatus;
   /** Error message if status is 'error' */
   error?: string;
+  /** Cost of fast model response in USD */
+  fastCostUSD?: number;
+  /** Cost of full model response in USD */
+  fullCostUSD?: number;
+  /** Total combined cost in USD (fast + full) */
+  totalCostUSD?: number;
 }
 
 /**
@@ -80,3 +86,17 @@ export const DEFAULT_OVERLAY_STATE: OverlayState = {
   minBtnX: -1,
   minBtnY: -1,
 };
+
+/**
+ * Edit overlay for a transcript entry.
+ * Stored separately from the original entry to preserve undo capability.
+ * Session-scoped: resets on page reload (matches interview session lifecycle).
+ */
+export interface TranscriptEdit {
+  /** The user-corrected text (null if only soft-deleted, not text-edited) */
+  editedText: string | null;
+  /** Whether this entry is hidden from view and LLM context */
+  isDeleted: boolean;
+  /** Original text preserved for undo (copied at edit time) */
+  originalText: string;
+}

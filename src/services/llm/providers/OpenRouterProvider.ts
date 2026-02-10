@@ -7,26 +7,10 @@
 
 import { streamSSE } from './streamSSE';
 import type { LLMProvider, ProviderId, ProviderStreamOptions, ModelInfo } from './LLMProvider';
+import { isReasoningModel, MIN_REASONING_TOKEN_BUDGET } from './LLMProvider';
 
 /** OpenRouter API endpoint */
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-/**
- * OpenAI reasoning model prefixes (o-series) that require `max_completion_tokens`
- * instead of `max_tokens`. On OpenRouter these are prefixed with "openai/".
- */
-const REASONING_MODEL_PREFIXES = ['o1', 'o3'];
-
-/**
- * Check if a model ID is an OpenAI reasoning model (o-series).
- * Handles OpenRouter-style IDs like "openai/o1-mini".
- */
-function isReasoningModel(modelId: string): boolean {
-  const bareModel = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
-  return REASONING_MODEL_PREFIXES.some(
-    (prefix) => bareModel === prefix || bareModel.startsWith(`${prefix}-`),
-  );
-}
 
 /**
  * Available models on OpenRouter
@@ -55,6 +39,11 @@ export const OPENROUTER_MODELS: ModelInfo[] = [
   },
   { id: 'openai/gpt-4o', name: 'GPT-4o', category: 'full', provider: 'openrouter' },
   { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', category: 'full', provider: 'openrouter' },
+  // Reasoning models (o-series and GPT-5)
+  { id: 'openai/o3-mini', name: 'o3 Mini', category: 'fast', provider: 'openrouter' },
+  { id: 'openai/o4-mini', name: 'o4 Mini', category: 'fast', provider: 'openrouter' },
+  { id: 'openai/gpt-5', name: 'GPT-5', category: 'full', provider: 'openrouter' },
+  { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini', category: 'fast', provider: 'openrouter' },
 ];
 
 /**
@@ -78,10 +67,30 @@ export class OpenRouterProvider implements LLMProvider {
     const { model, systemPrompt, userPrompt, maxTokens, apiKey } = options;
     const reasoning = isReasoningModel(model);
 
-    // Reasoning models (o1, o3) use max_completion_tokens; standard models use max_tokens
+    // Reasoning models use 'developer' role; standard models use 'system'
+    const messages = [
+      { role: reasoning ? 'developer' : 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+
+    // Reasoning models use max_completion_tokens with minimum 25K budget;
+    // standard models use max_tokens as-is
     const tokenLimit = reasoning
-      ? { max_completion_tokens: maxTokens }
+      ? { max_completion_tokens: Math.max(maxTokens, MIN_REASONING_TOKEN_BUDGET) }
       : { max_tokens: maxTokens };
+
+    // Build request body -- reasoning models exclude temperature/top_p
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      ...tokenLimit,
+      stream: true,
+    };
+
+    // Add reasoning_effort when specified for reasoning models
+    if (reasoning && options.reasoningEffort) {
+      body.reasoning_effort = options.reasoningEffort;
+    }
 
     await streamSSE(
       {
@@ -91,15 +100,7 @@ export class OpenRouterProvider implements LLMProvider {
           'HTTP-Referer': chrome.runtime.getURL(''),
           'X-Title': 'AI Interview Assistant',
         },
-        body: {
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          ...tokenLimit,
-          stream: true,
-        },
+        body,
         providerName: 'OpenRouter',
         checkErrorFinishReason: true,
       },

@@ -8,7 +8,7 @@
 import { useMemo } from 'react';
 import { useStore } from '../../store';
 import type { ModelType } from '../../store';
-import { getAvailableModels, type ModelInfo } from '../../services/llm';
+import { getAvailableModels, isReasoningModel, type ModelInfo } from '../../services/llm';
 
 interface ModelSelectProps {
   label: string;
@@ -26,16 +26,38 @@ function ModelSelect({ label, description, modelType, category }: ModelSelectPro
 
   // Memoize model lists to avoid re-filtering on every render
   // Only recompute when API keys or category change
-  const { availableOptions, openaiModels, openrouterModels, isCurrentAvailable } = useMemo(() => {
+  // Split into standard and reasoning groups per provider
+  const {
+    availableOptions,
+    openaiModels,
+    openaiReasoningModels,
+    openrouterModels,
+    openrouterReasoningModels,
+    isCurrentAvailable,
+  } = useMemo(() => {
     const allModels = getAvailableModels({
       openAI: apiKeys.openAI,
       openRouter: apiKeys.openRouter,
     });
     const available = allModels.filter((model: ModelInfo) => model.category === category);
+    const oaiStandard = available.filter(
+      (m: ModelInfo) => m.provider === 'openai' && !isReasoningModel(m.id),
+    );
+    const oaiReasoning = available.filter(
+      (m: ModelInfo) => m.provider === 'openai' && isReasoningModel(m.id),
+    );
+    const orStandard = available.filter(
+      (m: ModelInfo) => m.provider === 'openrouter' && !isReasoningModel(m.id),
+    );
+    const orReasoning = available.filter(
+      (m: ModelInfo) => m.provider === 'openrouter' && isReasoningModel(m.id),
+    );
     return {
       availableOptions: available,
-      openaiModels: available.filter((m: ModelInfo) => m.provider === 'openai'),
-      openrouterModels: available.filter((m: ModelInfo) => m.provider === 'openrouter'),
+      openaiModels: oaiStandard,
+      openaiReasoningModels: oaiReasoning,
+      openrouterModels: orStandard,
+      openrouterReasoningModels: orReasoning,
       isCurrentAvailable: available.some((m: ModelInfo) => m.id === currentValue),
     };
   }, [apiKeys.openAI, apiKeys.openRouter, category, currentValue]);
@@ -58,7 +80,7 @@ function ModelSelect({ label, description, modelType, category }: ModelSelectPro
             {currentValue} (requires API key)
           </option>
         )}
-        {/* Group by provider */}
+        {/* Group by provider, with reasoning models in separate optgroups */}
         {openaiModels.length > 0 && (
           <optgroup label="OpenAI">
             {openaiModels.map((model: ModelInfo) => (
@@ -68,9 +90,27 @@ function ModelSelect({ label, description, modelType, category }: ModelSelectPro
             ))}
           </optgroup>
         )}
+        {openaiReasoningModels.length > 0 && (
+          <optgroup label="OpenAI — Reasoning">
+            {openaiReasoningModels.map((model: ModelInfo) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
         {openrouterModels.length > 0 && (
           <optgroup label="OpenRouter">
             {openrouterModels.map((model: ModelInfo) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {openrouterReasoningModels.length > 0 && (
+          <optgroup label="OpenRouter — Reasoning">
+            {openrouterReasoningModels.map((model: ModelInfo) => (
               <option key={model.id} value={model.id}>
                 {model.name}
               </option>
@@ -103,6 +143,10 @@ export default function ModelSettings() {
         modelType="fullModel"
         category="full"
       />
+      <p className="text-xs text-gray-500">
+        Reasoning models (o-series, GPT-5) use deep thinking and require 25K+ tokens. Best for
+        comprehensive answers.
+      </p>
     </div>
   );
 }

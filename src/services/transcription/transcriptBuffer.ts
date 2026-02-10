@@ -58,10 +58,11 @@ export class TranscriptBuffer {
   }
 
   /**
-   * Return current entries array (for broadcast to content scripts).
+   * Return a shallow copy of current entries (for broadcast to content scripts).
+   * Returns a copy to prevent callers from accidentally mutating internal state.
    */
   getEntries(): TranscriptEntry[] {
-    return this.entries;
+    return [...this.entries];
   }
 
   /**

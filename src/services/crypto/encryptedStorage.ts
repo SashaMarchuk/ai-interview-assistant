@@ -15,14 +15,14 @@ import type { StateStorage } from 'zustand/middleware';
 import { chromeStorage } from '../../store/chromeStorage';
 import { encryptionService } from './encryption';
 
-type EncryptedFieldName = 'elevenLabs' | 'openRouter' | 'openAI';
+import type { ApiKeyProvider } from '../../store/types';
 
 /** API key field names that should be encrypted */
-const ENCRYPTED_FIELDS: readonly EncryptedFieldName[] = ['elevenLabs', 'openRouter', 'openAI'];
+const ENCRYPTED_FIELDS: readonly ApiKeyProvider[] = ['elevenLabs', 'openRouter', 'openAI'];
 
 interface PersistedStoreData {
   state?: {
-    apiKeys?: Record<string, string>;
+    apiKeys?: Record<ApiKeyProvider, string>;
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -55,7 +55,7 @@ async function ensureEncryption(): Promise<boolean> {
  * Decrypt apiKeys values in parsed state, with plaintext fallback for migration.
  * Waits for encryption service to be ready to prevent race conditions.
  */
-async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
+async function decryptApiKeys(apiKeys: Record<ApiKeyProvider, string>): Promise<Record<ApiKeyProvider, string>> {
   const result = { ...apiKeys };
 
   if (!(await ensureEncryption())) return result;
@@ -79,7 +79,7 @@ async function decryptApiKeys(apiKeys: Record<string, string>): Promise<Record<s
  * Encrypt apiKeys values in parsed state.
  * Waits for encryption service to be ready.
  */
-async function encryptApiKeys(apiKeys: Record<string, string>): Promise<Record<string, string>> {
+async function encryptApiKeys(apiKeys: Record<ApiKeyProvider, string>): Promise<Record<ApiKeyProvider, string>> {
   const result = { ...apiKeys };
 
   if (!(await ensureEncryption())) return result;

@@ -17,6 +17,7 @@ import { encryptedChromeStorage } from '../services/crypto/encryptedStorage';
 import { createSettingsSlice } from './settingsSlice';
 import { createTemplatesSlice } from './templatesSlice';
 import { createConsentSlice } from './consentSlice';
+import { createQuickPromptsSlice } from './quickPromptsSlice';
 
 /**
  * Combined Zustand store with persistence
@@ -32,6 +33,7 @@ export const useStore = create<StoreState>()(
       ...createSettingsSlice(...a),
       ...createTemplatesSlice(...a),
       ...createConsentSlice(...a),
+      ...createQuickPromptsSlice(...a),
     }),
     {
       name: 'ai-interview-settings',
@@ -44,16 +46,22 @@ export const useStore = create<StoreState>()(
         hotkeys: state.hotkeys,
         captureMode: state.captureMode,
         transcriptionLanguage: state.transcriptionLanguage,
+        reasoningEffort: state.reasoningEffort,
         templates: state.templates,
         activeTemplateId: state.activeTemplateId,
         privacyPolicyAccepted: state.privacyPolicyAccepted,
         privacyPolicyAcceptedAt: state.privacyPolicyAcceptedAt,
         recordingConsentDismissedPermanently: state.recordingConsentDismissedPermanently,
+        quickPrompts: state.quickPrompts,
+        quickPromptsEnabled: state.quickPromptsEnabled,
       }),
-      // Seed default templates after rehydration if none exist
+      // Seed defaults after rehydration if none exist
       onRehydrateStorage: () => (state) => {
         if (state && state.templates.length === 0) {
           state.seedDefaultTemplates();
+        }
+        if (state && state.quickPrompts.length === 0) {
+          state.resetQuickPromptsToDefaults();
         }
       },
     },
@@ -104,16 +112,4 @@ export const storeReadyPromise: Promise<void> = new Promise((resolve) => {
 
 // Re-export types for consumers
 export type { StoreState } from './types';
-export type {
-  CaptureMode,
-  PromptTemplate,
-  TemplateType,
-  ApiKeyProvider,
-  ModelType,
-  HotkeyAction,
-  SettingsSlice,
-  TemplatesSlice,
-  ConsentSlice,
-  TemplateUpdate,
-  NewTemplate,
-} from './types';
+export type { ApiKeyProvider, ModelType, QuickPromptAction } from './types';

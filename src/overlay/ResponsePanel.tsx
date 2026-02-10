@@ -1,50 +1,27 @@
 import { memo } from 'react';
 import type { LLMResponse } from '../types/transcript';
+import { MemoizedMarkdown } from '../components/markdown/MemoizedMarkdown';
+import { StatusIndicator } from './StatusIndicator';
+
+/**
+ * Quick prompt response data from content script.
+ * Each entry represents one quick prompt action result.
+ */
+export interface QuickPromptResponse {
+  id: string;
+  actionLabel: string;
+  textSnippet: string;
+  content: string;
+  status: 'streaming' | 'complete' | 'error';
+  error?: string;
+  costUSD?: number;
+}
 
 interface ResponsePanelProps {
   response: LLMResponse | null;
+  isReasoningPending?: boolean;
+  quickPromptResponses?: QuickPromptResponse[];
 }
-
-/**
- * Status indicator showing current response state.
- * Memoized to prevent re-renders when parent updates but status unchanged.
- */
-const StatusIndicator = memo(function StatusIndicator({
-  status,
-}: {
-  status: LLMResponse['status'];
-}) {
-  switch (status) {
-    case 'pending':
-      return (
-        <span className="flex items-center gap-1 text-xs text-yellow-300">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-yellow-400"></span>
-          Thinking...
-        </span>
-      );
-    case 'streaming':
-      return (
-        <span className="flex items-center gap-1 text-xs text-blue-300">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400"></span>
-          Streaming...
-        </span>
-      );
-    case 'complete':
-      return (
-        <span className="flex items-center gap-1 text-xs text-green-300">
-          <span className="h-2 w-2 rounded-full bg-green-400"></span>
-          Complete
-        </span>
-      );
-    case 'error':
-      return (
-        <span className="flex items-center gap-1 text-xs text-red-300">
-          <span className="h-2 w-2 rounded-full bg-red-400"></span>
-          Error
-        </span>
-      );
-  }
-});
 
 /**
  * Response panel displaying dual AI responses: fast hint and full answer.
@@ -52,12 +29,27 @@ const StatusIndicator = memo(function StatusIndicator({
  * quick guidance immediately, with comprehensive answer streaming in.
  * Memoized to prevent re-renders when transcript updates but response unchanged.
  */
-export const ResponsePanel = memo(function ResponsePanel({ response }: ResponsePanelProps) {
+export const ResponsePanel = memo(function ResponsePanel({
+  response,
+  isReasoningPending,
+  quickPromptResponses = [],
+}: ResponsePanelProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-1 flex items-center justify-between text-xs font-medium text-white/60">
         <span>AI Response</span>
-        {response && <StatusIndicator status={response.status} />}
+        {response && (
+          <div className="flex items-center gap-2">
+            {response.totalCostUSD != null && response.totalCostUSD > 0 && (
+              <span className="text-xs text-white/40" title={`Fast: $${(response.fastCostUSD ?? 0).toFixed(4)} | Full: $${(response.fullCostUSD ?? 0).toFixed(4)}`}>
+                ${response.totalCostUSD < 0.01
+                  ? response.totalCostUSD.toFixed(4)
+                  : response.totalCostUSD.toFixed(3)}
+              </span>
+            )}
+            <StatusIndicator status={response.status} isReasoningPending={isReasoningPending} variant="panel" />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto rounded p-2">
@@ -80,8 +72,8 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
                   <span className="font-medium text-green-300">Quick Hint</span>
                   <span className="text-xs text-white/40">— start talking</span>
                 </div>
-                <div className="border-l-2 border-green-400/50 pl-2 text-white/90">
-                  {response.fastHint}
+                <div className="border-l-2 border-green-400/50 pl-2">
+                  <MemoizedMarkdown content={response.fastHint} />
                 </div>
               </div>
             )}
@@ -93,8 +85,8 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
                   <span className="font-medium text-purple-300">Full Answer</span>
                   <span className="text-xs text-white/40">— detailed response</span>
                 </div>
-                <div className="border-l-2 border-purple-400/50 pl-2 text-white/90">
-                  {response.fullAnswer}
+                <div className="border-l-2 border-purple-400/50 pl-2">
+                  <MemoizedMarkdown content={response.fullAnswer} />
                 </div>
               </div>
             )}
@@ -102,11 +94,40 @@ export const ResponsePanel = memo(function ResponsePanel({ response }: ResponseP
             {/* Pending state with no content yet */}
             {response.status === 'pending' && !response.fastHint && !response.fullAnswer && (
               <div className="py-4 text-center text-sm text-white/40 italic">
-                Processing your question...
+                {isReasoningPending ? 'Reasoning deeply...' : 'Processing your question...'}
               </div>
             )}
           </div>
         )}
+
+        {/* Quick Prompt Response Sections (appended below existing content) */}
+        {quickPromptResponses.map((qp) => (
+          <div key={qp.id} className="mt-3 text-sm">
+            <div className="mb-1 flex items-center gap-1">
+              <span className="font-medium text-teal-300">{qp.actionLabel}</span>
+              <span className="text-xs text-white/40">
+                — &quot;{qp.textSnippet}&quot;
+              </span>
+              {qp.costUSD != null && qp.costUSD > 0 && (
+                <span className="ml-auto text-xs text-white/30">
+                  ${qp.costUSD < 0.01 ? qp.costUSD.toFixed(4) : qp.costUSD.toFixed(3)}
+                </span>
+              )}
+            </div>
+            <div className="border-l-2 border-teal-400/50 pl-2">
+              {qp.status === 'error' ? (
+                <span className="text-red-300">{qp.error || 'Request failed'}</span>
+              ) : (
+                <>
+                  <MemoizedMarkdown content={qp.content} />
+                  {qp.status === 'streaming' && (
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-teal-400" />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

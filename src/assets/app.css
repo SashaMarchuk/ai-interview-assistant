@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 
+/* Highlight.js github-dark theme for syntax highlighting in Shadow DOM.
+ * Imported here so WXT's cssInjectionMode: 'ui' bundles it into the Shadow DOM
+ * alongside Tailwind styles. Override background to transparent so the
+ * code block background comes from CodeBlock's bg-black/40 class. */
+@import 'highlight.js/styles/github-dark.min.css';
+
 /*
  * Tailwind v4 Shadow DOM Compatibility
  *
@@ -87,4 +93,45 @@
     'Segoe UI',
     Roboto,
     sans-serif;
+}
+
+/* Override highlight.js default background so code block backgrounds
+ * come from CodeBlock's Tailwind bg-black/40 class instead */
+.hljs {
+  background: transparent;
+}
+
+/* Selection tooltip arrow pointer */
+.selection-tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+/* Selection tooltip fade-in animation */
+.selection-tooltip-enter {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.selection-tooltip-enter-active {
+  opacity: 1;
+}
+
+/* Quick prompt spinner -- explicit @keyframes for Shadow DOM compatibility
+ * (Tailwind's animate-spin may not work due to missing @property declarations) */
+@keyframes qp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.qp-spinner {
+  animation: qp-spin 0.6s linear infinite;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
 }

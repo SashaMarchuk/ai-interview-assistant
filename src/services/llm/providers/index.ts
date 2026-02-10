@@ -10,10 +10,8 @@ import type { LLMProvider, ProviderId, ModelInfo } from './LLMProvider';
 import { OpenRouterProvider, OPENROUTER_MODELS } from './OpenRouterProvider';
 import { OpenAIProvider, OPENAI_MODELS } from './OpenAIProvider';
 
-// Re-export types and classes
+// Re-export types
 export type { LLMProvider, ProviderId, ProviderStreamOptions, ModelInfo } from './LLMProvider';
-export { OpenRouterProvider, OPENROUTER_MODELS } from './OpenRouterProvider';
-export { OpenAIProvider, OPENAI_MODELS } from './OpenAIProvider';
 
 /**
  * Provider registry - singleton instances

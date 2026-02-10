@@ -5,8 +5,8 @@
  * Includes audio capture controls and settings interface.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import type { ExtensionMessage } from '../../src/types/messages';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { safeSendMessage } from '../../src/utils/messaging';
 import { useStore } from '../../src/store';
 import { PrivacyConsentModal } from '../../src/components/consent/PrivacyConsentModal';
 import { RecordingConsentWarning } from '../../src/components/consent/RecordingConsentWarning';
@@ -16,16 +16,19 @@ import HotkeySettings from '../../src/components/settings/HotkeySettings';
 import BlurSettings from '../../src/components/settings/BlurSettings';
 import LanguageSettings from '../../src/components/settings/LanguageSettings';
 import ConsentSettings from '../../src/components/settings/ConsentSettings';
+import FileUploadSettings from '../../src/components/settings/FileUploadSettings';
+import QuickPromptSettings from '../../src/components/settings/QuickPromptSettings';
 import TemplateManager from '../../src/components/templates/TemplateManager';
 
-type Tab = 'capture' | 'settings' | 'templates';
+const CostDashboard = lazy(() => import('../../src/components/cost/CostDashboard'));
+
+type Tab = 'capture' | 'settings' | 'templates' | 'cost';
 
 // Polling interval for state sync (increased to reduce flickering)
 const SYNC_INTERVAL_MS = 2000;
 
 /**
  * Get status indicator color class based on capture status.
- * Uses a clear switch statement instead of nested ternaries.
  */
 function getStatusColorClass(status: string): string {
   switch (status) {
@@ -39,6 +42,19 @@ function getStatusColorClass(status: string): string {
     default:
       return 'bg-gray-400';
   }
+}
+
+/**
+ * Get text color class for transcription status messages.
+ */
+function getTranscriptionStatusColor(status: string): string {
+  if (status.startsWith('Failed') || status.startsWith('Error')) {
+    return 'text-red-600';
+  }
+  if (status.includes('API key required')) {
+    return 'text-yellow-600';
+  }
+  return 'text-gray-500';
 }
 
 /**
@@ -78,9 +94,21 @@ function App() {
       }
 
       try {
-        const response = await chrome.runtime.sendMessage({
+        const result = await safeSendMessage<{
+          isCapturing?: boolean;
+          isTranscribing?: boolean;
+          hasActiveLLMRequest?: boolean;
+          isCaptureStartInProgress?: boolean;
+        }>({
           type: 'GET_CAPTURE_STATE',
-        } as ExtensionMessage);
+        });
+
+        if (result.contextInvalid) {
+          setCaptureStatus('Extension updated - reopen popup');
+          return;
+        }
+
+        const response = result.data;
 
         // Also skip if background reports capture start in progress
         // This handles the case where background is still processing START_CAPTURE
@@ -213,27 +241,35 @@ function App() {
 
       // Step 2: Start tab audio capture
       setCaptureStatus('Starting tab capture...');
-      const tabResponse = await chrome.runtime.sendMessage({
+      const tabResult = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_CAPTURE',
-      } as ExtensionMessage);
+      });
 
-      if (!tabResponse?.success) {
+      if (tabResult.contextInvalid) {
+        throw new Error('Extension was updated. Please close and reopen this popup.');
+      }
+      if (!tabResult.data?.success) {
         const errorMsg =
-          typeof tabResponse?.error === 'string' ? tabResponse.error : 'Tab capture failed';
+          typeof tabResult.data?.error === 'string' ? tabResult.data.error : 'Tab capture failed';
         throw new Error(errorMsg);
       }
 
       // Step 3: Start microphone capture
       setCaptureStatus('Starting mic capture...');
-      const micResponse = await chrome.runtime.sendMessage({
+      const micResult = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_MIC_CAPTURE',
-      } as ExtensionMessage);
+      });
 
-      if (!micResponse?.success) {
+      if (micResult.contextInvalid) {
+        throw new Error('Extension was updated. Please close and reopen this popup.');
+      }
+      if (!micResult.data?.success) {
         // Tab capture succeeded but mic failed - stop tab capture for clean state
-        await chrome.runtime.sendMessage({ type: 'STOP_CAPTURE' } as ExtensionMessage);
+        await safeSendMessage({ type: 'STOP_CAPTURE' });
         const errorMsg =
-          typeof micResponse?.error === 'string' ? micResponse.error : 'Microphone capture failed';
+          typeof micResult.data?.error === 'string'
+            ? micResult.data.error
+            : 'Microphone capture failed';
         throw new Error(errorMsg);
       }
 
@@ -302,14 +338,26 @@ function App() {
       }
 
       // Stop tab capture
-      await chrome.runtime.sendMessage({
+      const stopTabResult = await safeSendMessage({
         type: 'STOP_CAPTURE',
-      } as ExtensionMessage);
+      });
+
+      if (stopTabResult.contextInvalid) {
+        setCaptureError('Extension was updated. Please close and reopen this popup.');
+        setCaptureStatus('Error');
+        return;
+      }
 
       // Stop microphone capture
-      await chrome.runtime.sendMessage({
+      const stopMicResult = await safeSendMessage({
         type: 'STOP_MIC_CAPTURE',
-      } as ExtensionMessage);
+      });
+
+      if (stopMicResult.contextInvalid) {
+        setCaptureError('Extension was updated. Please close and reopen this popup.');
+        setCaptureStatus('Error');
+        return;
+      }
 
       setIsCapturing(false);
       setCaptureStatus('Idle');
@@ -338,13 +386,16 @@ function App() {
     setTranscriptionStatus('Starting...');
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const result = await safeSendMessage<{ success: boolean; error?: string }>({
         type: 'START_TRANSCRIPTION',
         languageCode: transcriptionLanguage || undefined,
-      } as ExtensionMessage);
+      });
 
-      if (!response?.success) {
-        throw new Error(response?.error || 'Failed to start transcription');
+      if (result.contextInvalid) {
+        throw new Error('Extension was updated. Please close and reopen this popup.');
+      }
+      if (!result.data?.success) {
+        throw new Error(result.data?.error || 'Failed to start transcription');
       }
 
       setIsTranscribing(true);
@@ -362,9 +413,14 @@ function App() {
    */
   async function handleStopTranscription() {
     try {
-      await chrome.runtime.sendMessage({
+      const result = await safeSendMessage({
         type: 'STOP_TRANSCRIPTION',
-      } as ExtensionMessage);
+      });
+
+      if (result.contextInvalid) {
+        setTranscriptionStatus('Extension was updated. Please close and reopen this popup.');
+        return;
+      }
 
       setIsTranscribing(false);
       setTranscriptionStatus('Stopped');
@@ -389,7 +445,7 @@ function App() {
 
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200">
-        {(['capture', 'settings', 'templates'] as const).map((tab) => (
+        {(['capture', 'settings', 'templates', 'cost'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -533,16 +589,7 @@ function App() {
 
               {/* Status/Error Display */}
               {transcriptionStatus && (
-                <p
-                  className={`mt-2 text-xs ${
-                    transcriptionStatus.startsWith('Failed') ||
-                    transcriptionStatus.startsWith('Error')
-                      ? 'text-red-600'
-                      : transcriptionStatus.includes('API key required')
-                        ? 'text-yellow-600'
-                        : 'text-gray-500'
-                  }`}
-                >
+                <p className={`mt-2 text-xs ${getTranscriptionStatusColor(transcriptionStatus)}`}>
                   {transcriptionStatus}
                 </p>
               )}
@@ -596,6 +643,18 @@ function App() {
               <ModelSettings />
             </section>
 
+            {/* Personalization Section */}
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Personalization</h2>
+              <FileUploadSettings />
+            </section>
+
+            {/* Quick Prompts Section */}
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Quick Prompts</h2>
+              <QuickPromptSettings />
+            </section>
+
             {/* Hotkeys Section */}
             <section>
               <h2 className="mb-3 text-sm font-semibold text-gray-900">Hotkeys</h2>
@@ -620,6 +679,16 @@ function App() {
           <div className="p-4">
             <TemplateManager />
           </div>
+        )}
+
+        {activeTab === 'cost' && (
+          <Suspense
+            fallback={
+              <div className="p-4 text-center text-sm text-gray-500">Loading cost data...</div>
+            }
+          >
+            <CostDashboard />
+          </Suspense>
         )}
       </div>
 

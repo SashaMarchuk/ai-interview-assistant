@@ -133,6 +133,18 @@ export function useCaptureMode(options: UseCaptureOptions): CaptureState {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Skip capture hotkey when user is typing in an input/textarea
+      // Uses e.target (not document.activeElement) because Shadow DOM boundary
+      // makes activeElement unreliable
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
       if (!matchesHotkey(e, parsedHotkey)) return;
       if (e.repeat) return; // Ignore key repeat
 

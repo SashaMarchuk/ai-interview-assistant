@@ -9,8 +9,21 @@ import type {
   StopTranscriptionMessage,
   LLMStreamMessage,
   LLMStatusMessage,
+  LLMCostMessage,
+  QuickPromptRequestMessage,
+  CaptureStateResponse,
 } from '../src/types/messages';
-import { buildPrompt, resolveProviderForModel, type LLMProvider } from '../src/services/llm';
+import {
+  buildPrompt,
+  resolveProviderForModel,
+  isReasoningModel,
+  MIN_REASONING_TOKEN_BUDGET,
+  calculateCost,
+  type LLMProvider,
+  type ProviderId,
+  type ReasoningEffort,
+  type TokenUsage,
+} from '../src/services/llm';
 import { useStore } from '../src/store';
 import type { TranscriptEntry } from '../src/types/transcript';
 import {
@@ -25,6 +38,9 @@ import {
 import { CircuitState } from '../src/services/circuitBreaker/types';
 import { encryptionService } from '../src/services/crypto/encryption';
 import { storeReadyPromise } from '../src/store';
+import { saveCostRecord } from '../src/services/costHistory/costDb';
+import type { CostRecord } from '../src/services/costHistory/types';
+import { getFileContent } from '../src/services/fileStorage';
 
 // Wire circuit breaker state changes to HealthIndicator via CONNECTION_STATE
 setStateChangeCallback((serviceId, state) => {
@@ -49,12 +65,69 @@ let isTabCaptureActive = false;
 let isTranscriptionActive = false;
 let isCaptureStartInProgress = false; // Guard to ignore CAPTURE_STOPPED during START_CAPTURE
 
+// Session ID for cost record grouping (generated on START_CAPTURE, cleared on STOP_CAPTURE)
+let currentSessionId: string | null = null;
+
 // Track active LLM requests for cancellation
 const activeAbortControllers: Map<string, AbortController> = new Map();
+
+// Track active quick prompt requests separately (not cancelled by regular LLM_REQUEST)
+const quickPromptAbortControllers: Map<string, AbortController> = new Map();
+
+/** Check if there are no active streaming requests (LLM or quick prompt) */
+function hasNoActiveRequests(): boolean {
+  return activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0;
+}
 
 // LLM retry configuration
 const MAX_LLM_RETRIES = 3;
 const LLM_RETRY_DELAY_MS = 1000;
+
+/**
+ * Handle token usage: broadcast cost message and persist to IndexedDB.
+ * Shared by both regular LLM requests and quick prompt requests.
+ */
+function handleTokenUsage(
+  usage: TokenUsage,
+  modelId: string,
+  modelType: 'fast' | 'full',
+  responseId: string,
+  providerId: ProviderId,
+): void {
+  const costUSD = calculateCost(
+    modelId,
+    usage.promptTokens,
+    usage.completionTokens,
+    usage.providerCost,
+  );
+  sendLLMMessageToMeet({
+    type: 'LLM_COST',
+    responseId,
+    model: modelType,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens,
+    costUSD,
+  } satisfies LLMCostMessage);
+
+  const costRecord: CostRecord = {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    sessionId: currentSessionId ?? `adhoc-${Date.now()}`,
+    provider: providerId,
+    modelId,
+    modelSlot: modelType,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens,
+    costUSD,
+  };
+  saveCostRecord(costRecord).catch((err) => {
+    console.error('Failed to persist cost record:', err);
+  });
+}
 
 // Keep service worker alive during streaming
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -74,18 +147,51 @@ function stopKeepAlive(): void {
 }
 
 /**
+ * Cached Meet tab IDs for fast broadcast.
+ * Avoids chrome.tabs.query() on every message (expensive for high-frequency streaming).
+ * Cache is refreshed every 5 seconds and on tab lifecycle events.
+ */
+let cachedMeetTabIds: number[] = [];
+let tabCacheTimestamp = 0;
+const TAB_CACHE_TTL_MS = 5000;
+
+/** Refresh the cached Meet tab IDs */
+async function refreshMeetTabCache(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+    cachedMeetTabIds = tabs.filter((t) => t.id != null).map((t) => t.id!);
+    tabCacheTimestamp = Date.now();
+  } catch {
+    // Keep stale cache on error
+  }
+}
+
+// Invalidate cache on tab lifecycle events
+chrome.tabs.onRemoved.addListener((tabId) => {
+  cachedMeetTabIds = cachedMeetTabIds.filter((id) => id !== tabId);
+});
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  // Only invalidate on URL changes (navigation)
+  if (changeInfo.url) {
+    tabCacheTimestamp = 0; // Force refresh on next broadcast
+  }
+});
+
+/**
  * Broadcast a message to all Google Meet content scripts.
+ * Uses cached tab IDs for performance; refreshes cache when stale.
  * Silently ignores tabs where content script is not loaded.
  */
 async function broadcastToMeetTabs(message: ExtensionMessage): Promise<void> {
   try {
-    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-    for (const tab of tabs) {
-      if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, message).catch(() => {
-          // Ignore - content script might not be loaded on this tab
-        });
-      }
+    // Refresh cache if stale
+    if (Date.now() - tabCacheTimestamp > TAB_CACHE_TTL_MS) {
+      await refreshMeetTabCache();
+    }
+    for (const tabId of cachedMeetTabIds) {
+      chrome.tabs.sendMessage(tabId, message).catch(() => {
+        // Ignore - content script might not be loaded on this tab
+      });
     }
   } catch (error) {
     console.error('Failed to broadcast to Meet tabs:', error);
@@ -148,15 +254,9 @@ const isRealExtension = (() => {
       await transcriptBuffer.load();
       isTranscriptionActive = true;
       startKeepAlive();
-      console.log(
-        'TranscriptBuffer: Recovered',
-        transcriptBuffer.length,
-        'entries after SW restart',
-      );
     }
 
     storeReady = true;
-    console.log('Store ready in service worker, draining', messageQueue.length, 'queued messages');
     for (const { message, sender, sendResponse } of messageQueue) {
       handleMessage(message, sender)
         .then(sendResponse)
@@ -186,7 +286,9 @@ setTimeout(() => {
 /**
  * Send LLM message to all Google Meet content scripts
  */
-async function sendLLMMessageToMeet(message: LLMStreamMessage | LLMStatusMessage): Promise<void> {
+async function sendLLMMessageToMeet(
+  message: LLMStreamMessage | LLMStatusMessage | LLMCostMessage,
+): Promise<void> {
   await broadcastToMeetTabs(message);
 }
 
@@ -221,6 +323,10 @@ interface StreamWithRetryParams {
   onComplete: () => void;
   onError: (error: Error) => void;
   abortSignal?: AbortSignal;
+  /** Optional reasoning effort for reasoning models */
+  reasoningEffort?: ReasoningEffort;
+  /** Optional callback for token usage data */
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 async function streamWithRetry(
@@ -240,6 +346,8 @@ async function streamWithRetry(
       onComplete: params.onComplete,
       onError: params.onError,
       abortSignal: params.abortSignal,
+      reasoningEffort: params.reasoningEffort,
+      onUsage: params.onUsage,
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -270,9 +378,10 @@ async function streamWithRetry(
 }
 
 /**
- * Handle LLM_REQUEST by firing dual parallel streaming requests
- * Fast model provides quick hints, full model provides comprehensive answers
- * Automatically selects provider based on model ID and configured API keys
+ * Handle LLM_REQUEST by firing streaming requests.
+ * Normal mode: dual parallel streams (fast hint + full answer).
+ * Reasoning mode: single stream (full model only) with 25K+ token budget.
+ * Automatically selects provider based on model ID and configured API keys.
  */
 async function handleLLMRequest(
   responseId: string,
@@ -280,6 +389,8 @@ async function handleLLMRequest(
   recentContext: string,
   fullTranscript: string,
   templateId: string,
+  isReasoningRequest?: boolean,
+  reasoningEffort?: ReasoningEffort,
 ): Promise<void> {
   // Get store state for settings and templates
   const state = useStore.getState();
@@ -298,7 +409,7 @@ async function handleLLMRequest(
     return;
   }
 
-  // Resolve provider for fast model
+  // Resolve provider for fast model (not needed in reasoning mode, but resolve for error checking)
   const fastResolution = resolveProviderForModel(models.fastModel, {
     openAI: apiKeys.openAI,
     openRouter: apiKeys.openRouter,
@@ -310,20 +421,50 @@ async function handleLLMRequest(
     openRouter: apiKeys.openRouter,
   });
 
-  // Check if either model couldn't be resolved
-  if (!fastResolution && !fullResolution) {
-    await sendLLMMessageToMeet({
-      type: 'LLM_STATUS',
-      responseId,
-      model: 'both',
-      status: 'error',
-      error: 'No LLM provider configured. Add an OpenAI or OpenRouter API key in settings.',
-    });
-    return;
+  // Check if models couldn't be resolved
+  if (isReasoningRequest) {
+    // Reasoning mode only needs the full model
+    if (!fullResolution) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'both',
+        status: 'error',
+        error:
+          'No LLM provider configured for full model. Add an OpenAI or OpenRouter API key in settings.',
+      });
+      return;
+    }
+  } else {
+    // Normal dual-stream mode needs at least one model
+    if (!fastResolution && !fullResolution) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'both',
+        status: 'error',
+        error: 'No LLM provider configured. Add an OpenAI or OpenRouter API key in settings.',
+      });
+      return;
+    }
   }
 
+  // Read file context from IndexedDB for prompt personalization (Phase 19)
+  const [resumeRecord, jdRecord] = await Promise.all([
+    getFileContent('resume'),
+    getFileContent('jobDescription'),
+  ]);
+  const fileContext =
+    resumeRecord?.text || jdRecord?.text
+      ? { resume: resumeRecord?.text, jobDescription: jdRecord?.text }
+      : undefined;
+
   // Build prompts using the template
-  const prompts = buildPrompt({ question, recentContext, fullTranscript, templateId }, template);
+  const prompts = buildPrompt(
+    { question, recentContext, fullTranscript, templateId },
+    template,
+    fileContext,
+  );
 
   // Create abort controller for cancellation
   const abortController = new AbortController();
@@ -339,8 +480,8 @@ async function handleLLMRequest(
   const checkAllComplete = () => {
     if (fastComplete && fullComplete) {
       activeAbortControllers.delete(responseId);
-      // Stop keep-alive only if no other active requests
-      if (activeAbortControllers.size === 0) {
+      // Stop keep-alive only if no other active requests (including quick prompts)
+      if (hasNoActiveRequests()) {
         stopKeepAlive();
       }
     }
@@ -361,10 +502,20 @@ async function handleLLMRequest(
     userPrompt: string;
     maxTokens: number;
     onDone: () => void;
+    /** Optional reasoning effort for reasoning models */
+    reasoningEffort?: ReasoningEffort;
   }
 
   function fireModelRequest(config: ModelRequestConfig): Promise<void> {
-    const { resolution, modelType, modelId, userPrompt, maxTokens, onDone } = config;
+    const {
+      resolution,
+      modelType,
+      modelId,
+      userPrompt,
+      maxTokens,
+      onDone,
+      reasoningEffort: effort,
+    } = config;
 
     if (!resolution) {
       onDone();
@@ -402,7 +553,6 @@ async function handleLLMRequest(
         },
         onComplete: () => {
           onDone();
-          console.log(`LLM: ${modelType} model complete`);
           sendLLMMessageToMeet({
             type: 'LLM_STATUS',
             responseId,
@@ -424,6 +574,10 @@ async function handleLLMRequest(
           checkAllComplete();
         },
         abortSignal: abortController.signal,
+        reasoningEffort: effort,
+        onUsage: (usage: TokenUsage) => {
+          handleTokenUsage(usage, modelId, modelType, responseId, resolution!.provider.id);
+        },
       },
       modelType,
       responseId,
@@ -437,55 +591,233 @@ async function handleLLMRequest(
       });
   }
 
-  const fastPromise = fireModelRequest({
-    resolution: fastResolution,
-    modelType: 'fast',
-    modelId: models.fastModel,
-    userPrompt: prompts.user,
-    maxTokens: 300,
-    onDone: () => {
-      fastComplete = true;
-    },
-  });
+  if (isReasoningRequest) {
+    // Reasoning mode: single-stream (full model only)
+    // Skip fast model entirely -- reasoning models are expensive, no dual-stream
+    fastComplete = true;
 
-  const fullPromise = fireModelRequest({
-    resolution: fullResolution,
-    modelType: 'full',
-    modelId: models.fullModel,
-    userPrompt: prompts.userFull,
-    maxTokens: 2000,
-    onDone: () => {
-      fullComplete = true;
-    },
-  });
-
-  // Send streaming status (only if at least one model is available)
-  if (fastResolution || fullResolution) {
+    // Send fast model status as complete immediately (nothing to show)
     await sendLLMMessageToMeet({
       type: 'LLM_STATUS',
       responseId,
-      model: 'both',
+      model: 'fast',
+      status: 'complete',
+    });
+
+    // Only apply 25K budget for actual reasoning models; standard models keep their normal limit
+    const isFullModelReasoning = isReasoningModel(models.fullModel);
+    const fullMaxTokens = isFullModelReasoning
+      ? Math.max(2000, MIN_REASONING_TOKEN_BUDGET)
+      : 2000;
+
+    const fullPromise = fireModelRequest({
+      resolution: fullResolution,
+      modelType: 'full',
+      modelId: models.fullModel,
+      userPrompt: prompts.userFull,
+      maxTokens: fullMaxTokens,
+      onDone: () => {
+        fullComplete = true;
+      },
+      reasoningEffort,
+    });
+
+    // Send streaming status
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId,
+      model: 'full',
       status: 'streaming',
     });
+
+    // Wait for full model to complete (but don't block message handler return)
+    fullPromise.catch((error) => {
+      console.error('LLM reasoning request error:', error);
+    });
+  } else {
+    // Normal dual-stream mode: fire both fast and full models in parallel
+    const fastPromise = fireModelRequest({
+      resolution: fastResolution,
+      modelType: 'fast',
+      modelId: models.fastModel,
+      userPrompt: prompts.user,
+      maxTokens: 300,
+      onDone: () => {
+        fastComplete = true;
+      },
+    });
+
+    const fullPromise = fireModelRequest({
+      resolution: fullResolution,
+      modelType: 'full',
+      modelId: models.fullModel,
+      userPrompt: prompts.userFull,
+      maxTokens: 2000,
+      onDone: () => {
+        fullComplete = true;
+      },
+    });
+
+    // Send streaming status (only if at least one model is available)
+    if (fastResolution || fullResolution) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId,
+        model: 'both',
+        status: 'streaming',
+      });
+    }
+
+    // Wait for both to complete (but don't block message handler return)
+    Promise.all([fastPromise, fullPromise]).catch((error) => {
+      console.error('LLM request error:', error);
+    });
+  }
+}
+
+/**
+ * Handle QUICK_PROMPT_REQUEST: fire a single fast-model stream.
+ * Runs concurrently with active LLM requests -- does NOT cancel them.
+ * Uses separate abort controller tracking.
+ */
+async function handleQuickPromptRequest(
+  message: QuickPromptRequestMessage,
+  abortController: AbortController,
+): Promise<void> {
+  const state = useStore.getState();
+  const { apiKeys, models } = state;
+
+  // Resolve fast model provider
+  const fastResolution = resolveProviderForModel(models.fastModel, {
+    openAI: apiKeys.openAI,
+    openRouter: apiKeys.openRouter,
+  });
+
+  if (!fastResolution) {
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId: message.responseId,
+      model: 'fast',
+      status: 'error',
+      error: 'No LLM provider configured for fast model.',
+    });
+    quickPromptAbortControllers.delete(message.responseId);
+    return;
   }
 
-  // Wait for both to complete (but don't block message handler return)
-  Promise.all([fastPromise, fullPromise]).catch((error) => {
-    console.error('LLM request error:', error);
+  // Build prompt from template -- replace {{selection}} with actual text
+  const userPrompt = message.promptTemplate.includes('{{selection}}')
+    ? message.promptTemplate.replace('{{selection}}', message.selectedText)
+    : `${message.promptTemplate}: ${message.selectedText}`;
+
+  // Send streaming status
+  await sendLLMMessageToMeet({
+    type: 'LLM_STATUS',
+    responseId: message.responseId,
+    model: 'fast',
+    status: 'streaming',
   });
+
+  // Start keep-alive
+  startKeepAlive();
+
+  const breaker = circuitBreakerManager.getBreaker(fastResolution.provider.id);
+  if (!breaker.allowRequest()) {
+    await sendLLMMessageToMeet({
+      type: 'LLM_STATUS',
+      responseId: message.responseId,
+      model: 'fast',
+      status: 'error',
+      error: `${fastResolution.provider.id} service temporarily unavailable`,
+    });
+    quickPromptAbortControllers.delete(message.responseId);
+    if (hasNoActiveRequests()) {
+      stopKeepAlive();
+    }
+    return;
+  }
+
+  try {
+    await streamWithRetry(
+      {
+        provider: fastResolution.provider,
+        model: fastResolution.model,
+        systemPrompt: 'You are a helpful assistant. Be concise and clear.',
+        userPrompt,
+        maxTokens: 1024,
+        apiKey:
+          fastResolution.provider.id === 'openai' ? apiKeys.openAI : apiKeys.openRouter,
+        onToken: (token) => {
+          sendLLMMessageToMeet({
+            type: 'LLM_STREAM',
+            responseId: message.responseId,
+            model: 'fast',
+            token,
+          });
+        },
+        onComplete: () => {
+          quickPromptAbortControllers.delete(message.responseId);
+          if (hasNoActiveRequests()) {
+            stopKeepAlive();
+          }
+          sendLLMMessageToMeet({
+            type: 'LLM_STATUS',
+            responseId: message.responseId,
+            model: 'fast',
+            status: 'complete',
+          });
+        },
+        onError: (error) => {
+          quickPromptAbortControllers.delete(message.responseId);
+          if (hasNoActiveRequests()) {
+            stopKeepAlive();
+          }
+          sendLLMMessageToMeet({
+            type: 'LLM_STATUS',
+            responseId: message.responseId,
+            model: 'fast',
+            status: 'error',
+            error: error.message || 'Quick prompt request failed',
+          });
+        },
+        abortSignal: abortController.signal,
+        onUsage: (usage: TokenUsage) => {
+          handleTokenUsage(usage, models.fastModel, 'fast', message.responseId, fastResolution!.provider.id);
+        },
+      },
+      'fast',
+      message.responseId,
+    )
+      .then(() => {
+        breaker.recordSuccess();
+      })
+      .catch((error) => {
+        breaker.recordFailure();
+        console.error('Quick prompt request error:', error);
+      });
+  } catch (error) {
+    if (!abortController.signal.aborted) {
+      await sendLLMMessageToMeet({
+        type: 'LLM_STATUS',
+        responseId: message.responseId,
+        model: 'fast',
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Quick prompt request failed',
+      });
+    }
+    quickPromptAbortControllers.delete(message.responseId);
+    if (hasNoActiveRequests()) {
+      stopKeepAlive();
+    }
+  }
 }
 
 type MessageResponse =
   | PongMessage
-  | { type: string }
+  | { type: 'OFFSCREEN_READY' }
   | { received: boolean }
   | { success: boolean; error?: string }
-  | {
-      isCapturing: boolean;
-      isTranscribing: boolean;
-      hasActiveLLMRequest: boolean;
-      isCaptureStartInProgress: boolean;
-    }
+  | CaptureStateResponse
   | { error: string }
   | undefined;
 
@@ -508,7 +840,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Messages with _fromBackground marker were sent BY background TO offscreen
   // Background should NOT handle these to prevent race conditions and recursion
   if (message?._fromBackground === true) {
-    console.log('Ignoring _fromBackground message:', message.type);
     // Let offscreen handle and respond
     return false;
   }
@@ -517,13 +848,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Even if _fromBackground check fails, don't process these
   const offscreenOnlyTypes = ['TAB_STREAM_ID', 'START_MIC_CAPTURE', 'STOP_MIC_CAPTURE'];
   if (offscreenOnlyTypes.includes(message?.type) && sender.id === chrome.runtime.id) {
-    console.log('Skipping offscreen-only message in background:', message.type);
     return false;
   }
 
   // Queue guard: if store not ready, queue message for processing after hydration
   if (!storeReady) {
-    console.log('Store not ready, queuing message:', message?.type);
     messageQueue.push({ message, sender, sendResponse });
     return true; // Keep channel open for async response
   }
@@ -537,38 +866,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep channel open for async response
 });
 
-// Register install listener at top level
-chrome.runtime.onInstalled.addListener((details) => {
-  console.log(`Extension ${details.reason}:`, details.previousVersion || 'fresh install');
-});
-
-// Message types that should be logged (important events only)
-const LOGGED_MESSAGE_TYPES = [
-  'START_CAPTURE',
-  'STOP_CAPTURE',
-  'CAPTURE_STARTED',
-  'CAPTURE_STOPPED',
-  'CAPTURE_ERROR',
-  'START_TRANSCRIPTION',
-  'STOP_TRANSCRIPTION',
-  'TRANSCRIPTION_STARTED',
-  'TRANSCRIPTION_STOPPED',
-  'TRANSCRIPTION_ERROR',
-  'LLM_REQUEST',
-  'LLM_CANCEL',
-  'CONNECTION_STATE',
-];
-
 // Async message handler using switch for proper discriminated union narrowing
 async function handleMessage(
   message: ExtensionMessage,
   _sender: chrome.runtime.MessageSender,
 ): Promise<MessageResponse> {
-  // Only log important events to reduce console spam
-  if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
-    console.log('Background:', message.type);
-  }
-
   switch (message.type) {
     case 'PING':
       return {
@@ -582,14 +884,12 @@ async function handleMessage(
       return { type: 'OFFSCREEN_READY' };
 
     case 'OFFSCREEN_READY':
-      console.log('Offscreen document is ready');
       return { received: true };
 
     case 'START_CAPTURE': {
       try {
         // Prevent concurrent START_CAPTURE calls
         if (isCaptureStartInProgress) {
-          console.log('START_CAPTURE already in progress, ignoring duplicate');
           return { success: false, error: 'Capture start already in progress' };
         }
         isCaptureStartInProgress = true;
@@ -597,7 +897,6 @@ async function handleMessage(
         // Always ensure clean state before starting
         // Check if offscreen thinks capture is active (regardless of our flag)
         try {
-          console.log('Ensuring clean state before capture...');
           await chrome.runtime.sendMessage({
             type: 'STOP_CAPTURE',
             _fromBackground: true,
@@ -632,7 +931,6 @@ async function handleMessage(
 
         // Get stream ID for tab capture (requires user gesture context from popup)
         // Do NOT specify consumerTabId - the stream will be used by extension's offscreen document
-        console.log('Requesting stream ID for tab:', activeTab.id);
         const streamId = await new Promise<string>((resolve, reject) => {
           chrome.tabCapture.getMediaStreamId({ targetTabId: activeTab.id }, (id) => {
             if (chrome.runtime.lastError) {
@@ -649,6 +947,7 @@ async function handleMessage(
 
         // Mark capture as starting (will be confirmed by CAPTURE_STARTED)
         isTabCaptureActive = true;
+        currentSessionId = `session-${Date.now()}-${activeTab.id}`;
 
         // IMMEDIATELY send stream ID to offscreen document (stream IDs expire quickly!)
         const response = await chrome.runtime.sendMessage({
@@ -663,7 +962,6 @@ async function handleMessage(
           throw new Error(response?.error || 'Tab capture failed - try refreshing the page');
         }
 
-        console.log('Tab capture started successfully');
         isCaptureStartInProgress = false;
         return { success: true };
       } catch (error) {
@@ -685,13 +983,14 @@ async function handleMessage(
           _fromBackground: true,
         } as StopCaptureMessage & { _fromBackground: true });
         isTabCaptureActive = false;
+        currentSessionId = null;
         // Give Chrome extra time to fully release the stream
         await new Promise((resolve) => setTimeout(resolve, 300));
-        console.log('Tab capture stopped');
         return { success: true };
       } catch (error) {
         // Reset state even on error
         isTabCaptureActive = false;
+        currentSessionId = null;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Stop capture failed:', errorMessage);
         return { success: false, error: errorMessage };
@@ -708,7 +1007,8 @@ async function handleMessage(
       return {
         isCapturing: isTabCaptureActive,
         isTranscribing: isTranscriptionActive,
-        hasActiveLLMRequest: activeAbortControllers.size > 0,
+        hasActiveLLMRequest:
+          activeAbortControllers.size > 0 || quickPromptAbortControllers.size > 0,
         isCaptureStartInProgress: isCaptureStartInProgress,
       };
 
@@ -723,7 +1023,6 @@ async function handleMessage(
           _fromBackground: true,
         } as StartMicCaptureMessage & { _fromBackground: true });
 
-        if (response?.success) console.log('Mic capture started');
         return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown mic capture error';
@@ -740,7 +1039,6 @@ async function handleMessage(
           _fromBackground: true,
         } as StopMicCaptureMessage & { _fromBackground: true });
 
-        if (response?.success) console.log('Mic capture stopped');
         return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -755,7 +1053,6 @@ async function handleMessage(
     case 'CAPTURE_STOPPED':
       // Ignore CAPTURE_STOPPED during START_CAPTURE (it's from cleanup, not real stop)
       if (isCaptureStartInProgress) {
-        console.log('Ignoring CAPTURE_STOPPED during START_CAPTURE (cleanup)');
         return { received: true };
       }
       isTabCaptureActive = false;
@@ -813,7 +1110,6 @@ async function handleMessage(
 
         isTranscriptionActive = true;
         startKeepAlive();
-        console.log('Transcription: Starting...');
         return { success: true };
       } catch (error) {
         isTranscriptionActive = false;
@@ -837,12 +1133,11 @@ async function handleMessage(
         isTranscriptionActive = false;
         await setTranscriptionActive(false);
 
-        // Stop keep-alive only if no active LLM requests
-        if (activeAbortControllers.size === 0) {
+        // Stop keep-alive only if no active LLM or quick prompt requests
+        if (hasNoActiveRequests()) {
           stopKeepAlive();
         }
 
-        console.log('Transcription: Stopped');
         return { success: true };
       } catch (error) {
         isTranscriptionActive = false;
@@ -855,7 +1150,6 @@ async function handleMessage(
     case 'TRANSCRIPTION_STARTED':
       isTranscriptionActive = true;
       circuitBreakerManager.getBreaker('elevenlabs').recordSuccess();
-      console.log('Transcription: Connected');
       return { received: true };
 
     case 'TRANSCRIPTION_STOPPED':
@@ -892,8 +1186,6 @@ async function handleMessage(
       };
       addTranscriptEntry(entry);
 
-      // Log final transcript (speaker + text) for debugging
-      console.log(`[${message.speaker}]:`, message.text);
       return { received: true };
     }
 
@@ -905,27 +1197,28 @@ async function handleMessage(
     case 'LLM_REQUEST': {
       // Cancel ALL existing active requests before starting new one
       if (activeAbortControllers.size > 0) {
-        console.log('LLM: Cancelling', activeAbortControllers.size, 'previous request(s)');
         for (const [, controller] of activeAbortControllers) {
           controller.abort();
         }
         activeAbortControllers.clear();
       }
 
-      // Fire dual parallel LLM requests (non-blocking)
+      // Fire LLM request (reasoning=single-stream, normal=dual-stream, non-blocking)
       handleLLMRequest(
         message.responseId,
         message.question,
         message.recentContext,
         message.fullTranscript,
         message.templateId,
+        message.isReasoningRequest,
+        message.reasoningEffort,
       );
-      console.log('LLM: Starting request');
       return { success: true };
     }
 
     case 'LLM_STREAM':
     case 'LLM_STATUS':
+    case 'LLM_COST':
       return { received: true };
 
     case 'LLM_CANCEL': {
@@ -934,9 +1227,30 @@ async function handleMessage(
       if (abortController) {
         abortController.abort();
         activeAbortControllers.delete(message.responseId);
-        console.log('LLM: Cancelled');
-        // Stop keep-alive if no other active requests
-        if (activeAbortControllers.size === 0) {
+        // Stop keep-alive if no other active requests (including quick prompts)
+        if (hasNoActiveRequests()) {
+          stopKeepAlive();
+        }
+      }
+      return { success: true };
+    }
+
+    // Quick prompt lifecycle messages (concurrent with LLM requests)
+    case 'QUICK_PROMPT_REQUEST': {
+      // Do NOT cancel existing requests -- quick prompts run concurrently
+      const qpAbortController = new AbortController();
+      quickPromptAbortControllers.set(message.responseId, qpAbortController);
+
+      handleQuickPromptRequest(message, qpAbortController);
+      return { success: true };
+    }
+
+    case 'QUICK_PROMPT_CANCEL': {
+      const qpController = quickPromptAbortControllers.get(message.responseId);
+      if (qpController) {
+        qpController.abort();
+        quickPromptAbortControllers.delete(message.responseId);
+        if (hasNoActiveRequests()) {
           stopKeepAlive();
         }
       }
@@ -946,10 +1260,6 @@ async function handleMessage(
     case 'CONNECTION_STATE': {
       // Forward connection state to content scripts for UI display
       await broadcastToMeetTabs(message);
-      // Only log non-connected states
-      if (message.state !== 'connected') {
-        console.log('Connection:', message.service, message.state);
-      }
       return { received: true };
     }
 
@@ -976,7 +1286,6 @@ async function ensureOffscreenDocument(): Promise<void> {
   });
 
   if (existingContexts && existingContexts.length > 0) {
-    console.log('Offscreen document already exists');
     return;
   }
 
@@ -986,7 +1295,6 @@ async function ensureOffscreenDocument(): Promise<void> {
     return;
   }
 
-  console.log('Creating offscreen document...');
   creatingOffscreen = chrome.offscreen.createDocument({
     url: offscreenUrl,
     reasons: [chrome.offscreen.Reason.USER_MEDIA],
@@ -995,10 +1303,9 @@ async function ensureOffscreenDocument(): Promise<void> {
 
   await creatingOffscreen;
   creatingOffscreen = null;
-  console.log('Offscreen document created');
 }
 
 // WXT export
 export default defineBackground(() => {
-  console.log('AI Interview Assistant: Service Worker started');
+  // Service worker initialized
 });

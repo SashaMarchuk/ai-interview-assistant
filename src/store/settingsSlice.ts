@@ -13,6 +13,7 @@ import type {
   ModelType,
   HotkeyAction,
   CaptureMode,
+  ReasoningEffort,
 } from './types';
 
 /**
@@ -34,6 +35,7 @@ const DEFAULT_SETTINGS = {
   },
   captureMode: 'hold' as CaptureMode,
   transcriptionLanguage: '', // Empty = auto-detect
+  reasoningEffort: 'medium' as ReasoningEffort,
 } as const;
 
 /**
@@ -57,6 +59,7 @@ export const createSettingsSlice: StateCreator<StoreState, [], [], SettingsSlice
   hotkeys: { ...DEFAULT_SETTINGS.hotkeys },
   captureMode: DEFAULT_SETTINGS.captureMode,
   transcriptionLanguage: DEFAULT_SETTINGS.transcriptionLanguage,
+  reasoningEffort: DEFAULT_SETTINGS.reasoningEffort,
 
   // Actions
   setApiKey: (provider: ApiKeyProvider, key: string) => {
@@ -101,6 +104,12 @@ export const createSettingsSlice: StateCreator<StoreState, [], [], SettingsSlice
   setTranscriptionLanguage: (language: string) => {
     set(() => ({
       transcriptionLanguage: language,
+    }));
+  },
+
+  setReasoningEffort: (effort: ReasoningEffort) => {
+    set(() => ({
+      reasoningEffort: effort,
     }));
   },
 });

@@ -19,6 +19,7 @@ import type {
 } from '../../src/types/messages';
 import { isMessage } from '../../src/types/messages';
 import { ElevenLabsConnection } from '../../src/services/transcription';
+import { safeSendMessage, isExtensionContextValid } from '../../src/utils/messaging';
 
 /**
  * Broadcast connection state to background for UI display.
@@ -29,16 +30,12 @@ function broadcastConnectionState(
   state: 'connected' | 'disconnected' | 'reconnecting' | 'error',
   error?: string,
 ): void {
-  chrome.runtime
-    .sendMessage({
-      type: 'CONNECTION_STATE',
-      service,
-      state,
-      error,
-    } satisfies ConnectionStateMessage)
-    .catch(() => {
-      // Ignore - background might not be listening yet
-    });
+  safeSendMessage({
+    type: 'CONNECTION_STATE',
+    service,
+    state,
+    error,
+  } satisfies ConnectionStateMessage);
 }
 
 // Module-level state for tab audio capture
@@ -113,7 +110,7 @@ async function startTabCapture(streamId: string): Promise<void> {
 
     // Handle PCM chunks from worklet
     tabWorkletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'TAB_AUDIO_CHUNK',
         chunk: event.data,
         timestamp: Date.now(),
@@ -128,11 +125,10 @@ async function startTabCapture(streamId: string): Promise<void> {
     source.connect(tabWorkletNode);
 
     // Notify that capture has started
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'CAPTURE_STARTED',
     } satisfies CaptureStartedMessage);
 
-    console.log('Tab capture: Started');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Tab capture error:', errorMessage);
@@ -147,7 +143,7 @@ async function startTabCapture(streamId: string): Promise<void> {
     }
 
     // Send error message
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'CAPTURE_ERROR',
       error: userFriendlyError,
     } satisfies CaptureErrorMessage);
@@ -199,14 +195,11 @@ async function stopTabCapture(skipBroadcast = false): Promise<void> {
 
     // Notify that capture has stopped (unless this is cleanup before restart)
     if (!skipBroadcast) {
-      chrome.runtime
-        .sendMessage({
-          type: 'CAPTURE_STOPPED',
-        } satisfies CaptureStoppedMessage)
-        .catch(() => {});
+      safeSendMessage({
+        type: 'CAPTURE_STOPPED',
+      } satisfies CaptureStoppedMessage);
     }
 
-    console.log('Tab capture: Stopped', skipBroadcast ? '(cleanup)' : '');
   } catch (error) {
     console.error('Tab capture cleanup error:', error);
   }
@@ -261,7 +254,7 @@ async function startMicCapture(): Promise<void> {
 
     // Handle PCM chunks from worklet
     micWorkletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'MIC_AUDIO_CHUNK',
         chunk: event.data,
         timestamp: Date.now(),
@@ -275,7 +268,6 @@ async function startMicCapture(): Promise<void> {
     // Connect source to worklet (NOT to destination)
     source.connect(micWorkletNode);
 
-    console.log('Mic capture: Started');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Mic capture error:', errorMessage);
@@ -291,7 +283,7 @@ async function startMicCapture(): Promise<void> {
     }
 
     // Send error message
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'CAPTURE_ERROR',
       error: `Mic: ${userFriendlyError}`,
     } satisfies CaptureErrorMessage);
@@ -340,7 +332,6 @@ async function stopMicCapture(): Promise<void> {
       micAudioContext = null;
     }
 
-    console.log('Mic capture: Stopped');
   } catch (error) {
     console.error('Mic capture cleanup error:', error);
   }
@@ -387,7 +378,7 @@ function createTranscription(
       if (!text.trim()) return;
 
       if (isFinal) {
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           type: 'TRANSCRIPT_FINAL',
           source,
           text,
@@ -396,7 +387,7 @@ function createTranscription(
           speaker,
         } satisfies TranscriptFinalMessage);
       } else {
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           type: 'TRANSCRIPT_PARTIAL',
           source,
           text,
@@ -407,7 +398,7 @@ function createTranscription(
     // onError callback
     (error: string, canRetry: boolean) => {
       console.error(`STT ${speaker} error:`, error);
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'TRANSCRIPTION_ERROR',
         source,
         error,
@@ -418,12 +409,11 @@ function createTranscription(
     // onConnect callback
     () => {
       if (sendStarted) {
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           type: 'TRANSCRIPTION_STARTED',
         } satisfies TranscriptionStartedMessage);
       }
       broadcastConnectionState(connectionService, 'connected');
-      console.log(`STT ${speaker}: Connected`);
     },
   );
 }
@@ -473,21 +463,9 @@ function stopTranscription(): void {
 }
 
 // Message types that should be logged (important events only)
-const LOGGED_MESSAGE_TYPES = [
-  'TAB_STREAM_ID',
-  'STOP_CAPTURE',
-  'START_MIC_CAPTURE',
-  'STOP_MIC_CAPTURE',
-  'START_TRANSCRIPTION',
-  'STOP_TRANSCRIPTION',
-];
-
 // Register message listener
 chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendResponse) => {
-  // Only log important events
-  if (LOGGED_MESSAGE_TYPES.includes(message.type)) {
-    console.log('Offscreen:', message.type);
-  }
+  if (!isExtensionContextValid()) return false;
 
   // Handle messages sent to offscreen document
   if (isMessage<PingMessage>(message, 'PING')) {
@@ -583,7 +561,7 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendRes
   if (isMessage<StopTranscriptionMessage>(message, 'STOP_TRANSCRIPTION')) {
     stopTranscription();
     // Send confirmation back
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'TRANSCRIPTION_STOPPED',
     } satisfies TranscriptionStoppedMessage);
     sendResponse({ success: true });
@@ -598,13 +576,9 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendRes
 
 // Notify background that offscreen is ready
 async function notifyReady(): Promise<void> {
-  try {
-    await chrome.runtime.sendMessage({
-      type: 'OFFSCREEN_READY',
-    } satisfies OffscreenReadyMessage);
-  } catch {
-    // Background might not be ready - that's OK
-  }
+  await safeSendMessage({
+    type: 'OFFSCREEN_READY',
+  } satisfies OffscreenReadyMessage);
 }
 
 /**
@@ -640,5 +614,4 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Initialize
-console.log('Offscreen: Ready');
 notifyReady();

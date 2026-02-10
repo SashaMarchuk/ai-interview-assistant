@@ -69,6 +69,10 @@ export type MessageType =
   | 'LLM_STREAM'
   | 'LLM_STATUS'
   | 'LLM_CANCEL'
+  | 'LLM_COST'
+  // Quick prompt lifecycle (concurrent with LLM requests)
+  | 'QUICK_PROMPT_REQUEST'
+  | 'QUICK_PROMPT_CANCEL'
   // Connection state updates
   | 'CONNECTION_STATE';
 
@@ -228,6 +232,10 @@ export interface LLMRequestMessage extends BaseMessage {
   recentContext: string; // Last N transcript entries formatted
   fullTranscript: string; // Full session transcript formatted
   templateId: string; // Active template ID
+  /** Optional: if true, this is a single-stream reasoning request (not dual fast+full) */
+  isReasoningRequest?: boolean;
+  /** Optional: reasoning effort level for reasoning models */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 // Streaming token updates from background to content script
@@ -250,6 +258,37 @@ export interface LLMStatusMessage extends BaseMessage {
 // Cancel an in-flight LLM request
 export interface LLMCancelMessage extends BaseMessage {
   type: 'LLM_CANCEL';
+  responseId: string;
+}
+
+// Cost data from a completed LLM model request
+export interface LLMCostMessage extends BaseMessage {
+  type: 'LLM_COST';
+  responseId: string;
+  model: LLMModelType;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  costUSD: number;
+}
+
+// Quick prompt request from content script to background (runs concurrently with LLM requests)
+export interface QuickPromptRequestMessage extends BaseMessage {
+  type: 'QUICK_PROMPT_REQUEST';
+  /** Unique ID prefixed with 'qp-' for routing */
+  responseId: string;
+  /** The text the user selected */
+  selectedText: string;
+  /** Prompt template with {{selection}} placeholder */
+  promptTemplate: string;
+  /** Display label for the action (e.g., "Explain") */
+  actionLabel: string;
+}
+
+// Cancel an in-flight quick prompt request
+export interface QuickPromptCancelMessage extends BaseMessage {
+  type: 'QUICK_PROMPT_CANCEL';
   responseId: string;
 }
 
@@ -304,6 +343,9 @@ export type ExtensionMessage =
   | LLMStreamMessage
   | LLMStatusMessage
   | LLMCancelMessage
+  | LLMCostMessage
+  | QuickPromptRequestMessage
+  | QuickPromptCancelMessage
   | ConnectionStateMessage;
 
 export type InternalMessage = ExtensionMessage & { _fromBackground?: true };
