@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 21 of 21 -- Text Selection Quick Prompts
-Plan: 1/3 complete (21-01 done, 21-02 next)
-Status: Phase 21 Plan 01 (data layer) complete. Plan 02 (tooltip UI) next.
-Last activity: 2026-02-10 -- Plan 21-01 executed
+Plan: 2/3 complete (21-01, 21-02 done, 21-03 next)
+Status: Phase 21 Plan 02 (tooltip UI + wiring) complete. Plan 03 (settings UI) next.
+Last activity: 2026-02-10 -- Plan 21-02 executed
 
-Progress: [█████████░] 90% (v2.0)
+Progress: [█████████░] 95% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 48 (30 v1.0 + 7 v1.1 + 11 v2.0)
+- Total plans completed: 49 (30 v1.0 + 7 v1.1 + 12 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -39,6 +39,7 @@ Progress: [█████████░] 90% (v2.0)
 | 20-01 | Transcript Editing Data Layer | 6min | 2 | 3 |
 | 20-02 | Transcript Editing UI | 3min | 2 | 4 |
 | 21-01 | Quick Prompts Data Layer | 6min | 2 | 7 |
+| 21-02 | Selection Tooltip UI & Wiring | ~45min | 2 | 7 |
 
 ## Accumulated Context
 
@@ -97,6 +98,10 @@ Recent decisions affecting current work:
 - [21-01]: Quick prompts always use fast model only with 1024 max tokens for concise responses
 - [21-01]: Max 4 quick prompts enforced silently (addQuickPrompt no-op at capacity)
 - [21-01]: Concurrent abort controller pattern: all keep-alive checks consider both controller maps
+- [21-02]: refs.setReference() for Floating UI v2 virtual element positioning (not setPositionReference which doesn't exist in v2)
+- [21-02]: useMemo derivation pattern to avoid ESLint set-state-in-effect rule violation in useTextSelection
+- [21-02]: qp- prefix on responseId for routing quick prompt messages through shared LLM_STREAM/LLM_STATUS handlers
+- [21-02]: Custom event bridge pattern (quick-prompt-request, quick-prompt-responses-update) between content script and overlay
 
 ### Pending Todos
 
@@ -111,5 +116,5 @@ See .planning/todos/pending/ for captured ideas.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 21-01-PLAN.md (Quick Prompts Data Layer)
-Resume file: Phase 21 Plan 02 (Tooltip UI) is next. Data layer is ready.
+Stopped at: Completed 21-02-PLAN.md (Selection Tooltip UI & Content Script Wiring)
+Resume file: Phase 21 Plan 03 (Settings UI) is next. Tooltip UI and wiring are ready.
