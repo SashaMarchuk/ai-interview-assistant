@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Get something useful on screen fast enough to start speaking confidently during interviews
-**Current focus:** Milestone v2.0 Enhanced Experience -- Phases 18+19+20 integrated, Phase 21 next
+**Current focus:** Milestone v2.0 Enhanced Experience -- Phase 21 (Text Selection) in progress
 
 ## Current Position
 
-Phase: 20 of 21 -- All parallel phases (18, 19, 20) COMPLETE and integrated
-Plan: 6/6 plans across phases 18-20 complete
-Status: Phases 18+19+20 integrated into milestone/v2.0-phase-18-19-20. Phase 21 (Text Selection) is next.
-Last activity: 2026-02-09 -- Integration merge complete
+Phase: 21 of 21 -- Text Selection Quick Prompts
+Plan: 1/3 complete (21-01 done, 21-02 next)
+Status: Phase 21 Plan 01 (data layer) complete. Plan 02 (tooltip UI) next.
+Last activity: 2026-02-10 -- Plan 21-01 executed
 
-Progress: [████████░░] 80% (v2.0)
+Progress: [█████████░] 90% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47 (30 v1.0 + 7 v1.1 + 10 v2.0)
+- Total plans completed: 48 (30 v1.0 + 7 v1.1 + 11 v2.0)
 - v1.0 shipped in 6 days (8 phases, 30 plans)
 - v1.1 shipped in ~1 day (6 phases, 7 plans)
 
@@ -38,6 +38,7 @@ Progress: [████████░░] 80% (v2.0)
 | 19-02 | File Upload UI & Prompt Injection | 7min | 2 | 5 |
 | 20-01 | Transcript Editing Data Layer | 6min | 2 | 3 |
 | 20-02 | Transcript Editing UI | 3min | 2 | 4 |
+| 21-01 | Quick Prompts Data Layer | 6min | 2 | 7 |
 
 ## Accumulated Context
 
@@ -92,6 +93,10 @@ Recent decisions affecting current work:
 - [20-02]: Display pipeline keeps deleted entries visible (greyed) for undo UI; LLM context pipeline (applyEdits) filters them
 - [20-02]: editedIds/deletedIds passed via transcript-update event detail, not separate listeners in overlay
 - [20-02]: Sets for O(1) lookup of editedIds/deletedIds in render loop instead of array .includes()
+- [21-01]: Separate quickPromptAbortControllers map isolates quick prompt lifecycle from regular LLM requests
+- [21-01]: Quick prompts always use fast model only with 1024 max tokens for concise responses
+- [21-01]: Max 4 quick prompts enforced silently (addQuickPrompt no-op at capacity)
+- [21-01]: Concurrent abort controller pattern: all keep-alive checks consider both controller maps
 
 ### Pending Todos
 
@@ -105,6 +110,6 @@ See .planning/todos/pending/ for captured ideas.
 
 ## Session Continuity
 
-Last session: 2026-02-09
-Stopped at: Integration of phases 18+19+20 into milestone/v2.0-phase-18-19-20 complete
-Resume file: All parallel phases integrated. Phase 21 (Text Selection) next.
+Last session: 2026-02-10
+Stopped at: Completed 21-01-PLAN.md (Quick Prompts Data Layer)
+Resume file: Phase 21 Plan 02 (Tooltip UI) is next. Data layer is ready.
