@@ -122,16 +122,6 @@ export function isServerMessage(data: unknown): data is ServerMessage {
 }
 
 /**
- * Type guard for specific ServerMessage types
- */
-export function isServerMessageType<T extends ServerMessage>(
-  data: ServerMessage,
-  type: T['message_type'],
-): data is T {
-  return data.message_type === type;
-}
-
-/**
  * WebSocket connection states
  */
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';

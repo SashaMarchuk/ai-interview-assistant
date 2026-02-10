@@ -28,7 +28,7 @@ function getSpeakerColor(speaker: string): string {
 
 /**
  * Cache for formatted timestamps to avoid creating Date objects repeatedly.
- * Uses a simple LRU-style cache with max 100 entries.
+ * Uses a simple FIFO cache with max 100 entries (evicts oldest inserted key when full).
  */
 const timestampCache = new Map<number, string>();
 const MAX_CACHE_SIZE = 100;

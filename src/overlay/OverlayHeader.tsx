@@ -1,10 +1,11 @@
 import { memo, useCallback } from 'react';
+import type { ReasoningEffort } from '../store/types';
 
 interface OverlayHeaderProps {
   onMinimize: () => void;
   onReasoningRequest: () => void;
-  reasoningEffort: 'low' | 'medium' | 'high';
-  onReasoningEffortChange: (effort: 'low' | 'medium' | 'high') => void;
+  reasoningEffort: ReasoningEffort;
+  onReasoningEffortChange: (effort: ReasoningEffort) => void;
 }
 
 /**
@@ -36,7 +37,7 @@ export const OverlayHeader = memo(function OverlayHeader({
 
   const handleEffortChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
-      onReasoningEffortChange(e.target.value as 'low' | 'medium' | 'high');
+      onReasoningEffortChange(e.target.value as ReasoningEffort);
     },
     [onReasoningEffortChange],
   );

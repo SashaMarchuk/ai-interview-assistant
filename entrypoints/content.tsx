@@ -97,9 +97,28 @@ interface QuickPromptResponseEntry {
   costUSD?: number;
 }
 
+/** Maximum number of quick prompt response entries to retain (FIFO eviction). */
+const MAX_QUICK_PROMPT_RESPONSES = 50;
+
 const quickPromptResponses: QuickPromptResponseEntry[] = [];
 // Map for O(1) lookup of quick prompt responses by responseId
 const quickPromptResponseMap = new Map<string, QuickPromptResponseEntry>();
+
+/**
+ * Evict oldest completed/errored quick prompt responses when over the cap.
+ * Streaming entries are kept to avoid dropping in-flight responses.
+ */
+function evictOldQuickPromptResponses(): void {
+  while (quickPromptResponses.length > MAX_QUICK_PROMPT_RESPONSES) {
+    // Find the oldest non-streaming entry to evict
+    const evictIdx = quickPromptResponses.findIndex(
+      (e) => e.status === 'complete' || e.status === 'error',
+    );
+    if (evictIdx === -1) break; // All entries are streaming, cannot evict
+    const evicted = quickPromptResponses.splice(evictIdx, 1)[0];
+    quickPromptResponseMap.delete(evicted.id);
+  }
+}
 
 // Token batching for streaming performance
 // Accumulates tokens and flushes on animation frame to reduce React re-renders
@@ -430,7 +449,7 @@ async function sendLLMRequestInternal(message: LLMRequestMessage, label: string)
 /**
  * Send standard LLM request triggered by capture hotkey.
  */
-async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Promise<void> {
+async function sendLLMRequest(question: string): Promise<void> {
   const state = useStore.getState();
   if (!state.activeTemplateId) {
     console.warn('AI Interview Assistant: No active template selected');
@@ -501,6 +520,7 @@ async function sendQuickPromptRequest(
   };
   quickPromptResponses.push(qpResponse);
   quickPromptResponseMap.set(responseId, qpResponse);
+  evictOldQuickPromptResponses();
   dispatchQuickPromptUpdate();
 
   const message: QuickPromptRequestMessage = {

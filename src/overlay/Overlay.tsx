@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Rnd } from 'react-rnd';
 import type { DraggableEvent, DraggableData } from 'react-draggable';
 import { useOverlayPosition } from './hooks/useOverlayPosition';
@@ -6,6 +6,7 @@ import { useTextSelection } from './hooks/useTextSelection';
 import { OverlayHeader } from './OverlayHeader';
 import { TranscriptPanel } from './TranscriptPanel';
 import { ResponsePanel, type QuickPromptResponse } from './ResponsePanel';
+import { StatusIndicator } from './StatusIndicator';
 import { SelectionTooltip } from './SelectionTooltip';
 import { CaptureIndicator } from './CaptureIndicator';
 import { HealthIndicator, type HealthIssue } from './HealthIndicator';
@@ -53,63 +54,6 @@ const RESIZE_HANDLE_STYLES = {
 const MINIMIZED_SIZE = { width: MIN_BTN_WIDTH, height: MIN_BTN_HEIGHT };
 
 /**
- * Status indicator component for footer.
- * Memoized to prevent re-renders when other overlay state changes.
- */
-const StatusIndicator = memo(function StatusIndicator({
-  status,
-  isReasoningPending,
-}: {
-  status: LLMResponse['status'] | null;
-  isReasoningPending?: boolean;
-}) {
-  // Show purple reasoning indicator when reasoning mode is active
-  if (isReasoningPending && (status === 'streaming' || status === 'pending')) {
-    return (
-      <span className="flex items-center gap-1">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75"></span>
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-400"></span>
-        </span>
-        Reasoning...
-      </span>
-    );
-  }
-
-  if (status === 'streaming') {
-    return (
-      <span className="flex items-center gap-1">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-400"></span>
-        </span>
-        Streaming...
-      </span>
-    );
-  }
-
-  if (status === 'pending') {
-    return (
-      <span className="flex items-center gap-1">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75"></span>
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400"></span>
-        </span>
-        Processing...
-      </span>
-    );
-  }
-
-  // Default: Ready (complete, error, or no response)
-  return (
-    <span className="flex items-center gap-1">
-      <span className="h-2 w-2 rounded-full bg-green-400"></span>
-      Ready
-    </span>
-  );
-});
-
-/**
  * Main overlay container with drag and resize functionality.
  * Uses react-rnd for interaction and persists position/size to chrome.storage.
  *
@@ -139,11 +83,7 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
 
   // Text selection tooltip state
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const { selection, clearSelection: _clearSelection } = useTextSelection(
-    shadowRoot ?? null,
-    quickPromptsEnabled,
-    tooltipRef,
-  );
+  const { selection } = useTextSelection(shadowRoot ?? null, quickPromptsEnabled, tooltipRef);
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const [errorActionId, setErrorActionId] = useState<string | null>(null);
 

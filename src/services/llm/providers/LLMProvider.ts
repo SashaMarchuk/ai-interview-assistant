@@ -7,12 +7,9 @@
  */
 
 import type { TokenUsage } from '../types';
+import type { ReasoningEffort } from '../../../store/types';
 
-/**
- * Reasoning effort levels for o-series and GPT-5 reasoning models.
- * Controls the depth of reasoning the model performs before answering.
- */
-export type ReasoningEffort = 'low' | 'medium' | 'high';
+export type { ReasoningEffort };
 
 /**
  * Minimum token budget for reasoning models.

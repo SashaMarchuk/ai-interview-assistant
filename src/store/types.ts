@@ -14,8 +14,7 @@ export type CaptureMode = 'hold' | 'toggle';
 
 /**
  * Reasoning effort levels for o-series and GPT-5 reasoning models.
- * Defined independently from LLMProvider to avoid circular dependency
- * between store and services layers. Both define the same 3-value union.
+ * Canonical definition -- re-exported by LLMProvider for service-layer consumers.
  */
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 

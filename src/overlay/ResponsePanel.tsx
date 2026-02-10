@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { LLMResponse } from '../types/transcript';
 import { MemoizedMarkdown } from '../components/markdown/MemoizedMarkdown';
+import { StatusIndicator } from './StatusIndicator';
 
 /**
  * Quick prompt response data from content script.
@@ -21,59 +22,6 @@ interface ResponsePanelProps {
   isReasoningPending?: boolean;
   quickPromptResponses?: QuickPromptResponse[];
 }
-
-/**
- * Status indicator showing current response state.
- * Memoized to prevent re-renders when parent updates but status unchanged.
- */
-const StatusIndicator = memo(function StatusIndicator({
-  status,
-  isReasoningPending,
-}: {
-  status: LLMResponse['status'];
-  isReasoningPending?: boolean;
-}) {
-  // Show purple reasoning indicator when reasoning mode is active
-  if (isReasoningPending && (status === 'pending' || status === 'streaming')) {
-    return (
-      <span className="flex items-center gap-1 text-xs text-purple-300">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-purple-400"></span>
-        Reasoning...
-      </span>
-    );
-  }
-
-  switch (status) {
-    case 'pending':
-      return (
-        <span className="flex items-center gap-1 text-xs text-yellow-300">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-yellow-400"></span>
-          Thinking...
-        </span>
-      );
-    case 'streaming':
-      return (
-        <span className="flex items-center gap-1 text-xs text-blue-300">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400"></span>
-          Streaming...
-        </span>
-      );
-    case 'complete':
-      return (
-        <span className="flex items-center gap-1 text-xs text-green-300">
-          <span className="h-2 w-2 rounded-full bg-green-400"></span>
-          Complete
-        </span>
-      );
-    case 'error':
-      return (
-        <span className="flex items-center gap-1 text-xs text-red-300">
-          <span className="h-2 w-2 rounded-full bg-red-400"></span>
-          Error
-        </span>
-      );
-  }
-});
 
 /**
  * Response panel displaying dual AI responses: fast hint and full answer.
@@ -99,7 +47,7 @@ export const ResponsePanel = memo(function ResponsePanel({
                   : response.totalCostUSD.toFixed(3)}
               </span>
             )}
-            <StatusIndicator status={response.status} isReasoningPending={isReasoningPending} />
+            <StatusIndicator status={response.status} isReasoningPending={isReasoningPending} variant="panel" />
           </div>
         )}
       </div>
