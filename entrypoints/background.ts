@@ -20,6 +20,7 @@ import {
   MIN_REASONING_TOKEN_BUDGET,
   calculateCost,
   type LLMProvider,
+  type ProviderId,
   type ReasoningEffort,
   type TokenUsage,
 } from '../src/services/llm';
@@ -73,9 +74,60 @@ const activeAbortControllers: Map<string, AbortController> = new Map();
 // Track active quick prompt requests separately (not cancelled by regular LLM_REQUEST)
 const quickPromptAbortControllers: Map<string, AbortController> = new Map();
 
+/** Check if there are no active streaming requests (LLM or quick prompt) */
+function hasNoActiveRequests(): boolean {
+  return activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0;
+}
+
 // LLM retry configuration
 const MAX_LLM_RETRIES = 3;
 const LLM_RETRY_DELAY_MS = 1000;
+
+/**
+ * Handle token usage: broadcast cost message and persist to IndexedDB.
+ * Shared by both regular LLM requests and quick prompt requests.
+ */
+function handleTokenUsage(
+  usage: TokenUsage,
+  modelId: string,
+  modelType: 'fast' | 'full',
+  responseId: string,
+  providerId: ProviderId,
+): void {
+  const costUSD = calculateCost(
+    modelId,
+    usage.promptTokens,
+    usage.completionTokens,
+    usage.providerCost,
+  );
+  sendLLMMessageToMeet({
+    type: 'LLM_COST',
+    responseId,
+    model: modelType,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens,
+    costUSD,
+  } satisfies LLMCostMessage);
+
+  const costRecord: CostRecord = {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    sessionId: currentSessionId ?? `adhoc-${Date.now()}`,
+    provider: providerId,
+    modelId,
+    modelSlot: modelType,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens,
+    costUSD,
+  };
+  saveCostRecord(costRecord).catch((err) => {
+    console.error('Failed to persist cost record:', err);
+  });
+}
 
 // Keep service worker alive during streaming
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -435,7 +487,7 @@ async function handleLLMRequest(
     if (fastComplete && fullComplete) {
       activeAbortControllers.delete(responseId);
       // Stop keep-alive only if no other active requests (including quick prompts)
-      if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+      if (hasNoActiveRequests()) {
         stopKeepAlive();
       }
     }
@@ -531,40 +583,7 @@ async function handleLLMRequest(
         abortSignal: abortController.signal,
         reasoningEffort: effort,
         onUsage: (usage: TokenUsage) => {
-          const costUSD = calculateCost(
-            modelId,
-            usage.promptTokens,
-            usage.completionTokens,
-            usage.providerCost,
-          );
-          sendLLMMessageToMeet({
-            type: 'LLM_COST',
-            responseId,
-            model: modelType,
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            reasoningTokens: usage.reasoningTokens,
-            totalTokens: usage.totalTokens,
-            costUSD,
-          } satisfies LLMCostMessage);
-
-          // Persist to IndexedDB for historical dashboard
-          const costRecord: CostRecord = {
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
-            sessionId: currentSessionId ?? `adhoc-${Date.now()}`,
-            provider: resolution!.provider.id,
-            modelId: modelId,
-            modelSlot: modelType,
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            reasoningTokens: usage.reasoningTokens,
-            totalTokens: usage.totalTokens,
-            costUSD,
-          };
-          saveCostRecord(costRecord).catch((err) => {
-            console.error('Failed to persist cost record:', err);
-          });
+          handleTokenUsage(usage, modelId, modelType, responseId, resolution!.provider.id);
         },
       },
       modelType,
@@ -719,7 +738,7 @@ async function handleQuickPromptRequest(
       error: `${fastResolution.provider.id} service temporarily unavailable`,
     });
     quickPromptAbortControllers.delete(message.responseId);
-    if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+    if (hasNoActiveRequests()) {
       stopKeepAlive();
     }
     return;
@@ -745,7 +764,7 @@ async function handleQuickPromptRequest(
         },
         onComplete: () => {
           quickPromptAbortControllers.delete(message.responseId);
-          if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+          if (hasNoActiveRequests()) {
             stopKeepAlive();
           }
           sendLLMMessageToMeet({
@@ -757,7 +776,7 @@ async function handleQuickPromptRequest(
         },
         onError: (error) => {
           quickPromptAbortControllers.delete(message.responseId);
-          if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+          if (hasNoActiveRequests()) {
             stopKeepAlive();
           }
           sendLLMMessageToMeet({
@@ -770,40 +789,7 @@ async function handleQuickPromptRequest(
         },
         abortSignal: abortController.signal,
         onUsage: (usage: TokenUsage) => {
-          const costUSD = calculateCost(
-            models.fastModel,
-            usage.promptTokens,
-            usage.completionTokens,
-            usage.providerCost,
-          );
-          sendLLMMessageToMeet({
-            type: 'LLM_COST',
-            responseId: message.responseId,
-            model: 'fast',
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            reasoningTokens: usage.reasoningTokens,
-            totalTokens: usage.totalTokens,
-            costUSD,
-          } satisfies LLMCostMessage);
-
-          // Persist to IndexedDB for historical dashboard
-          const costRecord: CostRecord = {
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
-            sessionId: currentSessionId ?? `adhoc-${Date.now()}`,
-            provider: fastResolution!.provider.id,
-            modelId: models.fastModel,
-            modelSlot: 'fast',
-            promptTokens: usage.promptTokens,
-            completionTokens: usage.completionTokens,
-            reasoningTokens: usage.reasoningTokens,
-            totalTokens: usage.totalTokens,
-            costUSD,
-          };
-          saveCostRecord(costRecord).catch((err) => {
-            console.error('Failed to persist quick prompt cost record:', err);
-          });
+          handleTokenUsage(usage, models.fastModel, 'fast', message.responseId, fastResolution!.provider.id);
         },
       },
       'fast',
@@ -827,7 +813,7 @@ async function handleQuickPromptRequest(
       });
     }
     quickPromptAbortControllers.delete(message.responseId);
-    if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+    if (hasNoActiveRequests()) {
       stopKeepAlive();
     }
   }
@@ -1197,7 +1183,7 @@ async function handleMessage(
         await setTranscriptionActive(false);
 
         // Stop keep-alive only if no active LLM or quick prompt requests
-        if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+        if (hasNoActiveRequests()) {
           stopKeepAlive();
         }
 
@@ -1302,7 +1288,7 @@ async function handleMessage(
         activeAbortControllers.delete(message.responseId);
         console.log('LLM: Cancelled');
         // Stop keep-alive if no other active requests (including quick prompts)
-        if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+        if (hasNoActiveRequests()) {
           stopKeepAlive();
         }
       }
@@ -1325,7 +1311,7 @@ async function handleMessage(
       if (qpController) {
         qpController.abort();
         quickPromptAbortControllers.delete(message.responseId);
-        if (activeAbortControllers.size === 0 && quickPromptAbortControllers.size === 0) {
+        if (hasNoActiveRequests()) {
           stopKeepAlive();
         }
       }

@@ -76,6 +76,16 @@ let activeResponseId: string | null = null;
 // Session cost tracking (in-memory, resets on page reload)
 let sessionCostUSD = 0;
 
+/** Accumulate cost into session total and dispatch update event for Overlay footer. */
+function addSessionCost(costUSD: number): void {
+  sessionCostUSD += costUSD;
+  window.dispatchEvent(
+    new CustomEvent<SessionCostEventDetail>('session-cost-update', {
+      detail: { sessionCost: sessionCostUSD },
+    }),
+  );
+}
+
 // Quick prompt response entries (concurrent, independent from main LLM response)
 interface QuickPromptResponseEntry {
   id: string; // responseId (prefixed with 'qp-')
@@ -251,17 +261,9 @@ function handleLLMCost(message: LLMCostMessage): void {
   // Calculate total (sum of whichever costs have arrived)
   response.totalCostUSD = (response.fastCostUSD ?? 0) + (response.fullCostUSD ?? 0);
 
-  // Accumulate into session total
-  sessionCostUSD += message.costUSD;
+  addSessionCost(message.costUSD);
 
   dispatchLLMResponseUpdate(response);
-
-  // Dispatch session cost update event for Overlay footer
-  window.dispatchEvent(
-    new CustomEvent<SessionCostEventDetail>('session-cost-update', {
-      detail: { sessionCost: sessionCostUSD },
-    }),
-  );
 }
 
 /**
@@ -354,17 +356,9 @@ function handleQuickPromptCost(message: LLMCostMessage): void {
   if (!entry) return;
   entry.costUSD = (entry.costUSD ?? 0) + message.costUSD;
 
-  // Accumulate into session total
-  sessionCostUSD += message.costUSD;
+  addSessionCost(message.costUSD);
 
   dispatchQuickPromptUpdate();
-
-  // Dispatch session cost update event for Overlay footer
-  window.dispatchEvent(
-    new CustomEvent('session-cost-update', {
-      detail: { sessionCost: sessionCostUSD },
-    }),
-  );
 }
 
 /**
@@ -408,31 +402,12 @@ function getFullTranscript(): string {
 }
 
 /**
- * Send LLM request to background service worker
+ * Send LLM request to background service worker.
+ * Shared by both standard requests and reasoning requests.
  */
-async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Promise<void> {
-  const state = useStore.getState();
-
-  if (!state.activeTemplateId) {
-    console.warn('AI Interview Assistant: No active template selected');
-    return;
-  }
-
-  const responseId = crypto.randomUUID();
-
-  // Clear any existing response and initialize fresh state for new request
-  // This ensures UI shows only the new response, not mixed content
+async function sendLLMRequestInternal(message: LLMRequestMessage, label: string): Promise<void> {
   currentLLMResponse = null;
-  initLLMResponse(responseId);
-
-  const message: LLMRequestMessage = {
-    type: 'LLM_REQUEST',
-    responseId,
-    question,
-    recentContext: getRecentTranscript(),
-    fullTranscript: getFullTranscript(),
-    templateId: state.activeTemplateId,
-  };
+  initLLMResponse(message.responseId);
 
   try {
     const result = await safeSendMessage<BackgroundResponse>(message);
@@ -443,13 +418,36 @@ async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Pr
     const response = result.data;
     if (!response?.success) {
       console.error(
-        'AI Interview Assistant: LLM request failed:',
+        `AI Interview Assistant: ${label} failed:`,
         response?.error || `Unknown - response: ${JSON.stringify(response)}`,
       );
     }
   } catch (error) {
-    console.error('AI Interview Assistant: Failed to send LLM request:', error);
+    console.error(`AI Interview Assistant: Failed to send ${label}:`, error);
   }
+}
+
+/**
+ * Send standard LLM request triggered by capture hotkey.
+ */
+async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Promise<void> {
+  const state = useStore.getState();
+  if (!state.activeTemplateId) {
+    console.warn('AI Interview Assistant: No active template selected');
+    return;
+  }
+
+  await sendLLMRequestInternal(
+    {
+      type: 'LLM_REQUEST',
+      responseId: crypto.randomUUID(),
+      question,
+      recentContext: getRecentTranscript(),
+      fullTranscript: getFullTranscript(),
+      templateId: state.activeTemplateId,
+    },
+    'LLM request',
+  );
 }
 
 /**
@@ -458,46 +456,27 @@ async function sendLLMRequest(question: string, _mode: 'hold' | 'highlight'): Pr
  */
 async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<void> {
   const state = useStore.getState();
-
   if (!state.activeTemplateId) {
     console.warn('AI Interview Assistant: No active template selected');
     return;
   }
 
   const responseId = crypto.randomUUID();
-
-  // Clear any existing response and initialize fresh state for new request
   activeResponseId = responseId;
-  currentLLMResponse = null;
-  initLLMResponse(responseId);
 
-  const message: LLMRequestMessage = {
-    type: 'LLM_REQUEST',
-    responseId,
-    question: getRecentTranscript(), // Use recent transcript as the "question"
-    recentContext: getRecentTranscript(),
-    fullTranscript: getFullTranscript(),
-    templateId: state.activeTemplateId,
-    isReasoningRequest: true,
-    reasoningEffort: effort,
-  };
-
-  try {
-    const result = await safeSendMessage<BackgroundResponse>(message);
-    if (result.contextInvalid) {
-      window.dispatchEvent(new CustomEvent('extension-context-invalidated'));
-      return;
-    }
-    const response = result.data;
-    if (!response?.success) {
-      console.error(
-        'AI Interview Assistant: Reasoning request failed:',
-        response?.error || `Unknown - response: ${JSON.stringify(response)}`,
-      );
-    }
-  } catch (error) {
-    console.error('AI Interview Assistant: Failed to send reasoning request:', error);
-  }
+  await sendLLMRequestInternal(
+    {
+      type: 'LLM_REQUEST',
+      responseId,
+      question: getRecentTranscript(),
+      recentContext: getRecentTranscript(),
+      fullTranscript: getFullTranscript(),
+      templateId: state.activeTemplateId,
+      isReasoningRequest: true,
+      reasoningEffort: effort,
+    },
+    'Reasoning request',
+  );
 }
 
 /**

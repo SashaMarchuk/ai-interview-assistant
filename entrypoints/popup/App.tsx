@@ -29,7 +29,6 @@ const SYNC_INTERVAL_MS = 2000;
 
 /**
  * Get status indicator color class based on capture status.
- * Uses a clear switch statement instead of nested ternaries.
  */
 function getStatusColorClass(status: string): string {
   switch (status) {
@@ -43,6 +42,19 @@ function getStatusColorClass(status: string): string {
     default:
       return 'bg-gray-400';
   }
+}
+
+/**
+ * Get text color class for transcription status messages.
+ */
+function getTranscriptionStatusColor(status: string): string {
+  if (status.startsWith('Failed') || status.startsWith('Error')) {
+    return 'text-red-600';
+  }
+  if (status.includes('API key required')) {
+    return 'text-yellow-600';
+  }
+  return 'text-gray-500';
 }
 
 /**
@@ -577,16 +589,7 @@ function App() {
 
               {/* Status/Error Display */}
               {transcriptionStatus && (
-                <p
-                  className={`mt-2 text-xs ${
-                    transcriptionStatus.startsWith('Failed') ||
-                    transcriptionStatus.startsWith('Error')
-                      ? 'text-red-600'
-                      : transcriptionStatus.includes('API key required')
-                        ? 'text-yellow-600'
-                        : 'text-gray-500'
-                  }`}
-                >
+                <p className={`mt-2 text-xs ${getTranscriptionStatusColor(transcriptionStatus)}`}>
                   {transcriptionStatus}
                 </p>
               )}
