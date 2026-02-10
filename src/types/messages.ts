@@ -70,6 +70,9 @@ export type MessageType =
   | 'LLM_STATUS'
   | 'LLM_CANCEL'
   | 'LLM_COST'
+  // Quick prompt lifecycle (concurrent with LLM requests)
+  | 'QUICK_PROMPT_REQUEST'
+  | 'QUICK_PROMPT_CANCEL'
   // Connection state updates
   | 'CONNECTION_STATE';
 
@@ -270,6 +273,25 @@ export interface LLMCostMessage extends BaseMessage {
   costUSD: number;
 }
 
+// Quick prompt request from content script to background (runs concurrently with LLM requests)
+export interface QuickPromptRequestMessage extends BaseMessage {
+  type: 'QUICK_PROMPT_REQUEST';
+  /** Unique ID prefixed with 'qp-' for routing */
+  responseId: string;
+  /** The text the user selected */
+  selectedText: string;
+  /** Prompt template with {{selection}} placeholder */
+  promptTemplate: string;
+  /** Display label for the action (e.g., "Explain") */
+  actionLabel: string;
+}
+
+// Cancel an in-flight quick prompt request
+export interface QuickPromptCancelMessage extends BaseMessage {
+  type: 'QUICK_PROMPT_CANCEL';
+  responseId: string;
+}
+
 // Connection state updates from offscreen to background to content
 export interface ConnectionStateMessage extends BaseMessage {
   type: 'CONNECTION_STATE';
@@ -322,6 +344,8 @@ export type ExtensionMessage =
   | LLMStatusMessage
   | LLMCancelMessage
   | LLMCostMessage
+  | QuickPromptRequestMessage
+  | QuickPromptCancelMessage
   | ConnectionStateMessage;
 
 export type InternalMessage = ExtensionMessage & { _fromBackground?: true };

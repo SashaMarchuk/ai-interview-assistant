@@ -155,6 +155,46 @@ export interface ConsentSlice {
 }
 
 /**
+ * Quick prompt action configuration for text selection tooltip
+ */
+export interface QuickPromptAction {
+  /** Unique identifier */
+  id: string;
+  /** Display label (e.g., "Explain") */
+  label: string;
+  /** Icon key from predefined set (e.g., 'lightbulb', 'expand') */
+  icon: string;
+  /** Prompt template with {{selection}} placeholder */
+  promptTemplate: string;
+  /** Display ordering (0-based) */
+  order: number;
+}
+
+/**
+ * Quick prompts slice state and actions
+ */
+export interface QuickPromptsSlice {
+  /** Array of configured quick prompt actions */
+  quickPrompts: QuickPromptAction[];
+  /** Whether quick prompts feature is enabled */
+  quickPromptsEnabled: boolean;
+  /** Replace all quick prompts */
+  setQuickPrompts: (prompts: QuickPromptAction[]) => void;
+  /** Enable or disable quick prompts feature */
+  setQuickPromptsEnabled: (enabled: boolean) => void;
+  /** Add a new quick prompt (max 4, generates id and order) */
+  addQuickPrompt: (prompt: Omit<QuickPromptAction, 'id' | 'order'>) => void;
+  /** Update an existing quick prompt by ID */
+  updateQuickPrompt: (id: string, updates: Partial<Omit<QuickPromptAction, 'id'>>) => void;
+  /** Remove a quick prompt by ID and reorder remaining */
+  removeQuickPrompt: (id: string) => void;
+  /** Reorder quick prompts by providing ordered array of IDs */
+  reorderQuickPrompts: (orderedIds: string[]) => void;
+  /** Reset quick prompts to factory defaults */
+  resetQuickPromptsToDefaults: () => void;
+}
+
+/**
  * Combined store state with all slices
  */
-export type StoreState = SettingsSlice & TemplatesSlice & ConsentSlice;
+export type StoreState = SettingsSlice & TemplatesSlice & ConsentSlice & QuickPromptsSlice;

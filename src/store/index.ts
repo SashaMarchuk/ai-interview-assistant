@@ -17,6 +17,7 @@ import { encryptedChromeStorage } from '../services/crypto/encryptedStorage';
 import { createSettingsSlice } from './settingsSlice';
 import { createTemplatesSlice } from './templatesSlice';
 import { createConsentSlice } from './consentSlice';
+import { createQuickPromptsSlice } from './quickPromptsSlice';
 
 /**
  * Combined Zustand store with persistence
@@ -32,6 +33,7 @@ export const useStore = create<StoreState>()(
       ...createSettingsSlice(...a),
       ...createTemplatesSlice(...a),
       ...createConsentSlice(...a),
+      ...createQuickPromptsSlice(...a),
     }),
     {
       name: 'ai-interview-settings',
@@ -50,11 +52,16 @@ export const useStore = create<StoreState>()(
         privacyPolicyAccepted: state.privacyPolicyAccepted,
         privacyPolicyAcceptedAt: state.privacyPolicyAcceptedAt,
         recordingConsentDismissedPermanently: state.recordingConsentDismissedPermanently,
+        quickPrompts: state.quickPrompts,
+        quickPromptsEnabled: state.quickPromptsEnabled,
       }),
-      // Seed default templates after rehydration if none exist
+      // Seed defaults after rehydration if none exist
       onRehydrateStorage: () => (state) => {
         if (state && state.templates.length === 0) {
           state.seedDefaultTemplates();
+        }
+        if (state && state.quickPrompts.length === 0) {
+          state.resetQuickPromptsToDefaults();
         }
       },
     },
@@ -116,6 +123,8 @@ export type {
   SettingsSlice,
   TemplatesSlice,
   ConsentSlice,
+  QuickPromptsSlice,
+  QuickPromptAction,
   TemplateUpdate,
   NewTemplate,
 } from './types';
