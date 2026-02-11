@@ -149,7 +149,14 @@ function dispatchLLMResponseUpdate(response: LLMResponse): void {
  * Initialize a new LLM response with pending status.
  * This also sets the activeResponseId to track which request is current.
  */
-function initLLMResponse(responseId: string): void {
+function initLLMResponse(
+  responseId: string,
+  meta?: {
+    questionSnippet?: string;
+    isReasoning?: boolean;
+    reasoningEffort?: 'low' | 'medium' | 'high';
+  },
+): void {
   // Set this as the active response - all other responses will be ignored
   activeResponseId = responseId;
 
@@ -168,6 +175,9 @@ function initLLMResponse(responseId: string): void {
     fastHint: null,
     fullAnswer: null,
     status: 'pending',
+    questionSnippet: meta?.questionSnippet,
+    isReasoning: meta?.isReasoning,
+    reasoningEffort: meta?.reasoningEffort,
   };
   dispatchLLMResponseUpdate(response);
 }
@@ -424,9 +434,17 @@ function getFullTranscript(): string {
  * Send LLM request to background service worker.
  * Shared by both standard requests and reasoning requests.
  */
-async function sendLLMRequestInternal(message: LLMRequestMessage, label: string): Promise<void> {
+async function sendLLMRequestInternal(
+  message: LLMRequestMessage,
+  label: string,
+  meta?: {
+    questionSnippet?: string;
+    isReasoning?: boolean;
+    reasoningEffort?: 'low' | 'medium' | 'high';
+  },
+): Promise<void> {
   currentLLMResponse = null;
-  initLLMResponse(message.responseId);
+  initLLMResponse(message.responseId, meta);
 
   try {
     const result = await safeSendMessage<BackgroundResponse>(message);
@@ -456,6 +474,7 @@ async function sendLLMRequest(question: string): Promise<void> {
     return;
   }
 
+  const snippet = question.length > 80 ? question.slice(0, 80) + '...' : question;
   await sendLLMRequestInternal(
     {
       type: 'LLM_REQUEST',
@@ -466,6 +485,7 @@ async function sendLLMRequest(question: string): Promise<void> {
       templateId: state.activeTemplateId,
     },
     'LLM request',
+    { questionSnippet: snippet },
   );
 }
 
@@ -483,18 +503,21 @@ async function sendReasoningRequest(effort: 'low' | 'medium' | 'high'): Promise<
   const responseId = crypto.randomUUID();
   activeResponseId = responseId;
 
+  const recentText = getRecentTranscript();
+  const snippet = recentText.length > 80 ? recentText.slice(0, 80) + '...' : recentText;
   await sendLLMRequestInternal(
     {
       type: 'LLM_REQUEST',
       responseId,
-      question: getRecentTranscript(),
-      recentContext: getRecentTranscript(),
+      question: recentText,
+      recentContext: recentText,
       fullTranscript: getFullTranscript(),
       templateId: state.activeTemplateId,
       isReasoningRequest: true,
       reasoningEffort: effort,
     },
     'Reasoning request',
+    { questionSnippet: snippet, isReasoning: true, reasoningEffort: effort },
   );
 }
 

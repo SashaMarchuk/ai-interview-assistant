@@ -1,6 +1,6 @@
 {
   "name": "ai-interview-assistant",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "AI Interview Assistant Chrome Extension",
   "type": "module",
   "scripts": {

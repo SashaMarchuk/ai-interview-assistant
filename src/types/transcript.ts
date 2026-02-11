@@ -49,6 +49,12 @@ export interface LLMResponse {
   fullCostUSD?: number;
   /** Total combined cost in USD (fast + full) */
   totalCostUSD?: number;
+  /** Snippet of the question/transcript that triggered this response (for accordion header) */
+  questionSnippet?: string;
+  /** Whether this was a reasoning request */
+  isReasoning?: boolean;
+  /** Reasoning effort level if isReasoning is true */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 /**

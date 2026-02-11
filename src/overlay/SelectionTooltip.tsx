@@ -40,7 +40,12 @@ export const SelectionTooltip = forwardRef<HTMLDivElement, SelectionTooltipProps
     const [visible, setVisible] = useState(false);
 
     // Floating UI setup with virtual element positioning
+    // strategy: 'fixed' is required because selection rect comes from
+    // getBoundingClientRect() (viewport coordinates) and the tooltip
+    // is a sibling of Rnd (not a descendant), so 'absolute' would
+    // position relative to the wrong containing block.
     const { refs, floatingStyles, placement } = useFloating({
+      strategy: 'fixed',
       placement: 'top',
       middleware: [offset(8), flip(), shift({ padding: 8 })],
     });
@@ -82,7 +87,7 @@ export const SelectionTooltip = forwardRef<HTMLDivElement, SelectionTooltipProps
             ref.current = node;
           }
         }}
-        style={floatingStyles}
+        style={{ ...floatingStyles, zIndex: 10000000 }}
         className={`selection-tooltip-enter ${visible ? 'selection-tooltip-enter-active' : ''}`}
       >
         <div className="flex items-center gap-0.5 rounded-lg border border-white/20 bg-gray-800/95 px-1.5 py-1 shadow-lg">

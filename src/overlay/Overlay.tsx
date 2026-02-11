@@ -95,8 +95,8 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
   const [editedIds, setEditedIds] = useState<string[]>([]);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
 
-  // Real LLM response state - populated by llm-response-update events
-  const [llmResponse, setLLMResponse] = useState<LLMResponse | null>(null);
+  // LLM response history - latest first, populated by llm-response-update events
+  const [responseHistory, setResponseHistory] = useState<LLMResponse[]>([]);
 
   // Capture state for visual indicator
   const [captureState, setCaptureState] = useState<CaptureState | null>(null);
@@ -133,11 +133,23 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
     };
 
     const handleLLMResponseUpdate: TypedCustomEventHandler<LLMResponseEventDetail> = (event) => {
-      setLLMResponse(event.detail.response);
+      const incoming = event.detail.response;
+      // Build history: update existing entry or prepend new one
+      setResponseHistory((prev) => {
+        const idx = prev.findIndex((r) => r.id === incoming.id);
+        if (idx >= 0) {
+          // Update in place
+          const next = [...prev];
+          next[idx] = incoming;
+          return next;
+        }
+        // New response: prepend (latest first)
+        return [incoming, ...prev];
+      });
       // Reset reasoning pending when response completes or errors
       if (
         isReasoningPendingRef.current &&
-        (event.detail.response.status === 'complete' || event.detail.response.status === 'error')
+        (incoming.status === 'complete' || incoming.status === 'error')
       ) {
         setIsReasoningPending(false);
         isReasoningPendingRef.current = false;
@@ -318,8 +330,9 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
     [apiKeys.elevenLabs, apiKeys.openRouter, apiKeys.openAI],
   );
 
-  // Use prop if provided (for testing), otherwise use event-driven state
-  const displayResponse = response ?? llmResponse;
+  // Derive the latest response for footer status indicator
+  const latestResponse = responseHistory[0] ?? null;
+  const displayResponse = response ?? latestResponse;
 
   // Memoize backdrop filter style to prevent object recreation
   const backdropStyle = useMemo(() => ({ backdropFilter: `blur(${blurLevel}px)` }), [blurLevel]);
@@ -442,9 +455,9 @@ export function Overlay({ response, shadowRoot }: OverlayProps) {
           <div className="relative flex flex-1 flex-col gap-2 overflow-hidden p-3">
             <TranscriptPanel entries={transcript} editedIds={editedIds} deletedIds={deletedIds} />
             <ResponsePanel
-              response={displayResponse}
+              responseHistory={response ? [response] : responseHistory}
               isReasoningPending={isReasoningPending}
-              quickPromptResponses={quickPromptResponses}
+              quickPromptResponses={[...quickPromptResponses].reverse()}
             />
 
             {/* Setup prompt overlay when BOTH API keys missing */}

@@ -72,6 +72,7 @@ export function useTextSelection(
 
         // getComposedRanges requires Chrome 137+
         if (!sel.getComposedRanges) {
+          console.warn('[AI Assistant] getComposedRanges not available — Chrome 137+ required for text selection tooltip');
           setRawSelection(null);
           return;
         }
@@ -112,6 +113,7 @@ export function useTextSelection(
             return;
           }
 
+          console.log('[AI Assistant] Text selection detected:', { text: text.substring(0, 50), rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height } });
           setRawSelection({ text, rect });
         } catch {
           // Range conversion can fail if nodes were removed
