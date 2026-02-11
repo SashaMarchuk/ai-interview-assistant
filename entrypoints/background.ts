@@ -336,6 +336,16 @@ async function streamWithRetry(
   retryCount = 0,
 ): Promise<void> {
   try {
+    // Log the full prompt being sent to the LLM for debugging
+    console.log(`[AI Assistant] LLM Request (${modelType}):`, {
+      provider: params.provider.id,
+      model: params.model,
+      maxTokens: params.maxTokens,
+      reasoningEffort: params.reasoningEffort,
+      systemPrompt: params.systemPrompt,
+      userPrompt: params.userPrompt,
+    });
+
     await params.provider.streamResponse({
       model: params.model,
       systemPrompt: params.systemPrompt,
