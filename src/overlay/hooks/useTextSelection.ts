@@ -60,31 +60,50 @@ export function useTextSelection(
 
       debounceTimer = setTimeout(() => {
         const sel = document.getSelection();
-        if (!sel || sel.isCollapsed) {
+        if (!sel) {
           setRawSelection(null);
           return;
         }
 
-        // Use getComposedRanges for Shadow DOM support (Chrome 137+)
+        // NOTE: Do NOT check sel.isCollapsed here — document.getSelection()
+        // rescopes Shadow DOM selections to the host boundary, so isCollapsed
+        // returns true even when text IS selected inside the shadow root.
+        // Instead, use getComposedRanges() which sees inside the shadow root.
+
+        // getComposedRanges requires Chrome 137+
+        if (!sel.getComposedRanges) {
+          setRawSelection(null);
+          return;
+        }
+
         const ranges = sel.getComposedRanges({ shadowRoots: [shadowRoot] });
         if (ranges.length === 0) {
           setRawSelection(null);
           return;
         }
 
-        const text = sel.toString().trim();
-        if (!text) {
+        const staticRange = ranges[0];
+        // Check if the composed range is collapsed (no actual selection)
+        if (
+          staticRange.startContainer === staticRange.endContainer &&
+          staticRange.startOffset === staticRange.endOffset
+        ) {
           setRawSelection(null);
           return;
         }
 
-        // Convert StaticRange to live Range for getBoundingClientRect()
-        // StaticRange doesn't have geometry methods
-        const staticRange = ranges[0];
+        // Extract text from the composed range
         try {
           const liveRange = document.createRange();
           liveRange.setStart(staticRange.startContainer, staticRange.startOffset);
           liveRange.setEnd(staticRange.endContainer, staticRange.endOffset);
+
+          const text = liveRange.toString().trim();
+          if (!text) {
+            setRawSelection(null);
+            return;
+          }
+
           const rect = liveRange.getBoundingClientRect();
 
           // Validate rect has dimensions (not collapsed)
